@@ -27,11 +27,15 @@ function toggleTheme(){
 /* ------------------------------ Toast ------------------------------ */
 function toast(msg, type){
   const host = $('#toastHost');
+  /* 最多同时保留 3 条：提示堆叠过高会向下蔓延到「掷骰子 / 结束回合」所在的操作区，
+     而那排按钮必须始终可点。column-reverse 下 firstChild 是最旧的一条。 */
+  while(host.children.length >= 3) host.removeChild(host.firstChild);
   const d = document.createElement('div');
   d.className = 'toast' + (type? ' toast--'+type : '');
   d.innerHTML = msg;
   host.appendChild(d);
-  setTimeout(()=>{ d.style.transition='opacity .3s,transform .3s'; d.style.opacity='0'; d.style.transform='translateY(8px)';
+  /* 退场向上收回：与顶部锚定的入场方向保持一致，视觉上是「从顶栏下来又退回顶栏」 */
+  setTimeout(()=>{ d.style.transition='opacity .3s,transform .3s'; d.style.opacity='0'; d.style.transform='translateY(-8px)';
     setTimeout(()=>d.remove(), 320); }, type==='err'?3600:2400);
 }
 

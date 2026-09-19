@@ -313,10 +313,14 @@ button{cursor:pointer;}
 .kv__k{color:var(--on-surface-var);}
 .kv__v{font-weight:600;font-variant-numeric:tabular-nums;text-align:right;}
 
-/* ---------------- Toast（HUD 胶囊） ---------------- */
+/* ---------------- Toast（HUD 胶囊） ----------------
+   锚定在顶栏正下方，而不是屏幕底部 —— 底部是「掷骰子 / 结束回合」的主操作区，
+   提示压在上面会挡住玩家唯一该点的按钮。
+   column-reverse 让最新的提示贴近顶栏、旧的向下推，符合自顶向下的阅读顺序。 */
 .toast-host{
-  position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:80;
-  display:flex;flex-direction:column;gap:10px;align-items:center;pointer-events:none;width:min(92vw,440px);
+  position:fixed;left:50%;top:calc(56px + 12px);transform:translateX(-50%);z-index:80;
+  display:flex;flex-direction:column-reverse;gap:10px;align-items:center;
+  pointer-events:none;width:min(92vw,440px);
 }
 .toast{
   width:100%;padding:13px 20px;border-radius:var(--r-m);background:var(--hud);color:#fff;
@@ -326,7 +330,7 @@ button{cursor:pointer;}
 }
 .toast--ok{color:#6ee787;}
 .toast--err{color:#ff8a85;}
-@keyframes toastIn{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes toastIn{from{opacity:0;transform:translateY(-14px) scale(.96)}to{opacity:1;transform:none}}
 
 /* ---------------- 抽屉（侧边栏） ---------------- */
 .drawer{
