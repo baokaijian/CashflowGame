@@ -28,9 +28,341 @@ function drawCard(deck, onReshuffle){
 }
 function deckLeft(deck){ return deck.draw.length; }
 
+/* ------------------------------ 贷款计划 ------------------------------ */
+/* 统一口径：六类负债都是「等额本息」，每笔贷款都有明确的
+   剩余本金 / 合同月供 / 月利率 / 剩余期数 / 剩余利息，且全部支持提前还款。
+   ★ 期数不写死，而是由 (剩余本金, 月利率, 合同月供) 反推 ——
+     这样职业卡上的月供与现有现金流一分不变，只是把原本缺失的
+     「还了多少期、还剩几期、还剩多少利息」补齐。
+   ★ liabs.* 仍然只存【剩余本金】这一个数字：净资产、破产清算、存档格式零改动。 */
+const LOAN_KEYS = ['home','school','car','credit','other','bank'];
+const numOr = v => (typeof v === 'number' && isFinite(v)) ? v : 0;
+const numOrDef = (v, d) => (typeof v === 'number' && isFinite(v)) ? v : d;
+function loanType(key){
+  const t = (window.LOAN_TYPES || {})[key];
+  return t || { nm:key, rate:0.004, prepayRate:0, minPeriod:0, kind:'annuity', note:'' };
+}
+/* 等额本息：由 (本金, 月利率, 期数) 求月供 */
+function dueOf(balance, rate, n){
+  const b = numOr(balance);
+  if(b <= 0) return 0;
+  if(rate <= 0) return Math.ceil(b / Math.max(1, n));
+  if(!n || n <= 0) return Math.ceil(b * (1 + rate));
+  const f = Math.pow(1 + rate, n);
+  return Math.ceil(b * rate * f / (f - 1));
+}
+/* 等额本息：由 (本金, 月利率, 月供) 反推剩余期数；月供不足以覆盖利息时返回 Infinity */
+function periodsOf(balance, rate, due){
+  const b = numOr(balance), d = numOr(due);
+  if(b <= 0) return 0;
+  if(d <= 0) return Infinity;
+  if(rate <= 0) return Math.ceil(b / d);
+  const cover = b * rate;
+  if(d <= cover) return Infinity;
+  return Math.ceil(-Math.log(1 - cover / d) / Math.log(1 + rate));
+}
+/* 职业卡上的月供（旧存档没有贷款计划时回落用） */
+function cardDue(p, key){
+  const job = p.job || {};
+  if(key === 'home')   return numOr(job.home);
+  if(key === 'school') return numOr(job.school);
+  if(key === 'car')    return numOr(job.car) || Math.round(numOr(p.liabs && p.liabs.car) * 0.025);
+  if(key === 'credit') return numOr(job.credit);
+  return 0;
+}
+/* 建立 / 补齐贷款计划。旧存档（没有 p.loans）在首次访问时自动补出来 */
+function ensureLoans(p){
+  if(!p) return p;
+  if(!p.liabs) p.liabs = { home:0, school:0, car:0, credit:0, bank:0, other:0, extraPay:0 };
+  if(!p.loans || typeof p.loans !== 'object') p.loans = {};
+  /* 旧存档兼容：早期组合卡把负债写在 extra 上；它的月供记在 extraPay 里，建计划时并进去 */
+  const legacy = numOr(p.liabs.extra) > 0;
+  if(legacy){
+    p.liabs.other = numOr(p.liabs.other) + numOr(p.liabs.extra);
+    p.liabs.extra = 0;
+  }
+  const extra = p._pfExtra || null;          /* 202 组合卡附带的月供，并入对应贷款 */
+  LOAN_KEYS.forEach(key=>{
+    const bal = numOr(p.liabs[key]);
+    let m = p.loans[key];
+    const fresh = !m || typeof m !== 'object';
+    if(fresh) m = p.loans[key] = { base:bal, due:cardDue(p, key), periods:0 };
+    if(typeof m.base !== 'number')    m.base = bal;
+    if(typeof m.due !== 'number')     m.due = cardDue(p, key);
+    if(typeof m.periods !== 'number') m.periods = 0;
+    if(bal > m.base) m.base = bal;                    /* 中途又借了 → 原本金跟进 */
+    if(extra && extra[key]) m.due += numOr(extra[key]);
+    if(fresh && legacy && key === 'other' && numOr(p.liabs.extraPay) > 0){
+      m.due = numOr(p.liabs.extraPay);                /* 旧档把这笔月供记在 extraPay 上，迁移过来 */
+      p.liabs.extraPay = 0;
+    }
+  });
+  if(extra) delete p._pfExtra;
+  return p;
+}
+/* 当前月供：信用贷按余额计息，其余用合同月供 */
+function loanDue(p, key){
+  ensureLoans(p);
+  const bal = numOr(p.liabs[key]);
+  if(bal <= 0) return 0;
+  const t = loanType(key);
+  if(t.kind === 'revolving') return Math.round(bal * t.rate);
+  const m = p.loans[key];
+  return numOr(m && m.due) || cardDue(p, key) || Math.round(bal * t.rate);
+}
+/* 单笔贷款的全貌：贷款管家面板与复盘报告都用它 */
+function loanInfo(p, key){
+  ensureLoans(p);
+  const t = loanType(key), bal = numOr(p.liabs[key]);
+  const m = p.loans[key] || { base:bal, due:0, periods:0 };
+  const due = loanDue(p, key);
+  const revolving = t.kind === 'revolving';
+  const remaining = (bal <= 0) ? 0 : (revolving ? null : periodsOf(bal, t.rate, due));
+  const interestLeft = (remaining === null || !isFinite(remaining)) ? null : Math.max(0, due * remaining - bal);
+  return {
+    key, nm:t.nm, note:t.note, kind:t.kind,
+    rate:t.rate, rateAnnual:t.rate * 12, prepayRate:t.prepayRate, minPeriod:t.minPeriod,
+    balance:bal, due, base:numOr(m.base), periods:numOr(m.periods),
+    remaining, interestLeft, revolving,
+    canPrepay: bal > 0 && numOr(m.periods) >= t.minPeriod
+  };
+}
+/* 推进一期还款：利息 = 剩余本金 × 月利率，月供的其余部分冲减本金。
+   在「经过发薪日」时调用 —— 与月现金流（其中已含月供）同步结算，账实一致。 */
+function amortize(g, p){
+  if(!p || p.out) return;
+  ensureLoans(p);
+  LOAN_KEYS.forEach(key=>{
+    const t = loanType(key);
+    if(t.kind === 'revolving') return;               /* 信用贷按余额计息，不做本金摊还 */
+    const bal = numOr(p.liabs[key]);
+    if(bal <= 0) return;
+    const due = loanDue(p, key);
+    const pay = Math.min(bal, Math.max(0, due - bal * t.rate));
+    /* 取整：利息是小数，但「剩余本金」必须保持整数，否则净资产 / 存档会出现一长串小数 */
+    p.liabs[key] = Math.round(bal - pay);
+    p.loans[key].periods += 1;
+    if(p.liabs[key] <= 1){
+      p.liabs[key] = 0;
+      log(g, `${p.name} 的${t.nm}已还清（共 ${p.loans[key].periods} 期）`, 'good', p.name);
+    }
+  });
+}
+/* 提前还款「预演」：只计算不落账。
+   ★ 界面上的预览与真正扣款共用这一个函数，杜绝「算一套、扣另一套」的偏差。
+   amount = 本次还本额；mode = 'shorten'（月供不变·缩短期限，默认）| 'reduce'（期限不变·减少月供）
+   应还现金 = 还本额 + 违约金；违约金 = 还本额 × 该类贷款的 prepayRate（房贷/助学/信用贷/其他为 0） */
+function prepayPlan(p, key, amount, mode){
+  ensureLoans(p);
+  const t = loanType(key), info = loanInfo(p, key);
+  const plan = { ok:false, msg:'', key, nm:t.nm, t, info, mode:'shorten' };
+  if(info.balance <= 0){ plan.msg = `${t.nm}已经结清，无需还款。`; return plan; }
+  if(!info.canPrepay){ plan.msg = `${t.nm}需还满 ${t.minPeriod} 期后才能提前还款（目前已还 ${info.periods} 期）。`; return plan; }
+  let amt = Math.round(numOr(amount));
+  if(amt <= 0){ plan.msg = '提前还款金额需大于 0。'; return plan; }
+  amt = Math.min(amt, info.balance);
+  const cleared = amt >= info.balance;
+  if(!cleared && !info.revolving && info.due > 0 && amt < info.due){
+    plan.msg = `部分提前还款不得低于 1 期月供（${money(info.due)}）；想一次还清请直接选「结清全部」。`;
+    return plan;
+  }
+  const fee = Math.round(amt * t.prepayRate);
+  const need = amt + fee;
+  if(p.cash < need){
+    plan.msg = `现金不足：本次需支付 ${money(need)}（还本 ${money(amt)}${fee ? ` + 违约金 ${money(fee)}` : ''}）。`;
+    return plan;
+  }
+  const newBal = info.balance - amt;
+  let newDue = info.due, newRem = info.remaining;
+  if(cleared){ newDue = 0; newRem = 0; }
+  else if(info.revolving){ newDue = Math.round(newBal * t.rate); newRem = null; }
+  else if(mode === 'reduce'){
+    /* 期限不变·减少月供：按「原剩余期数」重算月供 */
+    const n = (isFinite(info.remaining) && info.remaining > 0) ? info.remaining : periodsOf(info.balance, t.rate, info.due);
+    newDue = dueOf(newBal, t.rate, n);
+  } else {
+    /* 月供不变·缩短期限 */
+    newRem = periodsOf(newBal, t.rate, info.due);
+  }
+  const newInt = (newRem === null || !isFinite(newRem)) ? null : Math.max(0, newDue * newRem - newBal);
+  return Object.assign(plan, {
+    ok:true, amt, fee, need, cleared,
+    mode: cleared ? 'settle' : (mode === 'reduce' ? 'reduce' : 'shorten'),
+    before:{ due:info.due, remaining:info.remaining, interestLeft:info.interestLeft, balance:info.balance },
+    after:{ due:newDue, remaining:newRem, interestLeft:newInt, balance:newBal },
+    savedInterest:(info.interestLeft != null && newInt != null) ? Math.max(0, info.interestLeft - newInt) : null
+  });
+}
+/* 提前还款：预演通过后落账 —— 扣现金、减本金、按所选方式更新还款计划 */
+function prepay(g, p, key, amount, mode){
+  const plan = prepayPlan(p, key, amount, mode);
+  if(!plan.ok) return plan;
+  const t = plan.t;
+  p.cash -= plan.need;
+  p.liabs[key] = Math.max(0, plan.after.balance);
+  if(plan.after.balance > 0 && !plan.info.revolving && plan.mode === 'reduce'){
+    p.loans[key].due = plan.after.due;
+  }
+  const cleared = plan.after.balance <= 0;
+  log(g, `${p.name} 提前偿还${t.nm} ${money(plan.amt)}${plan.fee ? `（违约金 ${money(plan.fee)}）` : ''}${cleared ? '，该笔贷款已结清' : `，剩余本金 ${money(plan.after.balance)}`}`, cleared ? 'good' : 'info', p.name);
+  milestone(g, p, `第 ${g.round} 轮提前偿还${t.nm} ${money(plan.amt)}${plan.fee ? `（违约金 ${money(plan.fee)}）` : ''}${cleared ? '，贷款结清' : `，剩余 ${money(plan.after.balance)}`}`, 'info');
+  return { ok:true, paid:plan.need, fee:plan.fee, principal:plan.amt, cleared, mode:plan.mode,
+    before:plan.before, after:plan.after, savedInterest:plan.savedInterest };
+}
+
+/* ------------------------------ 人生阶段与精力 ------------------------------ */
+/* 借鉴「财富流沙盘」的三层人生结构与精力机制，并结合中国现实标定。
+   设计前提：下面这些量【全部推导自年龄】，而不是散落在各处手写常数 ——
+   于是「年龄推进 → 收入与支出结构随之变化」成为一条可验证的因果链。 */
+function curveAt(curve, age, key){
+  for(let i=0;i<curve.length;i++) if(age <= curve[i].age) return curve[i][key];
+  return curve[curve.length-1][key];
+}
+function salaryStageOf(g){
+  const age = ageOf(g), C = window.SALARY_CURVE;
+  for(let i=0;i<C.length;i++) if(age <= C[i].to) return C[i];
+  return C[C.length-1];
+}
+function lifeStageOf(g){
+  const age = ageOf(g), L = window.LIFE_STAGES;
+  for(let i=0;i<L.length;i++) if(age <= L[i].to) return L[i];
+  return L[L.length-1];
+}
+/* 精力上限：随年龄衰减（40 岁后体力与恢复力明显下降） */
+function energyMax(g, p){ return curveAt(window.ENERGY.maxCurve, ageOf(g), 'max'); }
+/* 每回合自然恢复；健康危机期间打对折 —— 身体处在恢复期，休息效率本身就低 */
+function energyRecover(g, p){
+  let v = curveAt(window.ENERGY.recoverCurve, ageOf(g), 'v');
+  if(numOr(p.crisisTurns) > 0) v = Math.round(v / 2);
+  return v;
+}
+/* 每回合「持有」维护精力：金融资产几乎不需要打理，房产 / 企业 / 持仓期权才持续占用时间。
+   这正是「长期持有指数基金」与「自己开店」在真实世界里最本质的差别之一。 */
+function energyUpkeep(p){
+  const U = window.ENERGY.upkeep;
+  let v = 0;
+  v += (p.assets.realEstate||[]).length * U.realEstate;
+  v += (p.assets.business||[]).length   * U.business;
+  v += (p.assets.ftBusiness||[]).length * U.ftBusiness;
+  v += (p.options||[]).length           * U.option;
+  v += (p.shorts||[]).length            * U.short;
+  return v;
+}
+function isJobless(p){ return numOr(p.joblessNeed) > 0 && numOr(p.joblessProgress) < numOr(p.joblessNeed); }
+/* 按年龄与就业状态重算：工资、个税、生活支出系数、赡养支出、精力上限。
+   ★ 之所以把结果【写回玩家字段】而不是改 finance 的签名，是为了让 finance(p) 保持原样 ——
+     否则几十处调用点都要改成 finance(g,p)，风险远大于收益。 */
+function refreshLife(g, p){
+  if(!p || !g) return p;
+  const sc = salaryStageOf(g), ls = lifeStageOf(g);
+  if(typeof p.baseSalary !== 'number') p.baseSalary = numOrDef(p.job && p.job.salary, 0);
+  p.salaryMult  = sc.mult;
+  p.salaryPhase = sc.phase;
+  p.lifeStage   = ls.nm;
+  p.lifeCoef    = ls.coef;
+  p.elderRatio  = ls.elderRatio || 0;
+  /* 失业期间主动收入归零；低精力则绩效打折（现实里状态差会直接影响产出与奖金） */
+  let salary = p.baseSalary * sc.mult;
+  if(isJobless(p)) salary = 0;
+  else if(numOr(p.energy) < window.ENERGY.lowAt) salary = salary * window.ENERGY.lowSalaryMult;
+  p.salary   = Math.round(salary);
+  /* 赡养支出 = 实发工资 × 阶段比例。用【实发工资】而不是基础工资，
+     这样失业（工资归零）时赡养负担也随之暂停 —— 现实中失去收入后，
+     赡养通常由其他兄弟姐妹分担或降到最低限度，不会照旧全额支出。 */
+  p.elderCare = Math.round(p.salary * p.elderRatio);
+  p.taxesCur  = Math.round(numOrDef(p.job && p.job.taxes, 0) * sc.mult);
+  return p;
+}
+function refreshAllLife(g){ g.players.forEach(p=>refreshLife(g, p)); }
+function refreshAllEnergy(g){ g.players.forEach(p=>{ p.energy = Math.min(numOr(p.energy), energyMax(g, p)); }); }
+/* 一次性精力投入：不足时拒绝，而不是把精力扣成负数 */
+function spendEnergy(p, n){
+  const need = Math.max(0, Math.round(n || 0));
+  const cur  = numOr(p.energy);
+  if(cur < need) return { ok:false, need, lack:need - cur };
+  p.energy = cur - need;
+  bump(p, 'energySpent', need);
+  return { ok:true, need, lack:0 };
+}
+/* 回合结束时的精力结算：自然恢复 − 持有维护。归零即触发健康危机。 */
+function tickEnergy(g, p){
+  if(!p || p.out) return null;
+  p.energy = Math.min(energyMax(g, p), numOr(p.energy) + energyRecover(g, p) - energyUpkeep(p));
+  if(numOr(p.crisisTurns) > 0){
+    p.crisisTurns--;
+    if(p.crisisTurns <= 0){
+      p.medicalExp = 0;
+      log(g, `${p.name} 身体康复，医疗支出恢复正常`, 'good', p.name);
+    }
+  }
+  if(p.energy <= 0) return healthCrisis(g, p);
+  return null;
+}
+/* 健康危机：强制休养 + 持续医疗支出 + 精力只恢复一半。
+   现实依据：长期过劳的代价不是「扣一笔罚款」，而是此后很长一段时间状态与现金流都被拖住。 */
+function healthCrisis(g, p){
+  const EN = window.ENERGY, f = finance(p);
+  p.crisisTurns = EN.crisisTurns;                              /* 康复期：期间持续支付医疗支出 */
+  p.medicalExp  = Math.round(f.totalExpenses * EN.crisisMedicalMult);  /* 每月医疗支出 ≈ 半个月开销 */
+  p.skipTurns   = Math.max(numOr(p.skipTurns), EN.crisisRestTurns);
+  p.energy      = Math.round(energyMax(g, p) * EN.crisisRecoverRatio);
+  bump(p, 'crises');
+  milestone(g, p, `第 ${g.round} 轮精力耗尽引发健康危机：强制休养 ${EN.crisisRestTurns} 个回合，此后每月新增医疗支出 ${money(p.medicalExp)}`, 'bad');
+  log(g, `${p.name} 精力耗尽、健康亮红灯：强制休养 ${EN.crisisRestTurns} 个回合，每月新增医疗支出 ${money(p.medicalExp)}`, 'bad', p.name);
+  return { type:'health', by:p.id, name:p.name, medical:p.medicalExp, rest:EN.crisisRestTurns, energy:Math.round(p.energy) };
+}
+/* 失业：不再是「付一笔钱就结束」，而是进入求职期 —— 工资归零、支出照付。
+   求职所需回合数随年龄上升（40 岁 / 50 岁两道门槛），
+   这正是现实中「年龄越大越难再就业」的建模。 */
+function startJobless(g, p, severance){
+  const U = window.UNEMPLOYMENT, age = ageOf(g);
+  const need = U.effortBase + (age > 40 ? U.over40Extra : 0) + (age > 50 ? U.over50Extra : 0);
+  p.joblessProgress = 0;
+  p.joblessNeed = need;
+  if(severance) p.cash += severance;
+  refreshLife(g, p);
+  bump(p, 'downsized');
+  milestone(g, p, `第 ${g.round} 轮被裁员失业，进入求职期（预计 ${need} 个回合），期间工资归零`, 'bad');
+  log(g, `${p.name} 被裁员失业：工资归零，需要投入时间求职（预计 ${need} 个回合）${severance ? `，领取离职补偿 ${money(severance)}` : ''}`, 'bad', p.name);
+  return { ok:true, need, severance:severance||0 };
+}
+/* 求职：消耗精力推进进度。精力不足时只能先休息，求职期相应拉长 ——
+   越疲惫越难找到工作，这在现实中完全成立。 */
+function jobHunt(g, p){
+  if(!isJobless(p)) return { ok:false, msg:'当前有工作，无需求职。' };
+  const U = window.UNEMPLOYMENT;
+  const r = spendEnergy(p, U.huntEnergy);
+  if(!r.ok) return { ok:false, msg:`精力不足：求职需要 ${U.huntEnergy} 点精力（当前 ${Math.round(numOr(p.energy))}）。先休息一回合更实际。` };
+  p.joblessProgress = numOr(p.joblessProgress) + 1;
+  const done = p.joblessProgress >= numOr(p.joblessNeed);
+  if(done){
+    p.joblessProgress = 0; p.joblessNeed = 0;
+    refreshLife(g, p);
+    bump(p, 'rehired');
+    milestone(g, p, `第 ${g.round} 轮重新就业，工资恢复为 ${money(p.salary)}`, 'good');
+    log(g, `${p.name} 重新就业成功，工资恢复为 ${money(p.salary)}`, 'good', p.name);
+  } else {
+    log(g, `${p.name} 投递简历、参加面试（求职进度 ${p.joblessProgress}/${p.joblessNeed}）`, 'info', p.name);
+  }
+  return { ok:true, done, progress:p.joblessProgress, need:p.joblessNeed, energy:U.huntEnergy, salary:p.salary };
+}
+/* 公益捐赠税前扣除的节税额估算（法规依据见 data-careers.js 的 DONATION 注释） */
+function donationRefund(p, amount){
+  const D = window.DONATION, f = finance(p);
+  const taxable = Math.max(0, Math.round(f.inc.salary * D.taxableRatio));
+  const deductible = Math.min(numOr(amount), Math.round(taxable * D.limit));
+  return Math.round(deductible * D.marginalRate);
+}
+/* 银翅膀：做慈善获得的一次「掷 3 粒骰子」机会 */
+function useWing(p){
+  if(numOr(p.wings) > 0){ p.wings--; return true; }
+  return false;
+}
+
 /* ------------------------------ 财务计算 ------------------------------ */
 /* 收入支出表 + 资产负债表（实时推导，任何操作后立即生效） */
 function finance(p){
+  ensureLoans(p);
   const inc = {
     salary:      p.salary || 0,
     interest:    (p.assets.savings||[]).reduce((s,x)=>s+x.interest,0),
@@ -39,23 +371,30 @@ function finance(p){
     business:    (p.assets.business||[]).reduce((s,x)=>s+x.cf,0),
     ftBusiness:  (p.assets.ftBusiness||[]).reduce((s,x)=>s+x.cf,0)
   };
-  const bankLoanPay = Math.round((p.liabs.bank||0) * BANK.loanRate);
+  /* 生活性支出随人生阶段浮动（35—55 岁是「三明治一代」的支出高峰）；
+     赡养父母与医疗支出为阶段性的新增科目 */
+  const lifeCoef = numOrDef(p.lifeCoef, 1);
   const exp = {
-    taxes:  p.job.taxes,
-    home:   p.liabs.home ? p.job.home : 0,
-    school: p.liabs.school ? p.job.school : 0,
-    car:    p.liabs.car ? (p.job.car || Math.round(p.liabs.car*0.025)) : 0,
-    credit: p.liabs.credit ? p.job.credit : 0,
-    retail: p.job.retail,
-    other:  p.job.other,
+    taxes:  numOrDef(p.taxesCur, numOrDef(p.job.taxes, 0)),
+    home:   numOr(p.liabs.home)   > 0 ? loanDue(p, 'home')   : 0,
+    school: numOr(p.liabs.school) > 0 ? loanDue(p, 'school') : 0,
+    car:    numOr(p.liabs.car)    > 0 ? loanDue(p, 'car')    : 0,
+    credit: numOr(p.liabs.credit) > 0 ? loanDue(p, 'credit') : 0,
+    otherLoan: numOr(p.liabs.other) > 0 ? loanDue(p, 'other') : 0,
+    retail: Math.round(numOrDef(p.job.retail, 0) * lifeCoef),
+    other:  Math.round(numOrDef(p.job.other, 0)  * lifeCoef),
+    elder:  numOr(p.elderCare),
+    medical:numOr(p.medicalExp),
     extra:  p.liabs.extraPay || 0,
-    children: p.children * p.job.perChild,
-    bank:   bankLoanPay
+    children: p.children * numOrDef(p.job.perChild, 0),
+    bank:   loanDue(p, 'bank')
   };
   const totalIncome   = inc.salary + inc.interest + inc.dividend + inc.realEstate + inc.business + inc.ftBusiness;
-  const totalExpenses = exp.taxes+exp.home+exp.school+exp.car+exp.credit+exp.retail+exp.other+exp.extra+exp.children+exp.bank;
+  const totalExpenses = exp.taxes+exp.home+exp.school+exp.car+exp.credit+exp.retail+exp.other
+    +exp.elder+exp.medical+exp.otherLoan+exp.extra+exp.children+exp.bank;
   const passive = inc.interest + inc.dividend + inc.realEstate + inc.business + inc.ftBusiness;
-  return { inc, exp, totalIncome, totalExpenses, cashflow: totalIncome - totalExpenses, passive, bankLoanPay };
+  const loanTotal = exp.home + exp.school + exp.car + exp.credit + exp.otherLoan + exp.bank;
+  return { inc, exp, totalIncome, totalExpenses, cashflow: totalIncome - totalExpenses, passive, bankLoanPay: exp.bank, loanTotal };
 }
 
 /* 跳出老鼠赛跑的门槛 */
@@ -83,8 +422,10 @@ function netWorth(p){
   a += p.assets.funds.reduce((s,x)=>s+x.cost,0);
   a += p.assets.lands.reduce((s,x)=>s+x.cost,0);
   a += p.assets.collectibles.reduce((s,x)=>s+x.cost,0);
-  const l = p.liabs.home+p.liabs.school+p.liabs.car+p.liabs.credit+p.liabs.bank+(p.liabs.other||0);
-  return a - l;
+  ensureLoans(p);
+  let debt = 0;
+  LOAN_KEYS.forEach(k=> debt += numOr(p.liabs[k]));
+  return a - debt;
 }
 
 /* ------------------------------ 玩家 ------------------------------ */
@@ -100,7 +441,12 @@ function newPlayer(i, name, job, color, icon){
     assets: { stocks:[], realEstate:[], business:[], ftBusiness:[], savings:[], funds:[], lands:[], collectibles:[] },
     pos: 0, ftPos: 0, inFT: false,
     ftBase: 0, ftGain: 0,
-    charityTurns: 0, skipTurns: 0,
+    charityTurns: 0, skipTurns: 0, pausedThisTurn: false, pausedNotified: false,
+    /* 人生模拟：精力 / 就业 / 医疗，以及由年龄推导出的收入支出参数 */
+    energy: 100, baseSalary: job.salary, salaryMult: 1, salaryPhase: '', taxesCur: null,
+    lifeStage: '', lifeCoef: 1, elderCare: 0,
+    joblessProgress: 0, joblessNeed: 0, wings: 0,
+    medicalExp: 0, crisisTurns: 0,
     dreamIdx: i % DREAMS.length, dreamOwned: false,
     options: [], shorts: [],
     turnsPlayed: 0,
@@ -141,11 +487,15 @@ function newGame(cfg){
   for(let i=0;i<n;i++){
     const p = newPlayer(i, (cfg.names&&cfg.names[i])||('玩家'+(i+1)), careers[i%careers.length],
                         PLAYER_COLORS[i].c, PLAYER_ICONS[i]);
+    ensureLoans(p);                       /* 职业卡负债 → 贷款计划（本金 / 月供 / 期数） */
     if(g.rule==='202'){
       const pf = portfolios[i%portfolios.length];
       applyPortfolio(p, pf);
+      ensureLoans(p);                     /* 组合卡追加的负债与月供并入计划 */
       p.portfolio = pf;
     }
+    refreshLife(g, p);                    /* 按年龄推导工资 / 税负 / 支出系数 / 赡养支出 */
+    p.energy = energyMax(g, p);           /* 开局精力满格 */
     const f = finance(p);
     /* 第 7 步：起始现金 = 月现金流 + 储蓄（202 规则另加初始投资组合中的现金） */
     p.cash = f.cashflow + p.job.savings + (p.pfCash || 0);
@@ -153,6 +503,7 @@ function newGame(cfg){
     g.players.push(p);
   }
   log(g, `游戏开始 · ${g.rule} 规则 · ${n} 位玩家 · ${g.mode==='age' ? `年龄模式（${g.startAge}→${g.endAge} 岁，共 ${maxRounds(g)} 轮）` : '无限模式'}`, 'sys');
+  syncPhase(g);
   log(g, g.rule==='202'
     ? '跳出条件：被动收入 > 总支出 × 2；启用资本利得/大额现金流卡、做空与期权。'
     : '跳出条件：被动收入 > 总支出；投资机会格仅抽投资卡。', 'info');
@@ -173,7 +524,17 @@ function applyPortfolio(p, pf){
   if(pf.land) p.assets.lands.push(Object.assign({},pf.land));
   if(pf.collectible) p.assets.collectibles.push(Object.assign({},pf.collectible));
   if(pf.liabs) for(const k in pf.liabs){ p.liabs[k] = (p.liabs[k]||0) + pf.liabs[k]; }
-  if(pf.extraPay) p.liabs.extraPay = (p.liabs.extraPay||0) + pf.extraPay;
+  /* 组合卡附带的 extraPay 本质是那笔负债的月供：并进对应贷款的计划里，
+     避免既算一份月供、又在「每月额外固定支出」里再算一次（重复计费） */
+  if(pf.extraPay){
+    const target = Object.keys(pf.liabs || {}).filter(k=> LOAN_KEYS.indexOf(k) >= 0)[0];
+    if(target){
+      p._pfExtra = p._pfExtra || {};
+      p._pfExtra[target] = (p._pfExtra[target] || 0) + pf.extraPay;
+    } else {
+      p.liabs.extraPay = (p.liabs.extraPay||0) + pf.extraPay;
+    }
+  }
   p.pfCash = pf.cash || 0;
   p.pfIncome = pf.income || null;
   if(pf.income){
@@ -208,7 +569,11 @@ const STAT_KEYS = {
   investTotal:0, cfGained:0,
   loans:0, loanTotal:0, repaid:0, marketSells:0, marketProceeds:0,
   donations:0, donationTotal:0, forcedCount:0, forcedTotal:0, downsized:0, babies:0,
-  liquidations:0, liquidatedValue:0, ftBusinesses:0, buyouts:0, dreams:0,
+  liquidations:0, liquidatedValue:0, ftBusinesses:0, buyouts:0, dreams:0, loansCleared:0,
+  /* 人生模拟：健康危机 / 失业求职 / 重新就业 / 精力投入总量 */
+  crises:0, jobless:0, rehired:0, energySpent:0,
+  /* 入不敷出：失业或高负债导致收入盖不住支出的月份数与总额 */
+  deficitMonths:0, deficitTotal:0,
   /* 峰值用 null 哨兵：初始 0 会让「净资产长期为负」的对局把峰值误记成 0 */
   peakPassive:null, peakNetWorth:null, peakCash:null
 };
@@ -254,6 +619,12 @@ function trackRound(g){
 function current(g){ return g.players[g.cur]; }
 function alivePlayers(g){ return g.players.filter(p=>!p.out); }
 
+/* 某个玩家所在的圈：圈层状态属于玩家自身，随时可查 */
+function phaseOf(g, p){ return (p || current(g)).inFT ? 'fasttrack' : 'ratrace'; }
+/* g.phase 是早期「全局阶段」的遗留字段。现在它只是「当前行动玩家所在圈」的镜像，
+   保留仅为兼容旧存档 / 外部读取 —— 规则判断一律用 phaseOf(g,p) 或 p.inFT。 */
+function syncPhase(g){ g.phase = phaseOf(g); return g.phase; }
+
 function beginTurn(g){
   const p = current(g);
   if(g.over) return null;
@@ -261,7 +632,27 @@ function beginTurn(g){
   p.turnStart = { cash:p.cash, cf:finance(p).cashflow };
   /* 慈善加成回合递减 */
   if(p.charityTurns>0) { /* 在实际掷骰后消耗 */ }
+  syncPhase(g);
   return p;
+}
+
+/* 「暂停回合」（裁员失业的惩罚）＝【这个回合不能行动】，而不是【把这个回合从轮转里删掉】。
+   旧实现是在 nextPlayer 里递归跳过该玩家，后果是两人局里对手会连走三轮
+   （甲→甲→甲→乙…），看起来就像「已经出圈的那个人还在行动」，而另一个人永远轮不到。
+   现在改成：回合照常轮到他，但他本回合不能掷骰 / 交易，界面给一张明确的暂停提示卡，
+   交棒后即可轮到下一位 —— 轮转始终严格交替，不会再有人被跳过。 */
+function markTurnPause(g){
+  const p = current(g);
+  if(!p) return false;
+  if(p.skipTurns > 0){
+    p.skipTurns--;
+    p.pausedThisTurn = true;
+    p.pausedNotified = false;                 /* 交给界面去提示一次 */
+    log(g, `${p.name} 本回合暂停（剩余 ${p.skipTurns} 轮）`, 'sys', p.name);
+  } else {
+    p.pausedThisTurn = false;
+  }
+  return p.pausedThisTurn;
 }
 
 function nextPlayer(g){
@@ -269,17 +660,20 @@ function nextPlayer(g){
   let guard = 0;
   do{
     g.cur = (g.cur+1) % g.players.length;
-    if(g.cur === 0){ trackRound(g); g.round++; expireOptions(g); }
+    if(g.cur === 0){
+      trackRound(g);
+      g.round++;                 /* 全局长 1 岁 → 所有人的收入与支出结构随之变化 */
+      refreshAllLife(g);
+      refreshAllEnergy(g);
+      expireOptions(g);
+    }
     guard++;
   } while(g.players[g.cur].out && guard < g.players.length*2);
   /* 年龄模式：完成一整轮（所有玩家各行动一次，即 round 递增）即长 1 岁，满 65 岁退休结算 */
   if(isAgeMode(g) && g.round > maxRounds(g)){ endByAge(g); return null; }
-  const p = current(g);
-  if(p.skipTurns > 0){
-    p.skipTurns--;
-    log(g, `${p.name} 暂停回合（剩余 ${p.skipTurns} 轮）`, 'sys', p.name);
-    nextPlayer(g);
-  }
+  markTurnPause(g);
+  refreshLife(g, current(g));    /* 精力可能在上一回合变化 → 主动收入与税负跟着刷新 */
+  syncPhase(g);
   return current(g);
 }
 
@@ -315,8 +709,11 @@ function expireOptions(g){
 
 /* ------------------------------ 掷骰 & 移动 ------------------------------ */
 function diceCount(g, p){
-  if(g.phase === 'fasttrack' || p.inFT) return 2;
-  if(p.charityTurns > 0) return p.diceChoice || 1;
+  /* ★ 只看【这个玩家自己】的圈：g.phase 是全局的、一旦有人出圈就永久为 'fasttrack'，
+     用它会泄漏到内圈玩家。圈层状态属于玩家自身（p.inFT），不能由全局量决定。 */
+  if(p.inFT) return 2;
+  /* 银翅膀（做慈善获得）：可把这一次掷骰换成 3 粒 —— 走得快，但落点更难控制 */
+  if(numOr(p.wings) > 0 && (p.diceChoice || 1) === window.WINGS.dice) return window.WINGS.dice;
   return 1;
 }
 function rollDice(g, n){
@@ -343,27 +740,45 @@ function movePlayer(g, p, steps){
   g.lastPath = path;
   if(p.inFT) p.ftPos = to; else p.pos = to;
 
-  /* 经过 / 停留 结算日格子 → 领取月现金流 */
-  let collected = 0;
+  /* 经过 / 停留 结算日格子 → 领取月现金流
+     ★ 月现金流可能为负（失业期没有工资而支出照付，或贷款月供超过了收入）——
+       负值【不能直接加到现金上】，否则会破坏「现金永不为负」这条不变式。
+       这里把它记成一笔「当期入不敷出」，交给界面走统一的资金不足处理流程。 */
+  let collected = 0, deficit = 0;
   path.forEach(ix=>{
     const sp = spaces[ix];
-    if(!p.inFT && sp.t === 'paycheck'){ collected += finance(p).cashflow; }
+    if(!p.inFT && sp.t === 'paycheck'){
+      const cf = finance(p).cashflow;
+      if(cf >= 0) collected += cf; else deficit += -cf;
+      amortize(g, p);
+    }
     if(p.inFT && sp.t === 'cashflowday'){ collected += ftMonthly(p); }
   });
   if(collected !== 0){
     p.cash += collected;
     log(g, `${p.name} 经过发薪日，领取 ${money(collected)}`, 'good', p.name);
   }
-  return { from, to, path, collected, space: spaces[to] };
+  if(deficit > 0){
+    log(g, `${p.name} 本月入不敷出 ${money(deficit)}（收入不足以覆盖支出）`, 'bad', p.name);
+  }
+  return { from, to, path, collected, deficit, space: spaces[to] };
 }
 
 /* ------------------------------ 格子结算 ------------------------------ */
 function resolveSpace(g, p, landed){
+  /* 入不敷出优先处理：现金是硬约束，钱的问题没解决，后面的格子事件没有意义。
+     处理完之后界面会带着 landed 回到这里，继续走原来的落格事件。 */
+  if(landed && landed.deficit > 0){
+    setPending(g, { type:'deficit', amount:landed.deficit, landed, title:'入不敷出', ico:'📉' });
+    return g.pending;
+  }
   const sp = landed.space;
   const isFT = p.inFT;
   switch(sp.t){
     case 'start':
-      setPending(g, { type:'info', ico:'🏁', title: isFT?'财务自由圈起点':'起点', msg:'原地休息，本轮无操作。' });
+      /* 起点 = 可休假。精力机制必须有一条玩家能主动使用的恢复通道，
+         否则「资产过多 → 精力下滑」只会变成一条无法自救的死亡螺旋。 */
+      setPending(g, { type:'rest', ico:'🏁', title: isFT?'财务自由圈起点':'起点' });
       break;
     case 'paycheck': case 'cashflowday':
       setPending(g, { type:'info', ico:'💰', title: isFT?'现金流日':'发薪日',
@@ -429,7 +844,14 @@ function resolveSpace(g, p, landed){
   return g.pending;
 }
 function setPending(g, obj){ obj.p = g.cur; g.pending = obj; return g.pending; }
-function clearPending(g){ g.pending = null; }
+function clearPending(g){
+  /* 保险：pending 清掉意味着「这张卡的事已经处理完」，此时现金必须是非负的。
+     正常情况下各支付路径自己已处理干净，这里是最后一道防线 ——
+     宁可被迫变现，也不能让负现金流到下一回合（那会破坏整局赖以成立的不变式）。 */
+  const p = (g.pending && g.pending.p != null) ? g.players[g.pending.p] : null;
+  g.pending = null;
+  if(p && p.cash < 0) settleNegativeCash(g, p);
+}
 
 /* ------------------------------ 抽卡 ------------------------------ */
 function drawDeal(g, deckName){
@@ -468,6 +890,7 @@ function endTurn(g){
   p.turnsPlayed++;
   p.diceChoice = 1;
   g.turnNo++;
+  g.lastCrisis = tickEnergy(g, p);          /* 自然恢复 − 持有维护；归零则触发健康危机 */
   checkBankruptcy(g, p);
   if(g.over) return null;
   nextPlayer(g);
@@ -532,6 +955,15 @@ function declareBankruptcy(g, p){
   log(g, `${p.name} 无力偿付到期债务，宣告破产退出游戏`, 'bad', p.name);
   checkLastStanding(g);
   return { ok:true };
+}
+
+/* 补上「当月入不敷出」的缺口：只能动用现金（贷款 / 变卖由资金不足面板引导） */
+function payDeficit(g, p, amount){
+  const r = payCash(p, amount);
+  if(!r.ok) return { ok:false, shortfall:r.shortfall };
+  bump(p, 'deficitMonths'); bump(p, 'deficitTotal', r.paid);
+  log(g, `${p.name} 动用储蓄补上本月收支缺口 ${money(r.paid)}`, 'bad', p.name);
+  return { ok:true, paid:r.paid };
 }
 
 /* 主动认输：不等破产，玩家自己选择退出本局。
@@ -653,7 +1085,21 @@ window.Engine = {
   SELL_RATE, BANK_RATE, assetLabel, payCash, sellableAssets, sellValue, liquidate, declareBankruptcy,
   /* 年龄 / 轮次 */
   ageOf, yearsLeft, maxRounds, isAgeMode, endByAge,
+  /* 圈层：状态属于玩家自身，g.phase 仅为镜像 */
+  phaseOf, syncPhase,
+  /* 暂停回合：回合仍属于该玩家，只是本回合不能行动 */
+  markTurnPause,
   /* 复盘数据采集 */
-  surrender, initTrack, bump, milestone, trackRound, STAT_KEYS
+  surrender, initTrack, bump, milestone, trackRound, STAT_KEYS,
+  /* 贷款计划：等额本息 + 全类型提前还款 */
+  LOAN_KEYS, loanType, loanDue, loanInfo, ensureLoans, amortize, prepay, prepayPlan, periodsOf, dueOf,
+  /* 人生阶段：收入 / 支出 / 赡养 / 医疗，全部由年龄推导 */
+  curveAt, salaryStageOf, lifeStageOf, refreshLife, refreshAllLife, refreshAllEnergy,
+  /* 精力：上限与恢复随年龄衰减，持有资产持续消耗，归零触发健康危机 */
+  energyMax, energyRecover, energyUpkeep, spendEnergy, tickEnergy, healthCrisis,
+  /* 失业求职期 / 公益捐赠税前扣除 / 银翅膀 */
+  isJobless, startJobless, jobHunt, donationRefund, useWing,
+  /* 入不敷出：月现金流为负时的统一处理入口 */
+  payDeficit
 };
 })();

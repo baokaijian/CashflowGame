@@ -119,8 +119,11 @@ function renderIncome(p){
       ${line(L.credit, f.exp.credit)}
       ${line(L.retail, f.exp.retail)}
       ${line(L.other, f.exp.other)}
+      ${f.exp.otherLoan ? line(L.otherLoan, f.exp.otherLoan) : ''}
       ${f.exp.extra ? line(L.extra, f.exp.extra) : ''}
       ${line(`${L.children} × ${p.children}`, f.exp.children)}
+      ${f.exp.elder   ? line(L.elder, f.exp.elder)     : ''}
+      ${f.exp.medical ? line(L.medical, f.exp.medical, 'neg') : ''}
       ${f.exp.bank ? line(L.bank, f.exp.bank) : ''}
     </div>
     <div class="sec__total"><span>总支出</span><span class="money">${money(f.totalExpenses)}</span></div>
@@ -153,17 +156,53 @@ function renderAssets(p){
   if(!blocks.length) return '<p class="muted">暂无资产。</p>';
   return `<div class="rowlist">${blocks.join('')}</div>`;
 }
+/* 负债表：除了余额，一并给出月供与剩余期数 —— 让「还剩多少、还要还多久」一眼可见 */
 function renderLiabs(p){
-  const l = p.liabs;
-  const rows = [
-    l.home   && line('房贷', l.home),
-    l.school && line('助学贷款', l.school),
-    l.car    && line('车贷', l.car),
-    l.credit && line('信用卡分期', l.credit),
-    l.bank   && line('信用贷', l.bank),
-    l.other  && line('其他负债', l.other)
-  ].filter(Boolean).join('');
+  E.ensureLoans(p);
+  const rows = E.LOAN_KEYS.map(k=>{
+    const i = E.loanInfo(p, k);
+    if(i.balance <= 0) return '';
+    const sub = i.revolving
+      ? `月息 ${money(i.due)} · 随借随还`
+      : `月供 ${money(i.due)} · 剩余 ${i.remaining} 期`;
+    return `<div class="rowlist__row"><span>${i.nm}<br><span class="muted">${sub}</span></span><b class="money">${money(i.balance)}</b></div>`;
+  }).filter(Boolean).join('');
   return rows ? `<div class="rowlist">${rows}</div>` : '<p class="muted">无负债。</p>';
+}
+
+/* ------------------------------ 精力与状态 ------------------------------ */
+/* 精力条：把「余量」和「上限」同时画出来，并按余量分级变色。
+   分级阈值与 engine 的 ENERGY.lowAt 对齐 —— 界面提示与规则判定必须是同一个口径。 */
+function energyBar(p, g, opts){
+  opts = opts || {};
+  const max = (g && window.Engine.energyMax) ? E.energyMax(g, p) : 100;
+  const cur = Math.max(0, Math.round(p.energy || 0));
+  const pctV = max > 0 ? Math.max(0, Math.min(100, Math.round(cur / max * 100))) : 0;
+  const lowAt = (window.ENERGY && window.ENERGY.lowAt) || 30;
+  const cls = cur <= 0 ? 'ebar--crit' : (cur < lowAt ? 'ebar--low' : '');
+  const color = cur <= 0 ? 'var(--red)' : (cur < lowAt ? 'var(--orange)' : 'var(--accent)');
+  return `<div class="ebar ${cls}">
+    ${opts.label === false ? '' : '<span class="ebar__lbl">精力</span>'}
+    <span class="ebar__track"><span class="ebar__fill" style="width:${pctV}%;background:${color}"></span></span>
+    <span class="ebar__v">${cur} / ${max}</span>
+  </div>`;
+}
+/* 人生阶段标签：收入曲线阶段 + 就业状态。
+   这里是玩家判断「我是不是该抓紧了」的唯一依据 —— 收入会随年龄回落，必须能看见。 */
+function lifeChips(p, g){
+  const out = [];
+  if(p.joblessNeed > 0 && p.joblessProgress < p.joblessNeed){
+    out.push(`<span class="life-chip life-chip--bad">📉 失业求职中 ${p.joblessProgress}/${p.joblessNeed}</span>`);
+  } else {
+    const mult = typeof p.salaryMult === 'number' ? p.salaryMult : 1;
+    const cls = mult > 1 ? '' : (mult < 1 ? 'life-chip--warn' : '');
+    out.push(`<span class="life-chip ${cls}">收入 ×${mult.toFixed(2)} · ${esc(p.salaryPhase || '')}</span>`);
+  }
+  if(p.lifeStage) out.push(`<span class="life-chip">${esc(p.lifeStage)}</span>`);
+  if(p.elderCare > 0) out.push(`<span class="life-chip life-chip--warn">赡养 ${money(p.elderCare)}/月</span>`);
+  if(p.medicalExp > 0) out.push(`<span class="life-chip life-chip--bad">医疗 ${money(p.medicalExp)}/月 · 剩 ${p.crisisTurns} 回合</span>`);
+  if(p.wings > 0) out.push(`<span class="life-chip">🪶 银翅膀 ×${p.wings}</span>`);
+  return out.join('');
 }
 
 /* ------------------------------ 开局设置 ------------------------------ */
@@ -254,5 +293,5 @@ function activeTab(name){
 
 window.UI = { $, $$, esc, money, pct, setTheme, initTheme, toggleTheme, toast, openModal, closeModal, requestClose,
   confirmBox, renderIncome, renderAssets, renderLiabs, assetLine, line, initSetup, renderNames, Setup,
-  initChrome, closeDrawer, activeTab };
+  initChrome, closeDrawer, activeTab, energyBar, lifeChips };
 })();

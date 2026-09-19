@@ -128,6 +128,8 @@ function showPending(){
   const p = g.players[P.p];
   switch(P.type){
     case 'info':          return showInfo(g, p, P);
+    case 'rest':          return showRest(g, p, P);
+    case 'deficit':       return showDeficit(g, p, P);
     case 'opportunity':   return showOpportunity(g, p, P);
     case 'opportunity202':return showOpportunity202(g, p, P);
     case 'market':        return showMarket(g, p, P);
@@ -170,11 +172,22 @@ function showOpportunity(g, p, P){
             <span class="pick__go">›</span></button>`).join('')}
         </div>
         <div class="sec__total"><span>你的现金</span><span class="money">${money(p.cash)}</span></div>
-      </div>`,
-      { onMount(m){ $$('[data-k]',m).forEach(b=>b.onclick=()=>{
-          A.chooseDeck(g, b.dataset.k);
+        <div class="sec__total"><span>你的精力</span><span class="money ${p.energy >= 30 ? '' : 'neg'}">${Math.round(p.energy)} / ${E.energyMax(g, p)}</span></div>
+        <p class="hint" style="margin-top:8px">考察一类方向需要投入研究时间（消耗精力），
+          而且<b>放弃机会也不退还</b> —— 研究过了就是沉没成本。这也正是「机会」，不是「白给」。</p>
+      </div>
+    ${foot(`<button class="btn btn--text" data-skip>放弃这次机会</button>`)}`,
+      { onMount(m){
+        /* ⚠️ 必须有出口：精力不足以考察时若只能点牌堆，玩家会彻底卡在这一格 ——
+           放弃不消耗精力（都还没开始研究），所以这条退路是零成本的。 */
+        const skip = $('[data-skip]',m);
+        if(skip) skip.onclick = ()=>{ finishTurnAction(); U.toast('已放弃这次投资机会', 'info'); };
+        $$('[data-k]',m).forEach(b=>b.onclick=()=>{
+          const r = A.chooseDeck(g, b.dataset.k);
+          if(!r.ok) return U.toast(r.msg, 'err');
           showOpportunity(g, p, g.pending);
-        }); } });
+        });
+      } });
     return;
   }
   showDealCard(g, p, P.deal);
@@ -195,11 +208,17 @@ function showOpportunity202(g, p, P){
         </div>
         <div class="sec__total"><span>你的现金</span><span class="money">${money(p.cash)}</span></div>
         ${P.market?`<div class="sec__title" style="margin-top:14px">同时抽到的行情卡</div>${face('market', P.market)}`:''}
-      </div>`,
-      { onMount(m){ $$('[data-k]',m).forEach(b=>b.onclick=()=>{
-          A.chooseDeck(g, b.dataset.k);
+      </div>
+    ${foot(`<button class="btn btn--text" data-skip>放弃这次机会</button>`)}`,
+      { onMount(m){
+        const skip = $('[data-skip]',m);
+        if(skip) skip.onclick = ()=>{ finishTurnAction(); U.toast('已放弃这次投资机会', 'info'); };
+        $$('[data-k]',m).forEach(b=>b.onclick=()=>{
+          const r = A.chooseDeck(g, b.dataset.k);
+          if(!r.ok) return U.toast(r.msg, 'err');
           showOpportunity202(g, p, g.pending);
-        }); } });
+        });
+      } });
     return;
   }
   if(!P.impact && P.market){ P.impact = A.marketImpact(g, P.market); }
@@ -212,6 +231,8 @@ function showDealCard(g, p, card, P){
   const qty = unitDeal ? (card.min||1) : 1;
   const cost = A.dealCost(g, card, qty);
   const affordable = p.cash >= cost;
+  const eCost = A.dealEnergy(card);                 /* 与 engine 共用同一份映射，界面上显示的即为实扣 */
+  const energyOK = Math.round(p.energy) >= eCost;
   const minCost = A.dealCost(g, card, card.min||1);
   const others = g.players.filter(x=>x.id!==p.id && !x.out);
 
@@ -252,6 +273,8 @@ function showDealCard(g, p, card, P){
       ${face(card.deck, card)}
       <div class="sec__total"><span>你需支付</span><b class="money" id="needCost">${money(cost)}</b></div>
       <div class="sec__total"><span>你的现金</span><span class="money ${affordable?'':'neg'}">${money(p.cash)}</span></div>
+      <div class="sec__total"><span>需要精力（研究 + 筹建）</span><span class="money ${energyOK?'':'neg'}">${eCost} / 当前 ${Math.round(p.energy)}</span></div>
+      ${energyOK ? '' : `<p class="hint">精力不足以承接这笔投资。精力每回合自然恢复，也可以停在「起点」选择休假。</p>`}
       ${qtyHtml}${jointHtml}${sellHtml}
       ${P && P.market ? `<div class="sec__title" style="margin-top:14px">同时抽到的行情卡（可先完成市场交易）</div>${face('market', P.market)}` : ''}
     </div>
@@ -259,7 +282,7 @@ function showDealCard(g, p, card, P){
       <button class="btn btn--text" data-pass>放弃机会</button>
       ${P && P.market ? `<button class="btn btn--tonal" data-market>处理行情卡</button>` : ''}
       <button class="btn btn--tonal" data-loan>先贷款</button>
-      <button class="btn btn--primary" data-buy ${affordable?'':'disabled'}>确认买入</button>
+      <button class="btn btn--primary" data-buy ${(affordable && energyOK)?'':'disabled'}>${energyOK ? '确认买入' : '精力不足'}</button>
     `)}`,
     { onMount(m){
       const q = $('#qty', m);
@@ -268,7 +291,7 @@ function showDealCard(g, p, card, P){
         const c = A.dealCost(g, card, n);
         $('#needCost', m).textContent = money(c);
         const b = $('[data-buy]', m);
-        b.disabled = p.cash < c;
+        b.disabled = (p.cash < c) || (Math.round(p.energy) < A.dealEnergy(card));
         if(q) q.value = n;
         /* 联合购买：你需出资 */
         if($('#jointMine', m)){
@@ -319,6 +342,15 @@ function showDealCard(g, p, card, P){
             const o = g.players[x.id];
             if(o.cash < x.amt) return U.toast(`${o.name} 现金不足 ${money(x.amt)}`, 'err');
           }
+          /* 联合购买也要付精力：发起人承担全额（跑流程的是他），参与方各承担六成。
+             谁都没有「不出力白拿一份」的可能，这符合现实中的分工成本。 */
+          const eFull = A.dealEnergy(card), ePart = Math.round(eFull * 0.6);
+          for(const x of parts){
+            const o = g.players[x.id];
+            if(Math.round(o.energy) < ePart) return U.toast(`${o.name} 的精力不足以参与这次联合购买（需 ${ePart} 点）`, 'err');
+          }
+          if(!A.needEnergy(p, eFull, `联合购买「${card.nm}」`).ok) return U.toast('你的精力不足，无法牵头这笔联合购买', 'err');
+          parts.forEach(x=>E.spendEnergy(g.players[x.id], ePart));
           /* 执行联合购买 */
           const total = A.dealCost(g, card, 1);
           const myShare = mine/total;
@@ -457,6 +489,85 @@ function bindShortfall(m, g, p, amount){
   };
 }
 
+/* ------------------------------ 起点：休假 ------------------------------ */
+/* 精力机制必须有一条玩家能主动使用的恢复通道，否则「资产过多 → 精力下滑」
+   只会变成一条无法自救的死亡螺旋。休假就是这条通道：花钱买休息。 */
+function showRest(g, p, P){
+  const cost = Math.round(E.finance(p).totalExpenses * (window.ENERGY.vacationCostMult || 1));
+  const gain = window.ENERGY.vacationEnergy || 0;
+  const max  = E.energyMax(g, p);
+  const full = p.energy >= max;
+  const canVac = !full && p.cash >= cost;
+  U.openModal(`
+    <div class="modal__head"><h3>🏁 ${esc(P.title || '起点')}</h3></div>
+    <div class="modal__body">
+      <p class="hint">${p.inFT ? '财务自由圈起点。' : '老鼠赛跑起点。'}
+        停在这里可以选择<b>休假</b>：花一笔钱，把精力拉回来。</p>
+      <div class="sec__total"><span>当前精力</span><span class="money">${Math.round(p.energy)} / ${max}</span></div>
+      <div class="sec__total"><span>休假花费</span><span class="money">${money(cost)}<span class="muted">（约一个月支出）</span></span></div>
+      <div class="sec__total"><span>可恢复精力</span><span class="money pos">+${gain}</span></div>
+      ${!canVac ? `<p class="hint" style="margin-top:8px">${full ? '精力已经满格，不需要休假。' : '现金不足以安排这次休假。'}</p>` : ''}
+    </div>
+    ${foot(`
+      <button class="btn btn--text" data-ok>原地休息，跳过</button>
+      <button class="btn btn--primary" data-vac ${canVac?'':'disabled'}>休假（花 ${money(cost)}，+${gain} 精力）</button>
+    `)}`,
+    { onMount(m){
+      $('[data-ok]',m).onclick = ()=> finishTurnAction();
+      const v = $('[data-vac]',m);
+      if(v) v.onclick = ()=>{
+        const r = A.vacation(g);
+        if(!r.ok) return U.toast(r.msg, 'err');
+        finishTurnAction();
+        U.toast(`休假结束：精力 +${r.gain}（现 ${Math.round(r.energy)} / ${r.max}）`, 'ok');
+      };
+    }});
+}
+
+/* ------------------------------ 入不敷出 ------------------------------ */
+/* 月现金流为负（失业没工资、或月供超过收入），每月要动用储蓄补缺口。
+   这是「收入中断」最直接的体现，所以优先于落格事件处理 —— 钱的问题不解决，
+   后面的格子事件没有意义。缺口补上之后会自动回到原来落的那一格继续结算。 */
+function showDeficit(g, p, P){
+  const amount = P.amount;
+  const enough = p.cash >= amount;
+  const f = E.finance(p);
+  U.openModal(`
+    <div class="modal__head"><h3>📉 入不敷出</h3></div>
+    <div class="modal__body">
+      <p class="hint">本月的收入已经盖不住支出 —— 这通常发生在<b>失业没有工资</b>、
+        或<b>贷款月供超过了收入</b>的时候。</p>
+      <div class="sec__total"><span>本月缺口</span><span class="money neg">${money(amount)}</span></div>
+      <div class="sec__total"><span>月现金流</span><span class="money neg">${money(f.cashflow)}</span></div>
+      <div class="sec__total"><span>手头现金</span><span class="money ${enough?'':'neg'}">${money(p.cash)}</span></div>
+      ${E.isJobless(p) ? `<p class="hint" style="margin-top:8px">📉 你当前处于<b>失业状态</b>，工资为 0。
+        越早求职成功，这个缺口就越早止住。</p>` : ''}
+      ${enough ? '' : shortfallPanel(g, p, amount)}
+    </div>
+    ${foot(`
+      ${enough ? '' : `<button class="btn btn--danger" data-bankrupt>宣告破产</button>`}
+      <button class="btn btn--primary" data-ok ${enough?'':'disabled'}>
+        ${enough ? `动用储蓄补上 ${money(amount)}` : `还差 ${money(amount - p.cash)}`}</button>
+    `)}`,
+    { onMount(m){
+      $('[data-ok]',m).onclick = ()=>{
+        const r = A.payDeficit(g, amount);
+        if(!r.ok) return U.toast(r.msg, 'err');
+        const landed = P.landed;
+        if(landed){
+          /* 缺口补上 → 回到原先落的那一格继续结算（不重复计算这份缺口） */
+          E.clearPending(g);
+          E.resolveSpace(g, p, Object.assign({}, landed, { deficit:0 }));
+          window.UiGame.renderAll();
+          if(g.pending) showPending(); else U.closeModal();
+        } else {
+          finishTurnAction();
+        }
+      };
+      bindShortfall(m, g, p, amount);
+    }});
+}
+
 /* ------------------------------ 额外支出 ------------------------------ */
 function showDoodad(g, p, P){
   const card = P.card;
@@ -486,20 +597,39 @@ function showDoodad(g, p, P){
 }
 
 /* ------------------------------ 公益捐赠 ------------------------------ */
+/* 公益捐赠：把「真实的税务优惠」讲出来 —— 国内个人公益捐赠可在应纳税所得额 30% 以内
+   税前扣除（《个人所得税法》第六条），所以净成本低于捐赠额。这不是游戏凭空给的福利。 */
 function showCharity(g, p, P){
+  const amount = P.amount;
+  const refund = E.donationRefund(p, amount);
+  const wings  = window.DONATION.wings || 1;
+  const enGain = window.ENERGY.charityEnergy || 0;
+  const enough = p.cash >= amount;
   U.openModal(`
     <div class="modal__head"><h3>🎗️ 公益捐赠</h3></div>
     <div class="modal__body">
-      <p class="hint">捐赠<b>总收入的 10%</b>（${money(P.amount)}），可获得<b>下两轮可选择掷 1—2 粒骰子</b>的权利，有助于规避不利格子。</p>
-      <div class="sec__total"><span>捐赠金额</span><span class="money">${money(P.amount)}</span></div>
-      <div class="sec__total"><span>你的现金</span><span class="money">${money(p.cash)}</span></div>
+      <p class="hint">捐出<b>总收入的 10%</b>。按《个人所得税法》，捐赠额不超过应纳税所得额
+        <b>${Math.round(window.DONATION.limit*100)}%</b> 的部分可以<b>税前扣除</b> —— 所以净成本低于捐款本身。</p>
+      <div class="sec__total"><span>捐赠金额</span><span class="money">${money(amount)}</span></div>
+      <div class="sec__total"><span>税前扣除可节税</span><span class="money pos">−${money(refund)}</span></div>
+      <div class="sec__total"><span>实际净支出</span><span class="money">${money(amount - refund)}</span></div>
+      <div class="sec__total"><span>获得银翅膀</span><span>×${wings}（可掷 3 粒骰子 1 次）</span></div>
+      ${enGain ? `<div class="sec__total"><span>状态回升</span><span class="money pos">精力 +${enGain}</span></div>` : ''}
+      <div class="sec__total"><span>你的现金</span><span class="money ${enough?'':'neg'}">${money(p.cash)}</span></div>
+      <p class="hint" style="margin-top:8px">🪶 银翅膀是一次性的「掷 3 粒骰子」机会：<b>走得快，但落点更难控制</b>。
+        打算精准落到某个格子时，就不要用它。</p>
     </div>
     ${foot(`
       <button class="btn btn--text" data-no>放弃捐赠</button>
-      <button class="btn btn--primary" data-yes ${p.cash>=P.amount?'':'disabled'}>捐赠 ${money(P.amount)}</button>
+      <button class="btn btn--primary" data-yes ${enough?'':'disabled'}>捐赠 ${money(amount)}</button>
     `)}`,
     { onMount(m){
-      $('[data-yes]',m).onclick = ()=>{ const r = A.doCharity(g,true); if(!r.ok) return U.toast(r.msg,'err'); finishTurnAction(); U.toast('已获得慈善加成（下 2 轮可选骰子数）','ok'); };
+      $('[data-yes]',m).onclick = ()=>{
+        const r = A.doCharity(g,true);
+        if(!r.ok) return U.toast(r.msg,'err');
+        finishTurnAction();
+        U.toast(`已捐赠 ${money(r.amount)}，税前扣除节税 ${money(r.refund)}，获得银翅膀 ×${r.wings}`, 'ok');
+      };
       $('[data-no]',m).onclick  = ()=>{ A.doCharity(g,false); finishTurnAction(); };
     }});
 }
@@ -516,30 +646,39 @@ function showBaby(g, p, P){
     ${foot(`<button class="btn btn--primary" data-ok>确定</button>`)}`,
     { onMount(m){ $('[data-ok]',m).onclick = ()=>{ A.addBaby(g); finishTurnAction(); }; } });
 }
+/* 失业：被裁真正可怕的地方不是那笔补偿（按 N+1 惯例你其实是【收到】钱），
+   而是从此没有工资、而支出一分不少。所以这里把它做成「收入中断 + 求职期」，
+   而不是旧版的「付一个月总支出」—— 后者方向正好反了。 */
 function showDownsized(g, p, P){
-  const amount = P.amount;                       /* 落格时已锁定的金额 */
-  const enough = p.cash >= amount;
+  const base = P.amount;                                  /* 落格时锁定的「一个月总支出」 */
+  const sev  = Math.round(base * (window.UNEMPLOYMENT.severance || 1));
+  const f0   = E.finance(p);                              /* 此刻工资尚未归零 */
+  const after = Math.round(f0.cashflow - f0.inc.salary);  /* 工资归零后的月现金流 */
+  const U2 = window.UNEMPLOYMENT;
+  const age = E.isAgeMode(g) ? E.ageOf(g) : 0;
+  const need = U2.effortBase + (age > 40 ? U2.over40Extra : 0) + (age > 50 ? U2.over50Extra : 0);
   U.openModal(`
-    <div class="modal__head"><h3>📉 失业</h3></div>
+    <div class="modal__head"><h3>📉 裁员失业</h3></div>
     <div class="modal__body">
-      <p class="hint">失业：需支付<b>一次总支出</b>，并<b>暂停两轮</b>。</p>
-      <div class="sec__total"><span>需要支付</span><span class="money neg">${money(amount)}</span></div>
-      <div class="sec__total"><span>手头现金</span><span class="money ${enough?'':'neg'}">${money(p.cash)}</span></div>
-      ${enough ? '' : shortfallPanel(g, p, amount)}
+      <p class="hint">你被裁员了。按国内 N+1 的惯例，你会<b>拿到一笔离职补偿</b>；
+        但真正的冲击是<b>工资归零，而支出一分不少</b>。</p>
+      <div class="sec__total"><span>领取离职补偿</span><span class="money pos">+${money(sev)}</span></div>
+      <div class="sec__total"><span>工资收入</span><span class="money neg">${money(f0.inc.salary)} → ¥0</span></div>
+      <div class="sec__total"><span>失业后的月现金流</span><span class="money ${after<0?'neg':''}">${money(after)}</span></div>
+      <div class="sec__total"><span>预计求职所需</span><span>${need} 个回合${age > 40 ? `（${age} 岁，年龄门槛 +${need - U2.effortBase}）` : ''}</span></div>
+      <p class="hint" style="margin-top:8px">每回合可点「投递简历 · 求职」推进进度，每次消耗 <b>${U2.huntEnergy} 点精力</b>；
+        精力不够时只能先休息，求职期会被拉长。<br>
+        期间只能靠<b>储蓄、被动收入或变卖资产</b>撑过去 —— 这就是「应急金」存在的全部意义。</p>
     </div>
-    ${foot(`
-      ${enough ? '' : `<button class="btn btn--danger" data-bankrupt>宣告破产</button>`}
-      <button class="btn btn--primary" data-ok ${enough?'':'disabled'}>
-        ${enough ? '支付并暂停两轮' : `还差 ${money(amount - p.cash)}`}</button>
-    `)}`,
+    ${foot(`<button class="btn btn--primary btn--block" data-ok>接受现实，开始求职</button>`)}`,
     { onMount(m){
       $('[data-ok]',m).onclick = ()=>{
-        const r = A.doDownsized(g, amount);
+        const r = A.doDownsized(g, P.amount);
         if(!r.ok) return U.toast(r.msg, 'err');
         finishTurnAction();
-        U.toast(`已支付 ${money(r.paid)}，暂停两轮`, 'err');
+        window.UiGame.renderAll();
+        U.toast(`已领取离职补偿 ${money(r.severance)}；工资归零，预计需要 ${r.need} 个回合求职`, 'err');
       };
-      bindShortfall(m, g, p, amount);
     }});
 }
 

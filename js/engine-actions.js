@@ -11,13 +11,43 @@ const log = E.log;
 function canPay(p, amount){ return p.cash >= amount; }
 function pay(p, amount){ p.cash -= amount; return p.cash; }
 
+/* ------------------------------ 精力校验 ------------------------------ */
+/* 精力是独立于现金的第二重约束（对应现实中「有没有时间管」）。
+   不足时返回一条【可执行】的提示，而不是静默失败 —— 玩家必须知道怎么恢复：
+   精力靠回合自然恢复，也可以停在「起点」选择休假。 */
+function energyCost(kind){
+  const c = (window.ENERGY.buyCost || {})[kind];
+  return typeof c === 'number' ? c : 0;
+}
+/* 卡片 kind → 精力成本的键。界面与逻辑共用这一份映射，
+   避免「界面显示 14 点、实际只扣 10 点」这类两套口径的问题。 */
+const KIND_ENERGY = { stock:'stocks', collectible:'collectibles', land:'lands', savings:'savings',
+                      business:'business', realestate:'realEstate', option:'option', straddle:'option' };
+function dealEnergy(card){ return energyCost(KIND_ENERGY[card && card.kind]); }
+function needEnergy(p, need, what){
+  const n = Math.max(0, Math.round(need || 0));
+  if(!n) return { ok:true, cost:0 };
+  const r = E.spendEnergy(p, n);
+  if(r.ok) return { ok:true, cost:n };
+  return { ok:false, cost:n, lack:r.lack,
+    msg:`精力不足：${what}需要 ${r.need} 点精力（当前 ${Math.round(p.energy)}，还差 ${r.lack} 点）。` +
+        `精力每回合自然恢复，也可以停在「起点」选择休假。` };
+}
+
 /* ------------------------------ 投资机会格：选择牌堆 & 买卡 ------------------------------ */
+/* 考察投资机会：先付出「研究时间」（精力）才看得到项目。
+   借鉴财富流的「考察费」，但真正昂贵的从来不是那 100 / 500 元，而是时间 ——
+   所以这里收的是精力，而且【放弃机会也不退还】：研究过了就是沉没成本，这符合现实。 */
 function chooseDeck(g, deckName){
   const p = E.current(g);
+  const NAMES = { small:'小额理财', big:'大额置业', capgain:'杠杆交易', cashflow:'大额现金流' };
+  const cost = (window.ENERGY.dealCost || {})[deckName] || 0;
+  const en = needEnergy(p, cost, `考察「${NAMES[deckName] || deckName}」`);
+  if(!en.ok) return { ok:false, msg:en.msg, lack:en.lack, need:en.cost };
   E.bump(p, 'dealsSeen');
   const card = E.drawDeal(g, deckName);
   if(g.pending) { g.pending.deal = card; g.pending.deckName = deckName; }
-  return card;
+  return { ok:true, card, energyCost:cost };
 }
 /* 一次性拿到全部可执行的方案（含联合购买） */
 function dealCost(g, card, qty){
@@ -33,6 +63,9 @@ function buyDeal(g, card, exec){
   const qty = exec.qty || card.min || 1;
   const cost = dealCost(g, card, qty);
   if(!canPay(p, cost)) return { ok:false, msg:'现金不足，可先向银行贷款或把投资卡卖给其他玩家。' };
+  /* 买入前先校验精力（筹建 / 跑手续的时间成本）—— 在扣现金之前拦下，避免扣了钱又做不成 */
+  const en = needEnergy(p, dealEnergy(card), `买入「${card.nm || card.symbol || '资产'}」`);
+  if(!en.ok) return { ok:false, msg:en.msg, lack:en.lack, need:en.cost };
   pay(p, cost);
   const base = card.base || card.nm || card.symbol;
   switch(card.kind){
@@ -338,17 +371,27 @@ function payDoodad(g, card){
   log(g, `${p.name} 支付额外支出【${card.nm}】${money(r.paid)}${card.extraPay?`，此后每月额外支出 +${money(card.extraPay)}`:''}`, 'bad', p.name);
   return { ok:true, paid:r.paid };
 }
+/* 公益捐赠：三重真实效应 ——
+   ① 税前扣除：捐赠额在应纳税所得额 30% 以内可据实扣除（《个人所得税法》第六条），
+      按边际税率估算节税额，这是国内捐款实实在在的税务优惠；
+   ② 银翅膀：一次「掷 3 粒骰子」的机会（财富流的原创机制），走得快但落点更难控制；
+   ③ 状态回升：行善带来的心理收益。 */
 function doCharity(g, yes){
   const p = E.current(g);
   const amount = Math.round(E.finance(p).totalIncome*0.10);
-  if(!yes){ log(g, `${p.name} 放弃慈善捐赠`, 'info', p.name); return { ok:true }; }
-  if(!canPay(p, amount)) return { ok:false, msg:`现金不足以捐赠 ${money(amount)}，可先出售资产或贷款。` };
+  if(!yes){ log(g, `${p.name} 放弃公益捐赠`, 'info', p.name); return { ok:true }; }
+  if(!canPay(p, amount)) return { ok:false, msg:`现金不足以捐赠 ${money(amount)}，可先变卖资产或贷款。` };
   p.cash -= amount;
-  p.charityTurns = 2;
+  const refund = E.donationRefund(p, amount);
+  if(refund > 0) p.cash += refund;                      /* 税前扣除的节税（相当于汇算退税） */
+  const wings = (window.DONATION.wings || 1);
+  p.wings = (p.wings || 0) + wings;
+  const gain = (window.ENERGY.charityEnergy || 0);
+  p.energy = Math.min(E.energyMax(g, p), (p.energy||0) + gain);
   E.bump(p, 'donations'); E.bump(p, 'donationTotal', amount);
-  E.milestone(g, p, `第 ${g.round} 轮捐出总收入的 10%（${money(amount)}），换取未来 2 轮可选骰子数`, 'info');
-  log(g, `${p.name} 捐赠总收入的 10%（${money(amount)}），未来 2 轮可选择掷 1—2 粒骰子`, 'good', p.name);
-  return { ok:true };
+  E.milestone(g, p, `第 ${g.round} 轮公益捐赠 ${money(amount)}${refund ? `（税前扣除，节税 ${money(refund)}）` : ''}，获得银翅膀 ×${wings}`, 'good');
+  log(g, `${p.name} 公益捐赠 ${money(amount)}${refund ? `，税前扣除节税 ${money(refund)}` : ''}，获得银翅膀（可掷 3 粒骰子 1 次）`, 'good', p.name);
+  return { ok:true, amount, refund, wings, energyGain:gain };
 }
 function addBaby(g){
   const p = E.current(g);
@@ -359,18 +402,16 @@ function addBaby(g){
   log(g, `${p.name} 增加一个孩子（共 ${p.children} 个），每月支出 +${money(p.job.perChild)}`, 'bad', p.name);
   return { ok:true };
 }
-/* amount 由落格时锁定并传入，保证弹层上写的数字与实际扣款一致
-   （旧版在执行时重算总支出，若期间贷过款，实际会多扣） */
+/* 失业：不再收一笔「总支出」，而是【失去主动收入 + 进入求职期】。
+   现实依据：被裁真正可怕的地方从来不是那笔离职补偿 —— 按国内 N+1 的惯例，
+   你其实是【收到】钱；真正的冲击是从此没有工资、而支出一分不少。
+   旧版把失业做成「付一个月总支出」，方向正好反了。 */
 function doDownsized(g, amount){
   const p = E.current(g);
-  const amt = (amount == null) ? E.finance(p).totalExpenses : amount;
-  const r = E.payCash(p, amt);
-  if(!r.ok) return { ok:false, shortfall:r.shortfall, msg:`现金不足，还差 ${money(r.shortfall)}，请先贷款或变卖资产。` };
-  p.skipTurns += 2;
-  E.bump(p, 'downsized'); E.bump(p, 'forcedCount'); E.bump(p, 'forcedTotal', r.paid);
-  E.milestone(g, p, `第 ${g.round} 轮遭遇裁员失业：一次性支付总支出 ${money(r.paid)}，并暂停两轮`, 'bad');
-  log(g, `${p.name} 失业：支付一次总支出 ${money(r.paid)}，并暂停两轮`, 'bad', p.name);
-  return { ok:true, paid:r.paid, amount:amt };
+  const base = (amount == null) ? E.finance(p).totalExpenses : amount;
+  const severance = Math.round(base * (window.UNEMPLOYMENT.severance || 1));
+  const r = E.startJobless(g, p, severance);
+  return { ok:true, severance:r.severance, need:r.need, cashflow:E.finance(p).cashflow };
 }
 
 /* ------------------------------ 贷款 ------------------------------ */
@@ -383,14 +424,20 @@ function takeLoan(g, amount){
   log(g, `${p.name} 取得信用贷 ${money(amount)}，月息 ${(BANK.loanRate*100).toFixed(1)}%（每月还款 ${money(Math.round(amount*BANK.loanRate))}）`, 'info', p.name);
   return { ok:true };
 }
-function repayLoan(g, amount){
+/* 提前还款：六类贷款通用（房贷 / 助学贷款 / 车贷 / 信用卡分期 / 其他负债 / 信用贷）。
+   amount = 本次还本额，mode = 'shorten'（月供不变·缩期）| 'reduce'（期限不变·减月供）。
+   条件校验、违约金与还款计划的换算都在 Engine.prepay 里，这里只负责记账埋点。 */
+function prepayLoan(g, key, amount, mode){
   const p = E.current(g);
-  const amt = Math.min(amount, p.liabs.bank, p.cash);
-  if(amt<=0) return { ok:false, msg:'无法还款。' };
-  p.liabs.bank -= amt; p.cash -= amt;
-  E.bump(p, 'repaid', amt);
-  log(g, `${p.name} 偿还信用贷 ${money(amt)}`, 'info', p.name);
-  return { ok:true };
+  const r = E.prepay(g, p, key, amount, mode);
+  if(!r.ok) return r;
+  E.bump(p, 'repaid', r.principal);
+  if(r.cleared) E.bump(p, 'loansCleared');
+  return r;
+}
+/* 兼容旧调用：早先只能还信用贷 */
+function repayLoan(g, amount){
+  return prepayLoan(g, 'bank', amount, 'shorten');
 }
 
 /* ------------------------------ 财务自由圈：企业 / 梦想 / 事件 ------------------------------ */
@@ -399,6 +446,8 @@ function buyFTBusiness(g, bizId){
   const biz = FT_BUSINESSES.find(b=>b.id===bizId);
   if(!biz) return { ok:false };
   if(!canPay(p, biz.cost)) return { ok:false, msg:`财务自由圈投资只能用现金，需 ${money(biz.cost)}。` };
+  const en1 = needEnergy(p, energyCost('ftBusiness'), `购入企业「${biz.nm}」`);
+  if(!en1.ok) return { ok:false, msg:en1.msg };
   p.cash -= biz.cost;
   p.assets.ftBusiness.push({ nm:biz.nm, cost:biz.cost, cf:biz.cf, bizId:biz.id });
   p.ftGain = (p.ftGain||0) + biz.cf;
@@ -415,6 +464,8 @@ function openFranchise(g, bizId){
   if(!owned) return { ok:false, msg:'你尚未拥有该企业，无法开设特许经营。' };
   const dp = Math.round(owned.cost*0.20);
   if(!canPay(p, dp)) return { ok:false, msg:`开设特许经营需支付首付 ${money(dp)}。` };
+  const en2 = needEnergy(p, energyCost('ftBusiness'), `开设「${owned.nm}」特许经营`);
+  if(!en2.ok) return { ok:false, msg:en2.msg };
   p.cash -= dp;
   const extraCf = Math.round(owned.cf*0.5);
   p.assets.ftBusiness.push({ nm:owned.nm+' · 特许经营', cost:dp, cf:extraCf, bizId, franchise:true });
@@ -427,9 +478,12 @@ function openFranchise(g, bizId){
 }
 function buyDream(g){
   const p = E.current(g);
-  if(g.phase!=='fasttrack' && !p.inFT) return { ok:false, msg:'梦想格只在财务自由圈生效。' };
+  /* 只看玩家自己的圈：原先还允许全局 g.phase==='fasttrack' 放行，会泄漏到内圈玩家 */
+  if(!p.inFT) return { ok:false, msg:'梦想格只在财务自由圈生效。' };
   const dream = DREAMS[p.dreamIdx];
   if(!canPay(p, dream.cost)) return { ok:false, msg:`购买梦想需要 ${money(dream.cost)}，现金不足。` };
+  const en3 = needEnergy(p, energyCost('dream'), `实现梦想「${dream.nm}」`);
+  if(!en3.ok) return { ok:false, msg:en3.msg };
   p.cash -= dream.cost;
   p.dreamOwned = true;
   E.bump(p, 'dreams');
@@ -473,6 +527,8 @@ function openShort(g, symbol, shares, price){
   if(!shares || shares<=0) return { ok:false, msg:'做空股数需大于 0。' };
   const px = price!==undefined ? price : (p.stockPrice||{})[symbol];
   if(px===undefined) return { ok:false, msg:'需要该股票的市场报价才能建立空头（可等到市场行情卡出现）。' };
+  const en = needEnergy(p, energyCost('option'), `建立 ${symbol} 空头（需持续盯盘）`);
+  if(!en.ok) return { ok:false, msg:en.msg };
   p.shorts.push({ symbol, shares, price:px });
   log(g, `${p.name} 做空 ${symbol} ${shares} 股 @ ${money(px)}（资金由银行承担，出现报价时强制买回平仓）`, 'info', p.name);
   return { ok:true };
@@ -496,7 +552,7 @@ function escapeRatRace(g){
   const esc = E.escapeProgress(g, p);
   if(!esc.canEscape) return { ok:false, msg:`被动收入 ${money(esc.passive)} 尚未超过门槛 ${money(esc.target)}。` };
   p.inFT = true;
-  g.phase = 'fasttrack';
+  E.syncPhase(g);            /* 旧的全局阶段字段：只作为「当前玩家所在圈」的镜像维护 */
   p.ftBase = E.finance(p).passive;
   p.ftPos = 0;
   const buyout = p.ftBase * 100;   /* 出圈资金 = 被动收入 × 100 */
@@ -534,6 +590,35 @@ function buyout(g, targetId){
   return { ok:true };
 }
 
+/* ------------------------------ 休假 / 补缺口 / 求职 ------------------------------ */
+/* 休假：停在「起点」时可主动用现金换精力。
+   现实依据：请年假、去度假是真实存在的「花钱买休息」，也是长期高强度投入之后
+   唯一能把状态拉回来的办法 —— 精力机制必须有一条玩家可主动使用的恢复通道，
+   否则它只会变成一条被动的死亡螺旋。 */
+function vacation(g){
+  const p = E.current(g);
+  const f = E.finance(p);
+  const cost = Math.round(f.totalExpenses * (window.ENERGY.vacationCostMult || 1));
+  const gain = window.ENERGY.vacationEnergy || 0;
+  const maxE = E.energyMax(g, p);
+  if(p.energy >= maxE) return { ok:false, msg:`精力已经满格（${Math.round(p.energy)} / ${maxE}），不需要休假。` };
+  if(!canPay(p, cost)) return { ok:false, msg:`休假的花费约一个月支出 ${money(cost)}，现金不足。` };
+  p.cash -= cost;
+  p.energy = Math.min(maxE, p.energy + gain);
+  E.bump(p, 'vacations');
+  log(g, `${p.name} 休假调整状态，花费 ${money(cost)}，精力 +${gain}（现 ${Math.round(p.energy)} / ${maxE}）`, 'good', p.name);
+  return { ok:true, cost, gain, energy:p.energy, max:maxE };
+}
+/* 补上当期「入不敷出」的缺口 */
+function payDeficit(g, amount){
+  const p = E.current(g);
+  const r = E.payDeficit(g, p, amount);
+  if(!r.ok) return { ok:false, shortfall:r.shortfall, msg:`现金不足，还差 ${money(r.shortfall)}，请先贷款或变卖资产。` };
+  return { ok:true, paid:r.paid };
+}
+/* 求职（失业期间） */
+function huntJob(g){ return E.jobHunt(g, E.current(g)); }
+
 /* ------------------------------ 交易：现金/资产互易 ------------------------------ */
 function trade(g, aId, bId, cashFromA, priceLabel){
   const a = g.players[aId], b = g.players[bId];
@@ -547,9 +632,11 @@ function trade(g, aId, bId, cashFromA, priceLabel){
 /* ------------------------------ 导出 ------------------------------ */
 window.Act = {
   canPay, dealCost, chooseDeck, buyDeal, sellOpportunity, marketImpact, marketOptions, marketSell,
-  payDoodad, doCharity, addBaby, doDownsized, takeLoan, repayLoan,
+  payDoodad, doCharity, addBaby, doDownsized, takeLoan, prepayLoan, repayLoan,
   buyFTBusiness, openFranchise, buyDream, ftEvent,
   exerciseOption, openShort, coverShort, escapeRatRace, buyout, trade,
+  /* 人生模拟：精力校验 / 休假 / 补缺口 / 求职 */
+  energyCost, dealEnergy, needEnergy, vacation, payDeficit, huntJob,
   /* 现金不变式：付不出时的两条出路 + 破产 */
   liquidate: E.liquidate, declareBankruptcy: E.declareBankruptcy
 };

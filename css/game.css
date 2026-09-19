@@ -59,6 +59,8 @@
 .stage__head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;flex:none;}
 .stage__headline h2{font-size:18px;font-weight:650;letter-spacing:-.025em;}
 .stage__headline .muted{margin-top:3px;}
+/* 「正在查看另一条跑道」时的提示：必须一眼看出当前行动的人在哪条跑道 */
+#boardSub.peek{color:var(--accent);font-weight:600;}
 .dice-box{display:flex;gap:9px;}
 .die{
   width:50px;height:50px;border-radius:14px;background:var(--surface);
@@ -105,6 +107,10 @@ html[data-theme="dark"] .die{background:var(--surface-2);}
   border-color:color-mix(in srgb,var(--orange) 32%,transparent);
 }
 .turnbar[data-state="card"] .turnbar__state{color:var(--orange);font-weight:600;}
+.turnbar[data-state="pause"]{
+  background:color-mix(in srgb,var(--orange) 12%,transparent);border-color:transparent;
+}
+.turnbar[data-state="pause"] .turnbar__state{color:var(--orange);font-weight:600;}
 .turnbar[data-state="over"]{background:var(--secondary-container);border-color:transparent;}
 .turnbar[data-state="over"] .turnbar__state{color:var(--secondary);font-weight:600;}
 
@@ -470,3 +476,40 @@ html[data-theme="dark"] .die{background:var(--surface-2);}
   .sum-grade b{font-size:28px;}
   .sum-scroll{max-height:none;}
 }
+
+/* ================= 精力与人生阶段 ================= */
+/* 精力是独立于现金的第二重资源。用一条细进度条表达，颜色随余量变化 ——
+   「快撑不住了」必须一眼可见，否则玩家只会莫名其妙地被健康危机打断。 */
+.ebar{display:flex;align-items:center;gap:8px;}
+.ebar__lbl{flex:none;font-size:10.5px;color:var(--on-surface-var);white-space:nowrap;}
+.ebar__track{flex:1;min-width:36px;height:6px;border-radius:var(--r-pill);
+  background:color-mix(in srgb,var(--on-surface) 11%,transparent);overflow:hidden;}
+.ebar__fill{height:100%;border-radius:var(--r-pill);background:var(--accent);
+  transition:width .45s var(--ease-out),background .3s;}
+.ebar__v{flex:none;font-size:11px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--on-surface-var);}
+.ebar--low .ebar__fill{background:var(--orange);}
+.ebar--low .ebar__v{color:var(--orange);}
+.ebar--crit .ebar__fill{background:var(--red);}
+.ebar--crit .ebar__v{color:var(--red);}
+.pcard__energy{margin-top:8px;}
+
+.life-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:var(--r-pill);
+  font-size:10.5px;font-weight:600;white-space:nowrap;
+  background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);}
+.life-chip--warn{background:color-mix(in srgb,var(--orange) 15%,transparent);color:var(--orange);}
+.life-chip--bad{background:color-mix(in srgb,var(--red) 15%,transparent);color:var(--red);}
+.fin-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+
+/* 精力区块：既展示余量，也把「这个回合精力是怎么变的」讲清楚 */
+.energy-panel{padding:14px;border-radius:var(--r-m);background:var(--surface-2);border:1px solid var(--sep);}
+.energy-panel__hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;}
+.energy-panel__hd b{font-size:15px;font-variant-numeric:tabular-nums;}
+.energy-panel__hd span{font-size:11px;color:var(--on-surface-var);}
+.energy-flow{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:11.5px;color:var(--on-surface-var);}
+.energy-flow i{font-style:normal;font-weight:650;color:var(--on-surface);font-variant-numeric:tabular-nums;}
+
+/* 逆流状态条（失业 / 健康危机）：橙色，与常规的蓝色回合条区分开 */
+.turnbar[data-state="jobless"]{
+  background:color-mix(in srgb,var(--orange) 13%,transparent);border-color:transparent;
+}
+.turnbar[data-state="jobless"] .turnbar__state{color:var(--orange);font-weight:600;}

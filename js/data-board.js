@@ -16,7 +16,7 @@ window.RING_POS = ringPositions();
 
 /* ---------- 内圈：老鼠赛跑（掷 1 粒骰子） ---------- */
 window.RAT_RACE = [
-  { t:'start',        nm:'起点',     ico:'🏁', sub:'Start Here' },
+  { t:'start',        nm:'起点',     ico:'🏁', sub:'休假 · 恢复精力' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡', sub:'理财 / 置业' },
   { t:'paycheck',     nm:'发薪日',    ico:'💰', sub:'领取月现金流' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡' },
@@ -26,10 +26,10 @@ window.RAT_RACE = [
   { t:'paycheck',     nm:'发薪日',    ico:'💰' },
   { t:'baby',         nm:'添丁',     ico:'👶', sub:'子女支出增加' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡' },
-  { t:'charity',      nm:'公益捐赠',  ico:'🎗️', sub:'捐出收入的 10%' },
+  { t:'charity',      nm:'公益捐赠',  ico:'🎗️', sub:'税前扣除 · 得银翅膀' },
   { t:'market',       nm:'市场行情',  ico:'📈' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡' },
-  { t:'downsized',    nm:'裁员失业',  ico:'📉', sub:'付总支出·停 2 轮' },
+  { t:'downsized',    nm:'裁员失业',  ico:'📉', sub:'工资归零 · 需重新求职' },
   { t:'paycheck',     nm:'发薪日',    ico:'💰' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡' },
   { t:'market',       nm:'市场行情',  ico:'📈' },
@@ -106,7 +106,7 @@ window.PORTFOLIOS = [
   { nm:'货币基金',      ico:'📊', cash:3000,  income:{ dividend:30 },   note:'¥3,000 货币基金，每月分红 ¥30。' },
   { nm:'小户型公寓',    ico:'🏠', realEstate:[{ nm:'小户型公寓', dp:5000,  cost:65000,  cf:100,  rent:400 }], note:'首付 ¥5,000 · 月租金收入 +¥100' },
   { nm:'老破小出租房',  ico:'🏘️', realEstate:[{ nm:'老破小出租房', dp:20000, cost:170000, cf:500, rent:1400 }],
-                                    liabs:{ extra:120000 }, extraPay:1200, note:'首付 ¥20,000 · 月租金收入 +¥500 · 附带房贷 ¥120,000（月供 ¥1,200）' },
+                                    liabs:{ other:120000 }, extraPay:1200, note:'首付 ¥20,000 · 月租金收入 +¥500 · 附带房贷 ¥120,000（月供 ¥1,200）' },
   { nm:'朋友公司股权',  ico:'🏪', business:[{ nm:'朋友公司股权', cost:10000, cf:300 }], note:'出资 ¥10,000 · 月分红 +¥300' },
   { nm:'郊区宅基地',    ico:'🌾', land:{ nm:'郊区宅基地', cost:15000 }, note:'取得成本 ¥15,000 · 无现金流' },
   { nm:'黄金积存',      ico:'🪙', collectible:{ nm:'黄金积存', cost:2000 }, note:'成本 ¥2,000 · 无现金流' },

@@ -195,6 +195,7 @@ button{cursor:pointer;}
   background:transparent;color:var(--accent);
   transition:transform var(--dur-fast) var(--ease),background var(--dur-fast) linear,
              box-shadow var(--dur) var(--ease),opacity var(--dur-fast) linear;
+  white-space:nowrap;   /* 按钮文字不换行：在信息密集的行内布局里被挤成两行会很难看 */
 }
 .btn svg{width:17px;height:17px;fill:currentColor;}
 .btn:active:not(:disabled){transform:scale(.965);}

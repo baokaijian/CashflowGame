@@ -106,7 +106,20 @@ function collect(g, p){
     safetyMonths: f.totalExpenses > 0 ? num(peakCash) / f.totalExpenses : 0,
     expiredOptions: 0,
     escaped: !!p.inFT || !!p.escaped,
-    out: !!p.out
+    out: !!p.out,
+    /* ---- 人生模拟维度 ---- */
+    energy: Math.round(num(p.energy)),
+    energyMax: E.energyMax(g, p),
+    energySpent: num(st.energySpent),
+    upkeep: E.energyUpkeep(p),
+    crises: num(st.crises),
+    jobless: num(st.downsized),
+    rehired: num(st.rehired),
+    deficitMonths: num(st.deficitMonths),
+    deficitTotal: num(st.deficitTotal),
+    vacations: num(st.vacations),
+    salaryMult: typeof p.salaryMult === 'number' ? p.salaryMult : 1,
+    lifeStage: p.lifeStage || ''
   };
 }
 
@@ -149,7 +162,25 @@ function scoreOf(g, p, m){
       ? `共拿到 ${m.seen} 次投资机会，出手 ${m.buys} 次（出手率 ${pct(m.hitRate)}），行情兑现 ${num(m.st.marketSells)} 次${m.escaped ? '，并成功出圈' : ''}。`
       : '整局没有获得过投资机会。' });
 
-  const total = Math.round(cashflow * 0.28 + alloc * 0.22 + debtScore * 0.18 + risk * 0.16 + timing * 0.16);
+  /* 6. 可持续性（精力管理）—— 财富流把「精力」和钱并列，现实里也一样：
+     赚到了钱却把身体和现金流都拖垮，长期看同样是失败。 */
+  const sustain = clamp(
+    100
+    - m.crises * 35                                                          /* 健康危机：最重的扣分 */
+    - clamp(m.deficitMonths / 6, 0, 1) * 30                                  /* 入不敷出的月份占比 */
+    - (m.jobless > 0 ? 10 : 0)                                               /* 经历过失业 */
+    - clamp(m.upkeep / Math.max(1, E.energyRecover(g, p)) , 0, 2) * 10,      /* 持有维护已超出恢复能力 */
+  0, 100);
+  dims.push({ key:'sustain', label:'可持续性', score: sustain,
+    comment: m.crises > 0
+      ? `整局发生 ${m.crises} 次健康危机：精力被透支到归零，被迫休养并承担持续医疗支出。` +
+        `名下资产的每月维护需要 ${m.upkeep} 点精力，而每回合只能恢复 ${E.energyRecover(g, p)} 点 —— 管不过来的部分，宁可不要。`
+      : (m.energySpent > 0
+        ? `精力投入合计 ${m.energySpent} 点，全程没有出现健康危机` +
+          (m.deficitMonths > 0 ? `；但有 ${m.deficitMonths} 个月入不敷出（合计 ${money(m.deficitTotal)}）。` : '，且收支始终为正。')
+        : '整局没有精力投入记录。') });
+
+  const total = Math.round(cashflow * 0.26 + alloc * 0.20 + debtScore * 0.16 + risk * 0.14 + timing * 0.14 + sustain * 0.10);
   const grade = total >= 85 ? 'S' : total >= 72 ? 'A' : total >= 58 ? 'B' : total >= 42 ? 'C' : 'D';
   const gradeText = { S:'出圈高手', A:'财务稳健', B:'稳中有进', C:'尚需优化', D:'亟需调整' }[grade];
   return { dims, total, grade, gradeText };
@@ -219,6 +250,37 @@ function adviceOf(g, p, m, sc){
     add('没有安全垫，任何一次意外支出都可能直接击穿你',
       `现金峰值 ${money(m.peakCash)}，只够 ${m.safetyMonths.toFixed(1)} 个月的支出。` +
       `建议先把应急金做到 3 个月支出（约 ${money(need)}）再扩大投资，避免被迫做「折价急售」这种亏本变现。`);
+  }
+
+  /* 4b. 健康危机 —— 过劳的真实代价，且会持续拖累现金流 */
+  if(m.crises > 0){
+    add('资产规模已经超出你能照看的范围',
+      `整局发生 ${m.crises} 次健康危机。触发原因不是运气，而是结构问题：名下资产每回合需要 ${m.upkeep} 点精力去维护，` +
+      `而你的恢复能力只有 ${E.energyRecover(g, p)} 点/回合。` +
+      '建议：① 少买「需要你亲自打理」的资产（房产 / 企业），多配「不需要打理」的（指数基金、存款、债券）；' +
+      '② 每 2—3 轮安排一次休假（停在起点，花约一个月支出换精力），把状态维持在预警线以上。');
+  } else if(m.upkeep >= E.energyRecover(g, p)){
+    add('你的资产维护成本已经吃满全部精力',
+      `当前资产每回合消耗 ${m.upkeep} 点精力，而恢复能力是 ${E.energyRecover(g, p)} 点 —— 已经没有余量承接新机会。` +
+      '建议：先减持一部分需要打理的资产，或改配不占精力的金融资产，再考虑扩张。');
+  }
+
+  /* 4c. 入不敷出 —— 收入盖不住支出，是最危险的信号 */
+  if(m.deficitMonths > 0){
+    add('出现过入不敷出，说明现金流结构本身不成立',
+      `整局有 ${m.deficitMonths} 个月收入盖不住支出，累计动用储蓄补了 ${money(m.deficitTotal)}。` +
+      (m.jobless > 0
+        ? `其中主要发生在失业期间（工资归零、支出照付）—— 这正是应急金的意义：按你目前的支出，` +
+          `失业 3 个月就需要准备约 ${money(m.f.totalExpenses * 3)}。`
+        : '常见原因是贷款月供超过了收入，建议优先偿还月息最高的那笔，把月现金流拉回正数。'));
+  }
+
+  /* 4d. 时间与年龄 —— 收入会随年龄回落，越晚越难 */
+  if(E.isAgeMode(g) && !m.escaped && !m.out && m.age >= 40 && m.salaryMult <= 1){
+    add('你的收入已经越过了峰值，时间不再是免费的',
+      `当前 ${m.age} 岁，收入系数 ×${m.salaryMult}（巅峰期是 ×1.20），此后还会继续回落。` +
+      '现实中的职场收入曲线就是这样：35—45 岁是唯一的窗口期。' +
+      '建议把「在收入下滑前完成原始积累」当成硬约束 —— 越晚开始，同样一笔资产能滚出的被动收入越少。');
   }
 
   /* 5. 资产结构 —— 只买一类资产，风险与收益都过于集中 */
@@ -343,7 +405,13 @@ function reportHTML(g, pid){
     ['累计投入', money(m.invested), `${m.buys} 笔买入 · 新增现金流 ${money(m.cfGained)}/月`],
     ['现金峰值', money(m.peakCash), m.f.totalExpenses > 0 ? `≈ ${m.safetyMonths.toFixed(1)} 个月支出` : '—'],
     ['融资总额', money(num(m.st.loanTotal)), m.debt > 0 ? `当前负债 ${money(m.debt)}` : '已全部结清'],
-    ['被动支出', money(num(m.st.forcedTotal)), `${num(m.st.forcedCount)} 次意外 / 失业 / 事件`]
+    ['被动支出', money(num(m.st.forcedTotal)), `${num(m.st.forcedCount)} 次意外 / 失业 / 事件`],
+    ['精力余量', `${m.energy} / ${m.energyMax}`,
+      m.upkeep > 0 ? `资产维护 ${m.upkeep}/回合 · 恢复 ${E.energyRecover(g, p)}/回合` : `每回合恢复 ${E.energyRecover(g, p)}`],
+    ['健康危机', m.crises > 0 ? `${m.crises} 次` : '未发生',
+      m.crises > 0 ? '精力透支到归零 · 被迫休养' : `精力投入合计 ${m.energySpent} 点`],
+    ['逆流冲击', m.jobless > 0 ? `失业 ${m.jobless} 次` : '未遭遇失业',
+      m.deficitMonths > 0 ? `${m.deficitMonths} 个月入不敷出 ${money(m.deficitTotal)}` : '收支始终为正']
   ];
 
   const dimsHTML = sc.dims.map(d=>{
