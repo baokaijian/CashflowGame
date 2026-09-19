@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>现金流游戏 · 中国本土版 · 101 + 202</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+
+<!-- ========== 顶部应用栏 ========== -->
+<header class="appbar" id="appbar">
+  <div class="appbar__left">
+    <button class="icon-btn" id="btnMenu" title="菜单" aria-label="菜单">
+      <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zM3 11h18v2H3zM3 16h18v2H3z"/></svg>
+    </button>
+    <div class="appbar__title">
+      <span class="applogo" aria-hidden="true">CF</span>
+      <span class="brand">现金流游戏</span>
+      <span class="badge badge--rule" id="ruleBadge">101 规则</span>
+    </div>
+  </div>
+  <div class="appbar__right">
+    <span class="chip" id="turnChip" hidden></span>
+    <button class="icon-btn" id="btnReset" title="重置游戏" aria-label="重置游戏">
+      <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+    </button>
+    <button class="icon-btn" id="btnTheme" title="切换主题" aria-label="切换主题">
+      <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36A5.39 5.39 0 0 1 12 3z"/></svg>
+    </button>
+    <button class="icon-btn" id="btnHelp" title="规则速查" aria-label="规则速查">
+      <svg viewBox="0 0 24 24"><path d="M11 18h2v-2h-2v2zm1-16a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm0-14a4 4 0 0 0-4 4h2a2 2 0 1 1 3.4 1.4l-1.2 1.2A3 3 0 0 0 11 15h2v-.9a3.9 3.9 0 0 0 1.2-2.7A4 4 0 0 0 12 6z"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ========== 布局 ========== -->
+<main class="shell" id="shell">
+
+  <!-- 左侧：席位 / 玩家列表 -->
+  <aside class="rail rail--left" id="railLeft">
+    <h2 class="rail__title">玩家</h2>
+    <div id="playerList" class="player-list"></div>
+    <button class="btn btn--outline btn--block" id="btnReport">财务报表总览</button>
+  </aside>
+
+  <!-- 中间：棋盘 -->
+  <section class="stage" id="stage">
+    <div class="stage__head">
+      <div class="stage__headline">
+        <h2 id="boardTitle">老鼠赛跑 · Rat Race</h2>
+        <p class="muted" id="boardSub">掷 1 粒骰子前进，停下来执行格子的操作</p>
+      </div>
+      <div class="dice-box" id="diceBox">
+        <div class="die" id="die1">–</div>
+        <div class="die" id="die2" hidden>–</div>
+      </div>
+    </div>
+    <div class="board-wrap">
+      <div class="board" id="board"></div>
+      <div class="board-center" id="boardCenter"></div>
+    </div>
+    <div class="stage__actions">
+      <div class="turnbar" id="turnBar" data-state="roll">
+        <span class="turnbar__dot" id="turnDot"></span>
+        <span class="turnbar__name" id="turnName">—</span>
+        <span class="turnbar__state" id="turnState"></span>
+      </div>
+      <div class="actionrow">
+        <button class="btn btn--primary btn--xl" id="btnRoll">
+          <span id="btnRollLabel">掷骰子</span>
+        </button>
+        <button class="btn btn--tonal" id="btnEndTurn" hidden>结束回合</button>
+        <button class="btn btn--text" id="btnDiceChoice" hidden>慈善：选择骰子数</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 右侧：财务 / 日志 -->
+  <aside class="rail rail--right" id="railRight">
+    <div class="tabs" id="panelTabs">
+      <button class="tab tab--active" data-tab="finance">财务</button>
+      <button class="tab" data-tab="log">日志</button>
+      <button class="tab" data-tab="rules">规则</button>
+      <button class="tab" data-tab="settings">设置</button>
+    </div>
+    <div class="panel-body">
+      <div class="tabpane tabpane--active" data-pane="finance" id="paneFinance"></div>
+      <div class="tabpane" data-pane="log" id="paneLog"></div>
+      <div class="tabpane" data-pane="rules" id="paneRules"></div>
+      <div class="tabpane" data-pane="settings" id="paneSettings"></div>
+    </div>
+  </aside>
+</main>
+
+<!-- ========== 开局设置 ========== -->
+<div class="screen" id="setupScreen">
+  <div class="setup-card">
+    <div class="setup-hero">
+      <div class="logo">CF</div>
+      <div>
+        <h1>现金流游戏</h1>
+        <p class="muted">《富爸爸穷爸爸》· 老鼠赛跑 → 财务自由圈 · 101 + 202 本土化版</p>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field__label">游戏模式</label>
+      <div class="segmented" id="segMode">
+        <button class="segmented__item segmented__item--active" data-v="age">年龄模式</button>
+        <button class="segmented__item" data-v="endless">无限模式</button>
+      </div>
+      <p class="hint" id="modeHint">20 岁起步，每完成一整轮长 1 岁，65 岁退休结算，共 45 轮。</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label">规则版本</label>
+      <div class="segmented" id="segRule">
+        <button class="segmented__item segmented__item--active" data-v="101">101 基础版</button>
+        <button class="segmented__item" data-v="202">202 进阶版</button>
+      </div>
+      <p class="hint" id="ruleHint">跳出条件：被动收入 &gt; 总支出。仅做多，投资机会格只抽投资卡。</p>
+    </div>
+
+    <div class="field">
+      <label class="field__label">玩家人数（2—6 人）</label>
+      <div class="segmented" id="segCount"></div>
+    </div>
+
+    <div class="field">
+      <label class="field__label">玩家名称</label>
+      <div class="name-grid" id="nameGrid"></div>
+    </div>
+
+    <div class="field field--row">
+      <label class="switch">
+        <input type="checkbox" id="optShowAll" checked>
+        <span class="switch__track"><span class="switch__thumb"></span></span>
+        <span class="switch__label">显示对手财务明细</span>
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="optFast" checked>
+        <span class="switch__track"><span class="switch__thumb"></span></span>
+        <span class="switch__label">快速动画</span>
+      </label>
+    </div>
+
+    <button class="btn btn--primary btn--block btn--xl" id="btnStart">开始游戏</button>
+    <p class="hint center">每位玩家随机抽取职业卡（202 规则额外抽取初始投资组合卡）</p>
+  </div>
+</div>
+
+<!-- ========== 通用弹层 ========== -->
+<div class="scrim" id="scrim" hidden></div>
+<div class="modal-host" id="modalHost" hidden>
+  <div class="modal card card--e5" id="modal" role="dialog" aria-modal="true"></div>
+</div>
+<div class="toast-host" id="toastHost"></div>
+<nav class="drawer" id="drawer" hidden>
+  <div class="drawer__head">
+    <span>菜单</span>
+    <button class="icon-btn" id="btnDrawerClose" aria-label="关闭">
+      <svg viewBox="0 0 24 24"><path d="M19 6.4L17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12z"/></svg>
+    </button>
+  </div>
+  <div class="drawer__body">
+    <button class="drawer__item" data-act="finance">财务报表</button>
+    <button class="drawer__item" data-act="players">玩家一览</button>
+    <button class="drawer__item" data-act="help">规则速查</button>
+    <button class="drawer__item" data-act="loan">信用贷 / 还款</button>
+    <button class="drawer__item" data-act="trade">玩家间交易</button>
+    <button class="drawer__item" data-act="summary">📊 本局复盘报告</button>
+    <button class="drawer__item" data-act="theme">切换主题</button>
+    <button class="drawer__item" data-act="surrender">🏳️ 主动认输</button>
+    <button class="drawer__item drawer__item--danger" data-act="restart">重新开始</button>
+  </div>
+</nav>
+
+<script src="js/data-careers.js"></script>
+<script src="js/data-board.js"></script>
+<script src="js/data-cards-101.js"></script>
+<script src="js/data-cards-202.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/engine-actions.js"></script>
+<script src="js/ui-core.js"></script>
+<script src="js/ui-game.js"></script>
+<script src="js/ui-pending.js"></script>
+<script src="js/ui-summary.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
