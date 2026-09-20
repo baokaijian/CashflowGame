@@ -738,8 +738,19 @@ function showDownsized(g, p, P){
       $('[data-ok]',m).onclick = ()=>{
         const r = A.doDownsized(g, P.amount);
         if(!r.ok) return U.toast(r.msg, 'err');
-        finishTurnAction();
         window.UiGame.renderAll();
+        /* ★ 失业是一次收入突变：引擎在切换状态之前先把「这段未结算周期」按在职口径结清了。
+           若它带回缺口，必须先补上再进入失业期 —— 否则这段缺口会和失业期的缺口
+           滚在一起，越滚越大（旧版就是因此把「失业前的正常年份」也按失业后的缺口算）。 */
+        if(r.brk && r.brk.deficit > 0){
+          U.closeModal();
+          E.setPending(g, { type:'deficit', amount:r.brk.deficit,
+                            title:'失业前结算', ico:'📉' });
+          showPending();
+          U.toast(`失业前还有 ${r.brk.years} 年未结算，缺口 ${money(r.brk.deficit)} 需要先补上`, 'err');
+          return;
+        }
+        finishTurnAction();
         U.toast(`已领取离职补偿 ${money(r.severance)}；工资归零，预计需要 ${r.need} 个回合求职`, 'err');
       };
     }});

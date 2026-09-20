@@ -247,11 +247,11 @@ function renderCenter(){
           <b>${esc(st.nm)}<i>${esc(st.range)} · ${esc(st.tag)}</i></b></div>`; })() : ''}
       <div class="bc-stat"><span class="bc-stat__k">当前玩家</span><b style="color:${cur.color}">${esc(cur.name)}</b></div>
       <div class="bc-stat"><span class="bc-stat__k">手头现金</span><b>${money(cur.cash)}</b></div>
-      <div class="bc-stat"><span class="bc-stat__k">月现金流</span><b class="${E.finance(cur).cashflow<0?'neg':''}">${money(E.finance(cur).cashflow)}</b></div>
+      <div class="bc-stat"><span class="bc-stat__k">年结余</span><b class="${E.settleCashflow(cur)<0?'neg':''}">${money(E.annual(E.settleCashflow(cur)))}</b></div>
       ${cur.inFT
-        ? `<div class="bc-stat"><span class="bc-stat__k">财务自由圈月现金流</span><b>${money(E.ftMonthly(cur))}</b></div>
+        ? `<div class="bc-stat"><span class="bc-stat__k">分红收入（年·毛额）</span><b>${money(E.annual(E.ftMonthly(cur)))}</b></div>
            <div class="bc-stat"><span class="bc-stat__k">企业累计增加</span><b>${money(cur.ftGain||0)}<i> / ¥50,000</i></b></div>`
-        : `<div class="bc-stat"><span class="bc-stat__k">被动收入</span><b>${money(esc_.passive)}<i> / 门槛 ${money(esc_.target)}</i></b></div>`}
+        : `<div class="bc-stat"><span class="bc-stat__k">被动收入（年）</span><b>${money(E.annual(esc_.passive))}<i> / 门槛 ${money(E.annual(esc_.target))}</i></b></div>`}
     </div>
     ${(bothCircles(g) || Game.peeking) ? `<button class="btn btn--s ${Game.peeking ? 'btn--tonal' : 'btn--outline'}" id="btnSwapBoard">${
       Game.peeking ? '↩ 回到当前玩家的跑道' : (isFT ? '👀 查看老鼠赛跑' : '👀 查看财务自由圈')}</button>` : ''}`;
@@ -284,8 +284,8 @@ function renderPlayers(){
         p.joblessNeed > 0 && p.joblessProgress < p.joblessNeed ? ' · <b class="warn">失业求职中</b>' : ''}</div>
       <div class="pcard__grid">
         <div>现金 <b>${money(p.cash)}</b></div>
-        <div>月现金流 <b class="${f.cashflow<0?'neg':''}">${money(f.cashflow)}</b></div>
-        <div>被动收入 <b>${money(f.passive)}</b></div>
+        <div>年结余 <b class="${E.settleCashflow(p)<0?'neg':''}">${money(E.annual(E.settleCashflow(p)))}</b></div>
+        <div>被动收入 <b>${money(E.annual(f.passive))}</b></div>
         <div>净资产 <b>${money(E.netWorth(p))}</b></div>
       </div>
       <div class="pcard__energy">${U.energyBar(p, g)}</div>
@@ -311,8 +311,8 @@ function showPlayerDetail(pid){
             <div class="rowlist__row"><span>房产</span><b>${p.assets.realEstate.length} 处</b></div>
             <div class="rowlist__row"><span>企业</span><b>${p.assets.business.length + p.assets.ftBusiness.length} 家</b></div>
             <div class="rowlist__row"><span>股票</span><b>${p.assets.stocks.reduce((s,x)=>s+x.shares,0)} 股</b></div>
-            <div class="rowlist__row"><span>月现金流</span><b>${money(E.finance(p).cashflow)}</b></div>
-            <div class="rowlist__row"><span>被动收入</span><b>${money(E.finance(p).passive)}</b></div>
+            <div class="rowlist__row"><span>年结余</span><b>${money(E.annual(E.settleCashflow(p)))}</b></div>
+            <div class="rowlist__row"><span>被动收入（年）</span><b>${money(E.annual(E.finance(p).passive))}</b></div>
             <div class="rowlist__row"><span>净资产</span><b>${money(E.netWorth(p))}</b></div>
           </div>
           <p class="hint">已开启「不显示对手财务明细」，仅显示概览。可在开局设置中调整。</p>
@@ -371,20 +371,20 @@ function renderFinance(){
     </div>
     <div class="sec">
       <div class="sec__total"><span>手头现金</span><span class="money">${money(p.cash)}</span></div>
-      <div class="sec__total"><span>月现金流</span><span class="money ${f.cashflow<0?'neg':''}">${money(f.cashflow)}</span></div>
+      <div class="sec__total"><span>年结余</span><span class="money ${E.settleCashflow(p)<0?'neg':''}">${money(E.annual(E.settleCashflow(p)))}</span></div>
       ${p.inFT
-        ? `<div class="sec__total" style="background:var(--secondary-container);color:var(--secondary)"><span>财务自由圈月现金流</span><span class="money">${money(E.ftMonthly(p))}</span></div>
+        ? `<div class="sec__total" style="background:var(--secondary-container);color:var(--secondary)"><span>分红收入（年·毛额）</span><span class="money">${money(E.annual(E.ftMonthly(p)))} <span class="muted">净额见上方年结余</span></span></div>
            <div class="esc-block">
              <div class="esc-block__hd"><span>出圈进度</span><b class="esc-block__pct pos">100%</b></div>
              <div class="progress"><div class="progress__bar" style="width:100%"></div></div>
              <div class="esc-block__meta"><span>已进入财务自由圈 —— 出圈这件事对你已经完成</span></div>
            </div>
            <div class="esc-block">
-             <div class="esc-block__hd"><span>企业达标进度（累计月现金流 ≥ ¥50,000 即获胜）</span><b class="esc-block__pct">${Math.min(100, Math.floor((p.ftGain||0)/500))}%</b></div>
+             <div class="esc-block__hd"><span>企业达标进度（所购企业的<b>月现金流之和</b> ≥ ¥50,000 即获胜）</span><b class="esc-block__pct">${Math.min(100, Math.floor((p.ftGain||0)/500))}%</b></div>
              <div class="progress"><div class="progress__bar" style="width:${Math.min(100,(p.ftGain||0)/500)}%"></div></div>
              <div class="esc-block__meta"><span>累计 <b class="money">${money(p.ftGain||0)}</b> / ¥50,000</span></div>
            </div>`
-        : `<div class="sec__total" style="background:var(--secondary-container);color:var(--secondary)"><span>被动收入</span><span class="money">${money(f.passive)}</span></div>
+        : `<div class="sec__total" style="background:var(--secondary-container);color:var(--secondary)"><span>被动收入（年）</span><span class="money">${money(E.annual(f.passive))}</span></div>
            <div class="esc-block">
              <div class="esc-block__hd">
                <span>出圈进度（${g.rule==='202'?'被动收入 ＞ 支出×2':'被动收入 ＞ 支出'}）</span>
@@ -392,8 +392,8 @@ function renderFinance(){
              </div>
              <div class="progress"><div class="progress__bar" style="width:${pr.pctText}%"></div></div>
              <div class="esc-block__meta">
-               <span>被动收入 <b class="money">${money(pr.passive)}</b> / 门槛 <b class="money">${money(pr.target)}</b></span>
-               <span>${pr.canEscape ? '✅ 已达标，点主按钮即可出圈' : `还差 <b class="money">${money(pr.gap)}</b> 被动收入`}</span>
+               <span>被动收入（年）<b class="money">${money(E.annual(pr.passive))}</b> / 门槛 <b class="money">${money(E.annual(pr.target))}</b></span>
+               <span>${pr.canEscape ? '✅ 已达标，点主按钮即可出圈' : `还差 <b class="money">${money(E.annual(pr.gap))}</b> 被动收入（年）`}</span>
              </div>
            </div>`}
       ${clsBlock}
@@ -450,7 +450,23 @@ function renderFinance(){
     <div class="fin-cols">
       <div>${U.renderIncome(p)}</div>
       <div>
-        <div class="sec"><div class="sec__title">资产</div>${U.renderAssets(p)}</div>
+        <div class="sec"><div class="sec__title">资产</div>${U.renderAssets(p)}
+          ${(function(){
+            /* 资产估值：账面成本 ≠ 当前市价。玩家最需要看到的就是这个差额 ——
+               「纸面上有 50 万」和「现在能抵押出多少」是两件事。 */
+            const ap = E.appraiseAll(g, p);
+            if(!ap.rows.length) return '';
+            const d = ap.value - ap.book;
+            const pctv = ap.book > 0 ? d / ap.book * 100 : 0;
+            return `<div class="sec__total" style="margin-top:8px">
+                <span>资产估值 <span class="muted">（账面 ${money(ap.book)} → 当前市价）</span></span>
+                <span class="money ${d >= 0 ? 'pos' : 'neg'}">${money(ap.value)}
+                  <span class="muted">${d >= 0 ? '+' : ''}${pctv.toFixed(1)}%</span></span>
+              </div>
+              <p class="hint">估值 = 账面成本 × 行情周期 × 折旧。房价会跌、设备会旧、土地长期微涨 ——
+                <b>纸面资产不等于现在能变现的钱</b>，抵押额度就是按这个市价算的。</p>`;
+          })()}
+        </div>
         <div class="sec"><div class="sec__title">负债</div>${U.renderLiabs(p)}</div>
       </div>
     </div>`;
@@ -506,7 +522,8 @@ function renderRules(){
     <h4>回合流程</h4>
     <ul>
       <li>内圈掷 1 粒骰子（财务自由圈掷 2 粒），移动棋子。</li>
-      <li>经过或停在<b>发薪日</b>：领取月现金流（收入 − 支出）。</li>
+      <li>经过或停在<b>发薪日</b>：结算<b>一整年</b> —— 领取年度结余（年收入 − 年支出），
+        并偿还贷款当年的本金（12 期）。<b>一轮 = 一年，一次发薪日 = 一年</b>。</li>
       <li><b>投资机会格</b>：抽投资卡，决定是否买入；资金不足可把投资卡转让给其他玩家。</li>
       <li><b>市场行情格</b>：抽行情卡，所有玩家可卖出相关资产；202 规则下租金随行情波动。</li>
       <li><b>意外支出格</b>：支付卡片金额。<b>添丁格</b>：子女 +1（上限 3 个），养育支出增加。</li>
@@ -518,7 +535,8 @@ function renderRules(){
     <h4>获胜条件</h4>
     <ul>
       <li>第一个在财务自由圈买下自己梦想的玩家。</li>
-      <li>第一个在财务自由圈通过购买企业使月现金流增加 ≥ ¥50,000 的玩家。</li>
+      <li>第一个在财务自由圈通过购买企业使<b>企业月现金流之和</b>增加 ≥ ¥50,000 的玩家
+        （这是「资产规模」的度量，与年度结算无关）。</li>
       <li>${ageMode ? `<b>年龄模式</b>：全部玩家到 ${g.endAge} 岁退休时按<b>净资产</b>排名，最高者获胜。` : '无限模式下没有轮数上限，直到有人达成上述条件为止。'}</li>
       <li>${g.rule==='202'?'202：买断对手资产使其出局，最终存活者获胜。':'101：破产者退出游戏，其余玩家继续。'}</li>
     </ul>
@@ -532,11 +550,12 @@ function renderRules(){
     <h4>贷款与提前还款</h4>
     <ul>
       <li>六类贷款<b>全部支持提前还款</b>，统一在「贷款管家」里操作。</li>
-      <li>每笔贷款都有明确的<b>月供、月利率、剩余期数、剩余利息</b>。经过一次发薪日即偿还一期：
-          利息 = 剩余本金 × 月利率，月供的其余部分冲减本金。</li>
+      <li>每笔贷款都有明确的<b>年供、月利率、剩余年数、剩余利息</b>。经过一次发薪日即偿还<b>一年</b>（12 期）：
+          每期利息 = 剩余本金 × 月利率，月供的其余部分冲减本金。</li>
+      <li>剩余期限以<b>年</b>显示（剩余期数 ÷ 12，向上取整）—— 与年龄、轮次同一把尺子。</li>
       <li>部分提前还款<b>不得低于 1 期月供</b>；想一次还清直接选「结清全部」。</li>
-      <li>还款后二选一：<b>月供不变 · 缩短期限</b>（省利息最多，默认）或 <b>期限不变 · 减少月供</b>（降低月度压力）。</li>
-      <li>结清后该笔月供立即从总支出中消失，月现金流同步改善。</li>
+      <li>还款后二选一：<b>年供不变 · 缩短期限</b>（省利息最多，默认）或 <b>期限不变 · 降低年供</b>（减轻每年压力）。</li>
+      <li>结清后该笔年供立即从支出中消失，年结余同步改善。</li>
     </ul>
     <div class="rulelist">
       <div class="rulelist__row rulelist__row--head"><div>贷款类型</div><div>月息 / 年化 · 违约金 · 锁定期</div></div>
@@ -559,13 +578,25 @@ function renderRules(){
         中年期起新增<b>赡养父母支出</b>，这是「三明治一代」最真实的压力来源。</li>
       <li><b>失业（逆流）</b>：被裁后按 N+1 惯例<b>领取</b>离职补偿，但<b>工资归零、支出照付</b>，
         需要投入精力求职才能重新就业（40 岁 / 50 岁以上求职更难）。撑不过去就只能变卖资产。</li>
-      <li><b>入不敷出</b>：月现金流为负时，每月需动用储蓄补上缺口；储蓄耗尽后同样要面对贷款 / 变卖 / 破产三条路。</li>
+      <li><b>入不敷出</b>：年度结余为负时，每年需动用储蓄补上缺口；储蓄耗尽后同样要面对贷款 / 变卖 / 破产三条路。</li>
     </ul>
     <h4>关键数值</h4>
     <ul>
       <li>信用贷月息 <b>${(E.loanType('bank').rate*100).toFixed(1)}%</b>（年化约 ${(E.loanType('bank').rate*12*100).toFixed(0)}%），随借随还；财务自由圈投资只能用现金，不允许贷款。</li>
+      <li><b>信用贷额度由收入核定</b>：负债收入比须 ≤ <b>${((window.CREDIT&&window.CREDIT.maxDTI||0.55)*100).toFixed(0)}%</b>，
+        授信总额不超过<b>年收入的 ${(window.CREDIT&&window.CREDIT.incomeMult||1.2).toFixed(1)} 倍</b>（取较小者再乘信用系数）。
+        失业 / 求职期与破产后的征信恢复期内<b>不予授信</b>；退休后额度折半；白户（从未借过款）也会被谨慎对待。
+        —— 借钱能撑一时，但最终要靠收入去还。</li>
       <li>主动变卖资产按账面价 <b>${Math.round(E.SELL_RATE*100)}%</b> 立即变现；破产时银行按 <b>${Math.round(E.BANK_RATE*100)}%</b> 收购全部可变现资产抵债。</li>
-      <li>进入财务自由圈的启动资金 = <b>被动收入 × 100</b>。</li>
+      <li><b>多头借贷会被识别</b>：同时在多个<b>信用类</b>产品上有余额、近期频繁申请信用贷、或额度使用率过高，
+        都会触发降额；达到红线时<b>直接拒贷</b>（房贷 / 车贷 / 助学属于正常负债，不计入）。</li>
+      <li><b>抵押物按当前市价估值</b>：银行不按你的买入价放贷 —— 房价随 <b>8 年周期 ±15%</b> 波动（各类资产相位错开），
+        企业按 <b>4%/年</b> 折旧、土地长期微涨，存款 / 理财的本金不随行情变动。
+        <b>市价下行时你的可贷额度会一起缩水。</b></li>
+      <li><b>退休与终局都会结清</b>：61 岁退休时先把此前未结算的年份按<b>在职口径</b>结清，再切换为养老金；
+        65 岁结束时再补结最后一段 —— 所以「一生结算的总年数 = 你的实际年龄跨度」，不会有年头凭空漏账。</li>
+      <li>进入财务自由圈的启动资金 = <b>月被动收入 × 100</b>（≈ 8.3 年的被动收入，
+        这是原版的游戏化数字，不是按年结算的金额）。</li>
       <li>融券做空不需支付现金，出现该标的价格时<b>强制买回平仓</b>，可随时操作。</li>
       <li>看涨 / 看跌 / 跨式期权有 <b>3 回合</b>时间限制，逾期权利金损失。</li>
     </ul>
@@ -834,6 +865,8 @@ function endTurn(){
     winnerModal(); return;
   }
   if(reported) return;
+  /* 退休是收入断崖：必须在玩家看到「钱怎么少了」之前解释清楚 */
+  if(retireNotice(g)) return;
   /* 本回合结束时精力被耗尽 → 健康危机。必须先说清楚「为什么被打断」，
      否则玩家只会觉得游戏莫名其妙地不让他行动。 */
   if(crisisNotice(g)) return;
@@ -862,7 +895,7 @@ function onMenu(act){
             <div class="pcard__top"><span class="token" style="background:${p.color}">${p.icon}</span>
             <span class="pcard__name">${esc(p.name)}</span>
             <span class="pcard__tag">${p.out?'出局':(p.inFT?'财务自由圈':'老鼠赛跑')}</span></div>
-            <div class="pcard__job">${p.job.ico} ${esc(p.job.name)} · 现金 ${money(p.cash)} · 月现金流 ${money(E.finance(p).cashflow)}</div>
+            <div class="pcard__job">${p.job.ico} ${esc(p.job.name)} · 现金 ${money(p.cash)} · 年结余 ${money(E.annual(E.settleCashflow(p)))}</div>
           </div>`).join('')}</div>
         <div class="modal__foot"><button class="btn btn--text" data-close>关闭</button></div>`,
         { onMount(m){ $('[data-close]',m).onclick = U.closeModal;
@@ -912,9 +945,9 @@ function openHelp(){
         <div class="rulelist__row"><div>破产惩罚</div><div>${view.rule==='202'?'退出游戏 + 跳回合与借贷限制':'退出游戏'}</div></div>
       </div>
       <h4 style="margin:14px 0 6px;font-size:13px;color:var(--primary)">获胜条件</h4>
-      <p class="muted">① 第一个在财务自由圈买下自己梦想的玩家；② 第一个在财务自由圈通过购买企业使月现金流增加 ≥ ¥50,000 的玩家；③ ${view.rule==='202'?'买断对手资产使其出局，最终存活者获胜。':'破产者退出游戏。'}</p>
+      <p class="muted">① 第一个在财务自由圈买下自己梦想的玩家；② 第一个在财务自由圈通过购买企业使企业月现金流之和增加 ≥ ¥50,000 的玩家；③ ${view.rule==='202'?'买断对手资产使其出局，最终存活者获胜。':'破产者退出游戏。'}</p>
       <h4 style="margin:14px 0 6px;font-size:13px;color:var(--primary)">关键数值</h4>
-      <p class="muted">信用贷月息 1%（年化约 12%）；主动变卖按账面价 80% 变现，破产时银行半价收购；出圈资金 = 被动收入 × 100；融券做空强制平仓；期权 3 回合限制。</p>
+      <p class="muted">信用贷月息 1%（年化约 12%）；主动变卖按账面价 80% 变现，破产时银行半价收购；出圈资金 = 月被动收入 × 100；融券做空强制平仓；期权 3 回合限制。</p>
     </div>
     <div class="modal__foot"><button class="btn btn--primary" data-close>知道了</button></div>`,
     { onMount(m){ $('[data-close]',m).onclick = U.closeModal; } });
@@ -937,10 +970,10 @@ function openFinanceOverview(){
           <div class="sec__title"><span>${esc(p.name)}</span><span>${money(f.cashflow)}/月</span></div>
           <div class="rowlist">
             <div class="rowlist__row"><span>工资</span><b>${money(f.inc.salary)}</b></div>
-            <div class="rowlist__row"><span>被动收入</span><b>${money(f.passive)}</b></div>
+            <div class="rowlist__row"><span>被动收入（年）</span><b>${money(E.annual(f.passive))}</b></div>
             <div class="rowlist__row"><span>总支出</span><b>${money(f.totalExpenses)}</b></div>
             <div class="rowlist__row"><span>现金 / 净资产</span><b>${money(p.cash)} / ${money(E.netWorth(p))}</b></div>
-            ${p.inFT?`<div class="rowlist__row"><span>财务自由圈月现金流</span><b>${money(E.ftMonthly(p))}</b></div>`:''}
+            ${p.inFT?`<div class="rowlist__row"><span>分红收入（年·毛额）</span><b>${money(E.annual(E.ftMonthly(p)))}</b></div>`:''}
           </div></div>`;
       }).join('')}
     </div>
@@ -952,8 +985,8 @@ function openFinanceOverview(){
 /* ------------------------------ 贷款管家 ------------------------------ */
 /* 六类贷款（房贷 / 助学贷款 / 车贷 / 信用卡分期 / 其他负债 / 信用贷）统一在一处管理，
    全部支持提前还款。还款后可选两种方式，与现实中银行给的选项一致：
-     · 月供不变 · 缩短期限（默认，省利息最多）
-     · 期限不变 · 减少月供（降低月度压力）
+     · 年供不变 · 缩短期限（默认，省利息最多）
+     · 期限不变 · 降低年供（减轻每年的还款压力）
    ★ 预览与实际扣款共用 Engine.prepayPlan，界面算的和账上扣的一定一致。 */
 const LoanUI = { key:null, mode:'shorten' };
 
@@ -971,8 +1004,8 @@ function loanOpBlock(g, p){
   const modeBar = info.revolving ? `
     <p class="hint" style="margin-top:12px">信用贷随借随还、按剩余本金计息，没有固定期数；还款后月息立即按新余额重算。</p>`
     : `<div class="segmented segmented--sm" style="margin-top:12px" id="ppMode">
-        <button class="segmented__item ${LoanUI.mode==='shorten'?'segmented__item--active':''}" data-mode="shorten">月供不变 · 缩短期限</button>
-        <button class="segmented__item ${LoanUI.mode==='reduce'?'segmented__item--active':''}" data-mode="reduce">期限不变 · 减少月供</button>
+        <button class="segmented__item ${LoanUI.mode==='shorten'?'segmented__item--active':''}" data-mode="shorten">年供不变 · 缩短期限</button>
+        <button class="segmented__item ${LoanUI.mode==='reduce'?'segmented__item--active':''}" data-mode="reduce">期限不变 · 降低年供</button>
       </div>`;
   return `
     <div class="sec" style="border:1px solid var(--sep);border-radius:var(--r-m);padding:14px;margin-top:14px">
@@ -1014,10 +1047,10 @@ function paintPreview(m, g, p){
   if(msgEl) msgEl.hidden = true;
   if(btn){ btn.disabled = false; btn.textContent = plan.cleared ? `确认结清（支付 ${money(plan.need)}）` : `确认提前还款（支付 ${money(plan.need)}）`; }
   const balBefore = money(plan.before.balance), balAfter = money(plan.after.balance);
-  const dueRow = `<div class="rowlist__row"><span>每月还款</span><b>${money(plan.before.due)} → ${plan.after.due ? money(plan.after.due) : '—'}</b></div>`;
+  const dueRow = `<div class="rowlist__row"><span>每年还款</span><b>${money(E.annual(plan.before.due))} → ${plan.after.due ? money(E.annual(plan.after.due)) : '—'}</b></div>`;
   const remRow = plan.info.revolving
     ? '<div class="rowlist__row"><span>还款计划</span><b>随借随还 · 无固定期数</b></div>'
-    : `<div class="rowlist__row"><span>剩余期数</span><b>${plan.before.remaining} 期 → ${plan.after.remaining} 期</b></div>`;
+    : `<div class="rowlist__row"><span>剩余期限</span><b>${E.toYears(plan.before.remaining)} 年 → ${E.toYears(plan.after.remaining)} 年</b></div>`;
   const intRow = (plan.before.interestLeft == null)
     ? ''
     : `<div class="rowlist__row"><span>剩余利息</span><b>${money(plan.before.interestLeft)} → ${money(plan.after.interestLeft || 0)}</b></div>`;
@@ -1029,6 +1062,9 @@ function paintPreview(m, g, p){
     + dueRow + remRow + intRow
     + (plan.savedInterest != null ? row('可节省利息', money(plan.savedInterest), 'pos') : '');
 }
+
+/* 多头等级 → 语义色：正常 / 关注 / 较集中 / 多头 */
+const MULTI_TONE = { '正常':'var(--green)', '关注':'var(--accent)', '较集中':'var(--orange)', '多头':'var(--red)' };
 
 function openLoanCenter(key, preset){
   const g = Game.g, p = E.current(g);
@@ -1045,6 +1081,10 @@ function openLoanCenter(key, preset){
     renderAll();
   };
   const startAmt = Math.max(100, Math.round((preset || 1000) / 100) * 100);
+  /* 授信档案与界面读同一份判定：面板上写的额度、按钮是否可用、
+     实际能借到多少，全部来自 Engine.creditProfile —— 不允许界面自己算。 */
+  const cp = E.creditProfile(g, p) || { ok:false, available:0, limit:0, used:0, score:1,
+    grade:{key:'—',label:'—'}, monthlyIncome:0, dtiNow:0, maxDTI:0.55, reasons:['无法评估授信。'] };
   const loans = E.LOAN_KEYS.map(k=>E.loanInfo(p, k)).filter(i=>i.balance > 0);
   const debt = loans.reduce((s2,i)=>s2+i.balance, 0);
   const dueSum = E.finance(p).loanTotal || 0;
@@ -1053,17 +1093,17 @@ function openLoanCenter(key, preset){
         <span><b>${esc(i.nm)}</b> · 剩余 <b class="money">${money(i.balance)}</b>
           <br><span class="muted">${i.revolving
             ? `月息 ${money(i.due)}（${(i.rate*100).toFixed(2)}% / 月，年化约 ${(i.rateAnnual*100).toFixed(1)}%）· 随借随还`
-            : `月供 ${money(i.due)} · 月息 ${(i.rate*100).toFixed(2)}%（年化约 ${(i.rateAnnual*100).toFixed(1)}%）· 剩余 ${i.remaining} 期 · 剩余利息 ${money(i.interestLeft)} · 已还 ${i.periods} 期`}</span></span>
+            : `年供 ${money(i.dueYear)} · 月利率 ${(i.rate*100).toFixed(2)}%（年化约 ${(i.rateAnnual*100).toFixed(1)}%）· <b>剩余 ${i.remainingYears} 年</b> · 剩余利息 ${money(i.interestLeft)} · 已还 ${i.paidYears} 年`}</span></span>
         <button class="btn btn--s btn--tonal" data-pick="${i.key}">${i.canPrepay ? '提前还款' : `满 ${i.minPeriod} 期后可还`}</button>
       </div>`).join('') : '';
   U.openModal(`
     <div class="modal__head"><h3>贷款管家</h3>
-      <p class="muted">六类贷款都支持提前还款；还款后可选「缩短期限」或「减少月供」</p></div>
+      <p class="muted">六类贷款都支持提前还款；还款后可选「缩短期限」或「降低年供」（一次发薪日偿还一年）</p></div>
     <div class="modal__body">
       <div class="rowlist">
         <div class="rowlist__row"><span>手头现金</span><b class="money">${money(p.cash)}</b></div>
         <div class="rowlist__row"><span>负债合计</span><b class="money">${money(debt)}</b></div>
-        <div class="rowlist__row"><span>每月还款合计</span><b class="money">${money(dueSum)}</b></div>
+        <div class="rowlist__row"><span>每年还款合计</span><b class="money">${money(E.annual(dueSum))}</b></div>
       </div>
 
       <div class="sec__title" style="margin-top:16px">贷款明细</div>
@@ -1072,18 +1112,72 @@ function openLoanCenter(key, preset){
       ${loanOpBlock(g, p)}
 
       <div class="sec__title" style="margin-top:18px">信用贷借款</div>
-      <p class="hint">信用贷随借随还，月息 <b>${(E.loanType('bank').rate*100).toFixed(1)}%</b>（年化约 ${(E.loanType('bank').rate*12*100).toFixed(0)}%）。借款会增加负债与月息支出，请在需要时使用。</p>
+      <p class="hint">信用贷随借随还，月息 <b>${(E.loanType('bank').rate*100).toFixed(1)}%</b>（年化约 ${(E.loanType('bank').rate*12*100).toFixed(0)}%）。
+        <b>额度由收入核定</b>：银行同时看「负债收入比 ≤ ${(cp.maxDTI*100).toFixed(0)}%」与
+        「年收入 × ${(window.CREDIT && window.CREDIT.incomeMult || 1.2).toFixed(1)} 倍」，取较小者再乘信用系数。</p>
+      <div class="rowlist">
+        <div class="rowlist__row"><span>信用评级</span>
+          <b style="color:${cp.ok ? 'var(--green)' : 'var(--red)'}">${cp.grade.key} · ${cp.grade.label}
+          <span class="muted">（系数 ${cp.score.toFixed(2)}${cp.retired ? ' · 退休折半' : ''}${cp.deficitMonths ? ` · 入不敷出 ${cp.deficitMonths} 次` : ''}${cp.bankrupts ? ` · 破产 ${cp.bankrupts} 次` : ''}）</span></b></div>
+        <div class="rowlist__row"><span>月收入 / 现有月还款</span><b>${money(cp.monthlyIncome)} / ${money(dueSum)}</b></div>
+        <div class="rowlist__row"><span>负债收入比</span>
+          <b class="${cp.dtiNow > cp.maxDTI ? 'neg' : ''}">${(cp.dtiNow*100).toFixed(0)}% <span class="muted">/ 上限 ${(cp.maxDTI*100).toFixed(0)}%</span></b></div>
+        <div class="rowlist__row"><span>授信总额 / 已用</span><b>${money(cp.limit)} / ${money(cp.used)}</b></div>
+        <div class="rowlist__row"><span>本次可借</span><b class="money">${money(cp.available)}</b></div>
+      </div>
+      ${cp.ok ? '' : `<p class="hint" style="color:var(--red);margin-top:8px">🚫 ${cp.reasons.map(esc).join(' ')}</p>`}
+
+      <div class="sec__title" style="margin-top:16px">多头借贷识别</div>
+      <div class="rowlist">
+        <div class="rowlist__row"><span>多头等级</span>
+          <b style="color:${MULTI_TONE[cp.multi.level] || 'var(--on-surface)'}">${cp.multi.level}
+          <span class="muted">（授信 ×${cp.multi.mult.toFixed(2)}）</span></b></div>
+        <div class="rowlist__row"><span>在贷信用类产品</span>
+          <b>${cp.multi.nProducts} 种 <span class="muted">${cp.multi.products.length ? cp.multi.products.map(k => esc((E.loanType(k) || {}).nm || k)).join(' / ') : '—'}</span></b></div>
+        <div class="rowlist__row"><span>近期信用贷申请</span>
+          <b>${cp.multi.draws} 次 <span class="muted">/ 近 ${cp.multi.drawWindow} 回合</span></b></div>
+        <div class="rowlist__row"><span>额度使用率</span>
+          <b class="${cp.multi.util > 0.6 ? 'neg' : ''}">${(cp.multi.util * 100).toFixed(0)}%</b></div>
+      </div>
+      ${cp.multi.reasons.length ? `<p class="hint" style="color:var(--orange);margin-top:6px">⚠️ 已识别：${cp.multi.reasons.map(esc).join('；')}</p>` : ''}
+      <p class="hint">多头借贷 = 同时在多个<b>信用类</b>产品上有借贷关系，是资金链紧张的最强信号 ——
+        短期反复借还往往意味着「借新还旧」，风控会据此降额甚至拒贷。
+        房贷 / 车贷 / 助学贷款属于正常负债，<b>不计入</b>多头。</p>
+
+      <div class="sec__title" style="margin-top:16px">抵押物估值（动态）</div>
+      <div class="rowlist">
+        <div class="rowlist__row"><span>账面成本</span><b>${money(cp.appraisal.book)}</b></div>
+        <div class="rowlist__row"><span>当前估值</span>
+          <b class="${cp.appraisal.value >= cp.appraisal.book ? 'pos' : 'neg'}">${money(cp.appraisal.value)}
+          <span class="muted">${cp.appraisal.book > 0 ? ((cp.appraisal.value / cp.appraisal.book - 1) * 100 >= 0 ? '+' : '') + ((cp.appraisal.value / cp.appraisal.book - 1) * 100).toFixed(1) + '%' : '—'}</span></b></div>
+        <div class="rowlist__row"><span>可抵押净值</span><b class="money">${money(cp.collateral)}</b></div>
+        <div class="rowlist__row"><span>折算规则</span>
+          <b><span class="muted">房产按已付首付的权益比例；其余按处置难度 ${Math.round(((window.MARKET && window.MARKET.haircut && window.MARKET.haircut.business) || 0.4) * 100)}%—100%</span></b></div>
+      </div>
+      <p class="hint">银行按抵押物的<b>当前市价</b>放贷，而市价会随行情周期涨跌、资产本身也会折旧
+        （房产不折旧，企业与设备约 4%/年，土地长期微涨）。
+        <b>房价下行时你的可贷额度会一起缩水</b> —— 这正是现实中「抵押物不足被要求补保证金」的由来。</p>
+      ${cp.appraisal.rows.length ? `<details class="appraisal-detail">
+        <summary>查看 ${cp.appraisal.rows.length} 项资产的重估明细</summary>
+        <div class="rowlist">
+          ${cp.appraisal.rows.map(r => `<div class="rowlist__row">
+            <span>${esc(r.item.nm || r.item.symbol || '资产')}</span>
+            <span><span class="muted">账面 ${money(r.book)} × ${r.index.toFixed(2)}${r.years > 0 ? ' × 折旧 ' + r.decay.toFixed(2) : ''}</span>
+            <b>${money(r.value)}</b></span>
+          </div>`).join('')}
+        </div>
+      </details>` : '<p class="hint">目前没有可抵押的资产。</p>'}
       <div class="number-row">
         <div class="stepper">
-          <button data-minus>−</button><input id="loanAmt" type="number" value="${startAmt}" min="100" step="100"><button data-plus>+</button>
+          <button data-minus ${cp.ok?'':'disabled'}>−</button><input id="loanAmt" type="number" value="${Math.min(startAmt, Math.max(0, cp.available))}" min="100" step="100" ${cp.ok?'':'disabled'}><button data-plus ${cp.ok?'':'disabled'}>+</button>
         </div>
-        ${[1000,5000,10000,20000].map(v=>`<button class="btn btn--s btn--outline" data-set="${v}">${money(v)}</button>`).join('')}
+        ${[1000,5000,10000,20000].filter(v=>v<=cp.available).map(v=>`<button class="btn btn--s btn--outline" data-set="${v}">${money(v)}</button>`).join('')}
       </div>
       ${fromCard ? `<p class="hint" style="margin-top:12px">🔙 本轮卡片尚未结算，完成或关闭后将自动返回刚才的决策。</p>` : ''}
     </div>
     <div class="modal__foot">
       <button class="btn btn--text" data-close>关闭</button>
-      <button class="btn btn--primary" data-loan>确认借款</button>
+      <button class="btn btn--primary" data-loan ${cp.ok?'':'disabled'}>${cp.ok ? '确认借款' : '当前无法授信'}</button>
     </div>`,
     { onDismiss: backFromLoan,                    /* ESC / 点遮罩同样回到卡片 */
       onMount(m){
@@ -1129,8 +1223,8 @@ function openLoanCenter(key, preset){
           if(!r.ok) return U.toast(r.msg, 'err');
           renderAll();
           U.toast(r.cleared
-            ? `${E.loanType(r.key||LoanUI.key).nm}已结清，每月还款减少 ${money(r.before.due)}`
-            : `已提前还款 ${money(r.principal)}${r.fee ? `（含违约金 ${money(r.fee)}）` : ''}，${r.mode === 'reduce' ? `月供降至 ${money(r.after.due)}` : `剩余 ${r.after.remaining} 期`}`
+            ? `${E.loanType(r.key||LoanUI.key).nm}已结清，每年还款减少 ${money(E.annual(r.before.due))}`
+            : `已提前还款 ${money(r.principal)}${r.fee ? `（含违约金 ${money(r.fee)}）` : ''}，${r.mode === 'reduce' ? `年还款降至 ${money(E.annual(r.after.due))}` : `剩余期限缩短至 ${E.toYears(r.after.remaining)} 年`}`
             + (r.savedInterest ? `，节省利息 ${money(r.savedInterest)}` : ''), 'ok');
           openLoanCenter(LoanUI.key);
         };
@@ -1321,7 +1415,7 @@ function winnerModalMulti(g){
       </div>
       <div class="sec__title" style="margin-top:16px">最终战绩</div>
       <div class="rowlist">
-        <div class="rowlist__row rowlist__row--head"><span>玩家</span><span>现金 / 月现金流 / 净资产</span></div>
+        <div class="rowlist__row rowlist__row--head"><span>玩家</span><span>现金 / 年结余 / 净资产</span></div>
         ${g.players.slice().sort((a,b)=>E.netWorth(b)-E.netWorth(a)).map(x=>{
           const f = E.finance(x);
           return `<div class="rowlist__row"><span>${x.icon} ${esc(x.name)}${p && x.id===p.id?' 🏆':''}${x.out?'（出局）':''}</span>
@@ -1385,14 +1479,14 @@ function soloResultModal(g){
       <div class="sec__title" style="margin-top:16px">最终状态</div>
       <div class="rowlist">
         <div class="rowlist__row"><span>社会等级</span><b>L${S.lv} · ${esc(S.levelName)}</b></div>
-        <div class="rowlist__row"><span>被动收入覆盖度</span><b>${Math.round(S.cover * 100)}%（${money(S.passive)} / 门槛 ${money(S.target)}）</b></div>
+        <div class="rowlist__row"><span>被动收入覆盖度</span><b>${Math.round(S.cover * 100)}%（年被动 ${money(E.annual(S.passive))} / 年门槛 ${money(E.annual(S.target))}）</b></div>
         <div class="rowlist__row"><span>净资产</span><b>${money(S.netWorth)}</b></div>
-        <div class="rowlist__row"><span>月现金流</span><b class="${f.cashflow < 0 ? 'neg' : ''}">${money(f.cashflow)}</b></div>
+        <div class="rowlist__row"><span>年结余</span><b class="${E.settleCashflow(p) < 0 ? 'neg' : ''}">${money(E.annual(E.settleCashflow(p)))}</b></div>
         <div class="rowlist__row"><span>退休状态</span><b>${p.retired ? '已退休 · 领取养老金' : '尚未退休'}</b></div>
         <div class="rowlist__row"><span>健康危机 / 失业</span><b>${num(p.stats.crises)} 次 / ${num(p.stats.downsized)} 次</b></div>
       </div>
       ${cls.lv < 6 ? `<p class="hint" style="margin-top:10px">距 L6 财务自由还差
-        <b>${money(Math.max(0, cls.target - cls.passive))}</b> 的月被动收入 ——
+        <b>${money(E.annual(Math.max(0, cls.target - cls.passive)))}</b> 的年被动收入 ——
         这正是本局最值得复盘的差距。</p>` : ''}
     </div>
     <div class="modal__foot">
@@ -1419,6 +1513,37 @@ function num(v){ return Math.round(v || 0); }
 /* ------------------------------ 健康危机提示 ------------------------------ */
 /* 精力归零触发。这里要把「怎么变成这样的」讲清楚，并给出可执行的恢复路径，
    否则玩家只会觉得是一次无妄之灾。 */
+/* 退休是人生里最大的一次收入断崖（收入腰斩）：必须明确告诉玩家
+   「为什么收入突然少了一半」，否则只会觉得游戏莫名其妙地扣钱。
+   与 crisisNotice 同构：一次性提示 + shown 标记防重复。 */
+function retireNotice(g){
+  const r = g.lastRetire;
+  if(!r || r.shown) return false;
+  r.shown = true;
+  const p = g.players[0];
+  if(!p) return false;
+  const ratio = Math.round((window.SOLO.pensionRatio || 0.45) * 100);
+  U.openModal(`
+    <div class="modal__head"><h3>🏖️ ${E.ageOf(g)} 岁 · 退休结算</h3></div>
+    <div class="modal__body">
+      <p class="hint">工资停发，从这一刻起你靠<b>养老金</b>与<b>被动收入</b>生活 ——
+        这是「只靠劳动收入」的人生必然遇到的那道台阶。</p>
+      <div class="sec__total"><span>退休前补结（${r.years} 年 · 在职口径）</span>
+        <span class="money ${r.deficit > 0 ? 'neg' : 'pos'}">${r.amount >= 0 ? '+' : ''}${money(r.amount)}</span></div>
+      <div class="sec__total"><span>此后每月主动收入</span><span>${money(p.salary)}（养老金 · 替代率 ${ratio}%）</span></div>
+      <div class="sec__total"><span>每月缺口 / 结余</span>
+        <span class="money ${E.finance(p).cashflow < 0 ? 'neg' : 'pos'}">${money(E.finance(p).cashflow)}</span></div>
+      ${r.deficit > 0 ? `<p class="hint" style="margin-top:8px">⚠️ 退休前还有 <b>${money(r.deficit)}</b> 的缺口需要先补上 ——
+        这笔账属于退休前的最后几年，按<b>在职</b>时的收支口径结算。</p>` : ''}
+      <p class="hint" style="margin-top:8px"><b>退休后不再有求职这条路。</b>
+        此后是资产在养活你，而不是你在养活资产。</p>
+    </div>
+    <div class="modal__foot"><button class="btn btn--primary btn--block" data-ok>我知道了</button></div>`,
+    { onDismiss: ()=> U.closeModal(),
+      onMount(m){ $('[data-ok]',m).onclick = ()=> U.closeModal(); } });
+  return true;
+}
+
 function crisisNotice(g){
   /* 注意：危机属于【刚结束回合的那位玩家】，不一定是新的当前玩家 ——
      所以按 c.by 取人，而不是用 E.current(g)。 */
@@ -1527,5 +1652,5 @@ function bind(){
 window.UiGame = { Game, startGame, resetGame, tryRestore, saveState, renderAll, roll, endTurn, onMenu, bind, finishRoll, renderCenter,
   showPlayerDetail, openHelp, openLoan, openLoanCenter, updateActions, openShortPanel, winnerModal, bizOfSpace, p_inFT,
   syncBoardView, resetBoardView, curCircle, bothCircles, pauseNotice, crisisNotice,
-  reportIfNeeded, surrenderFlow };
+  reportIfNeeded, surrenderFlow, retireNotice };
 })();

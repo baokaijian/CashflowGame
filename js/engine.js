@@ -16,12 +16,14 @@ function shuffle(a, rnd){
 function pick(arr, rnd){ return arr[Math.floor((rnd?rnd():Math.random())*arr.length)]; }
 
 /* ------------------------------ 卡组 ------------------------------ */
-function makeDeck(cards){
-  return { draw: shuffle(cards), disc: [], total: cards.length };
+/* ★ 牌堆必须记住自己的随机源：牌抽完重洗时若退回 Math.random()，
+   同一个 seed 下「前一轮可复现、重洗之后不可复现」—— 确定性会从中间断掉。 */
+function makeDeck(cards, rnd){
+  return { draw: shuffle(cards, rnd), disc: [], total: cards.length, rnd: rnd || null };
 }
 function drawCard(deck, onReshuffle){
   if(deck.draw.length === 0){
-    deck.draw = shuffle(deck.disc); deck.disc = [];
+    deck.draw = shuffle(deck.disc, deck.rnd); deck.disc = [];
     if(onReshuffle) onReshuffle();
   }
   return deck.draw.pop() || null;
@@ -51,6 +53,32 @@ function dueOf(balance, rate, n){
   const f = Math.pow(1 + rate, n);
   return Math.ceil(b * rate * f / (f - 1));
 }
+/* ------------------------------ 时间口径 ------------------------------ */
+/* ★ 一轮 = 一年；一次发薪日 = 一年（结算 12 个月）。
+   见 data-careers.js 的 window.TIME —— 这里只做读取，绝不在别处写死 12。 */
+function monthsPerPayday(){
+  return (window.TIME && window.TIME.monthsPerPayday) || 12;
+}
+/* 一年有多少个月 —— 目前与 monthsPerPayday 相等，但概念不同：
+   前者是「利率年化的分母」，后者是「一次发薪日结算的月数」。
+   分开定义，将来若要改成「半年结算一次」，只需改 monthsPerPayday。 */
+function monthsPerYear(){
+  return (window.TIME && window.TIME.monthsPerYear) || 12;
+}
+/* 期数（月）→ 年。向上取整：还剩 1 期也要说「还剩 1 年」，
+   说「还剩 0 年」会让玩家以为已经还清了。 */
+function toYears(periods){
+  if(periods == null || !isFinite(periods)) return periods;   /* Infinity（还不完）原样透传 */
+  return Math.ceil(numOr(periods) / monthsPerPayday());
+}
+/* 已还期数 → 已还年数（向下取整：不满一年不算一年） */
+function toYearsFloor(periods){
+  if(periods == null || !isFinite(periods)) return periods;
+  return Math.floor(numOr(periods) / monthsPerPayday());
+}
+/* 月度金额 → 年度金额。界面统一读它，不要各处自己 ×12 */
+function annual(v){ return Math.round(numOr(v) * monthsPerPayday()); }
+
 /* 等额本息：由 (本金, 月利率, 月供) 反推剩余期数；月供不足以覆盖利息时返回 Infinity */
 function periodsOf(balance, rate, due){
   const b = numOr(balance), d = numOr(due);
@@ -119,32 +147,56 @@ function loanInfo(p, key){
   const revolving = t.kind === 'revolving';
   const remaining = (bal <= 0) ? 0 : (revolving ? null : periodsOf(bal, t.rate, due));
   const interestLeft = (remaining === null || !isFinite(remaining)) ? null : Math.max(0, due * remaining - bal);
+  const M = monthsPerPayday(), per = numOr(m.periods);
   return {
     key, nm:t.nm, note:t.note, kind:t.kind,
-    rate:t.rate, rateAnnual:t.rate * 12, prepayRate:t.prepayRate, minPeriod:t.minPeriod,
-    balance:bal, due, base:numOr(m.base), periods:numOr(m.periods),
-    remaining, interestLeft, revolving,
-    canPrepay: bal > 0 && numOr(m.periods) >= t.minPeriod
+    rate:t.rate, rateAnnual:t.rate * monthsPerYear(), prepayRate:t.prepayRate, minPeriod:t.minPeriod,
+    balance:bal, due, dueYear:annual(due),          /* 月供与年供，界面按「年」展示 */
+    base:numOr(m.base), periods:per,
+    /* ★ 期限一律以【年】对外：remainingYears 才是给玩家看的那个数，
+       remaining（月）只留给提前还款的计算用 —— 两者不要混着放进界面。 */
+    remaining, remainingYears: toYears(remaining),
+    paidYears: toYearsFloor(per),
+    interestLeft, interestLeftYear: interestLeft == null ? null : Math.round(interestLeft),
+    revolving,
+    canPrepay: bal > 0 && per >= t.minPeriod,
+    canPrepayYears: Math.floor(t.minPeriod / M)
   };
 }
 /* 推进一期还款：利息 = 剩余本金 × 月利率，月供的其余部分冲减本金。
    在「经过发薪日」时调用 —— 与月现金流（其中已含月供）同步结算，账实一致。 */
-function amortize(g, p){
+/* 一次发薪日 = 一年 → 摊还 monthsPerPayday() 期。
+   ★ 为什么必须一次还 12 期，而不是「一年只还 1 期」：
+     合同的月供是按【月】计息的（月利率 0.41% 等），若一年只还 1 期，
+     本金下降速度远慢于时间的流逝 —— 一笔 140 期的房贷要 140 年才能还完，
+     而人的一生只有 45 年，于是「剩余期限」永远停在原地。
+     一次还满 12 期之后，期限与年龄才是同一个刻度：140 期 = 11.7 年。
+   ★ 逐期取整而不是一次性算 12 期：利息是小数，分 12 次取整能保持
+     「剩余本金始终是整数」，且每期的还款额与合同月供完全一致。 */
+/* 一次摊还 `years` 年（默认 1 年 = monthsPerPayday 期）。
+   ★ 参数化的原因：结算覆盖的年数不再固定为 1 年（见 movePlayer），
+     摊还必须跟着结算走 —— 否则会出现「领了 3 年的钱、只还了 1 年的债」。 */
+function amortize(g, p, years){
   if(!p || p.out) return;
   ensureLoans(p);
+  const M = monthsPerPayday() * Math.max(1, Math.round(numOrDef(years, 1)));
   LOAN_KEYS.forEach(key=>{
     const t = loanType(key);
     if(t.kind === 'revolving') return;               /* 信用贷按余额计息，不做本金摊还 */
-    const bal = numOr(p.liabs[key]);
+    let bal = numOr(p.liabs[key]);
     if(bal <= 0) return;
     const due = loanDue(p, key);
-    const pay = Math.min(bal, Math.max(0, due - bal * t.rate));
-    /* 取整：利息是小数，但「剩余本金」必须保持整数，否则净资产 / 存档会出现一长串小数 */
-    p.liabs[key] = Math.round(bal - pay);
-    p.loans[key].periods += 1;
-    if(p.liabs[key] <= 1){
-      p.liabs[key] = 0;
-      log(g, `${p.name} 的${t.nm}已还清（共 ${p.loans[key].periods} 期）`, 'good', p.name);
+    for(let k = 0; k < M; k++){
+      if(bal <= 1) break;
+      const pay = Math.min(bal, Math.max(0, due - bal * t.rate));
+      bal = Math.round(bal - pay);
+      p.loans[key].periods += 1;
+    }
+    p.liabs[key] = bal <= 1 ? 0 : bal;
+    /* 只在「这一年正好还清」时报一次，避免逐期刷屏 */
+    if(p.liabs[key] === 0){
+      const n = p.loans[key].periods;
+      log(g, `${p.name} 的${t.nm}已还清（共摊还 ${n} 期 ≈ ${toYears(n)} 年）`, 'good', p.name);
     }
   });
 }
@@ -259,7 +311,10 @@ function refreshLife(g, p){
   p.salaryMult  = sc.mult;
   p.salaryPhase = sc.phase;
   p.lifeStage   = ls.nm;
-  p.lifeCoef    = ls.coef;
+  /* 失业期间生活支出下调：失业后家庭会砍掉非必要消费（见 UNEMPLOYMENT.lifeCut）。
+     ⚠️ 必须用【折减后】的系数写回 p.lifeCoef，让 finance / 界面 / 复盘读同一个值 ——
+        若只在这里算一次而 let finance 自己再乘，就会出现两套口径。 */
+  p.lifeCoef    = ls.coef * (isJobless(p) ? numOrDef(window.UNEMPLOYMENT.lifeCut, 1) : 1);
   p.elderRatio  = ls.elderRatio || 0;
   /* 退休断崖（仅单人模式）：到了退休年龄，工资停发，改领养老金。
      现实依据：我国城镇职工养老金替代率约 40%—50%，即退休后收入只有在职时的
@@ -267,6 +322,13 @@ function refreshLife(g, p){
      多人模式不做这段：所有玩家在 65 岁同步结算，这个断崖不产生任何相对压力。 */
   const S = window.SOLO;
   p.retired = isSolo(g) && ageOf(g) >= S.retireAge;
+  /* ★ 到了退休年龄就不再「求职」了：被裁后没能在退休前找到工作，
+     结果就是直接退休领养老金 —— 而不是永远停在求职期。
+     不清理会出现荒谬状态：65 岁还在「投递简历」，且因为求职期工资归零，
+     连养老金都领不到，最后以「失业」之名破产。 */
+  if(p.retired && numOr(p.joblessNeed) > 0){
+    p.joblessNeed = 0; p.joblessProgress = 0;
+  }
   /* 失业期间主动收入归零；低精力则绩效打折（现实里状态差会直接影响产出与奖金）。
      注：退休后不再进入求职期（见 startJobless），所以这里三者不会同时成立。 */
   let salary = p.retired ? p.baseSalary * S.pensionRatio : p.baseSalary * sc.mult;
@@ -277,8 +339,11 @@ function refreshLife(g, p){
      这样失业（工资归零）时赡养负担也随之暂停 —— 现实中失去收入后，
      赡养通常由其他兄弟姐妹分担或降到最低限度，不会照旧全额支出。 */
   p.elderCare = Math.round(p.salary * p.elderRatio);
-  /* 养老金免征个人所得税（《个人所得税法》第四条），所以退休后按 0 计税 */
-  p.taxesCur  = p.retired ? 0 : Math.round(numOrDef(p.job && p.job.taxes, 0) * sc.mult);
+  /* 养老金免征个人所得税（《个人所得税法》第四条）；失业期间没有工资薪金所得，
+     工资薪金个税同样不该计 —— 旧版只在退休时归零、失业时仍照扣，
+     于是出现「没有收入却还在交税」，并且把失业期的缺口整体放大了。 */
+  p.taxesCur  = (p.retired || isJobless(p))
+    ? 0 : Math.round(numOrDef(p.job && p.job.taxes, 0) * sc.mult);
   return p;
 }
 function refreshAllLife(g){ g.players.forEach(p=>refreshLife(g, p)); }
@@ -322,6 +387,87 @@ function healthCrisis(g, p){
 /* 失业：不再是「付一笔钱就结束」，而是进入求职期 —— 工资归零、支出照付。
    求职所需回合数随年龄上升（40 岁 / 50 岁两道门槛），
    这正是现实中「年龄越大越难再就业」的建模。 */
+/* 收入状态突变（失业）时，先把账结到当下。
+   ★ 为什么必须有这一步：结算金额是「当前月度结余 × 经过的年数」，
+     而 due 年内的收入状态可能已经变过 —— 失业后下一次结算会把
+     「失业前那几年」也按失业后的缺口来算。实测（护士 · 种子 20260920）：
+     真实缺口约 1.5 万，被算成 4.6 万，超过手头现金，直接把人逼到破产。
+     在突变点先结清，「未结算周期」就不会跨越突变点。 */
+function settleAtBreak(g, p){
+  const since = numOrDef(p.settledAge, g.startAge - 1);
+  const due = ageOf(g) - since;
+  if(due <= 0) return null;
+  const monthly = finance(p).cashflow;        /* 用突变【前】的口径 */
+  const amount  = annual(monthly) * due;
+  p.settledAge = ageOf(g);
+  amortize(g, p, due);                        /* 领几年就摊还几年，与常规结算一致 */
+  const out = { years:due, monthly, amount, deficit:0 };
+  if(amount >= 0){
+    p.cash += amount;
+    log(g, `${p.name} 结算 ${due} 年：入账 ${money(amount)}`, 'good', p.name);
+  } else {
+    out.deficit = -amount;
+    log(g, `${p.name} 结算 ${due} 年：合计入不敷出 ${money(out.deficit)}`, 'bad', p.name);
+  }
+  return out;
+}
+
+/* 退休突变点的结算（仅单人模式 —— 只有单人存在退休断崖）。
+   与失业同理：退休也是一次收入突变（工资 → 养老金，收入腰斩），
+   必须先把「上次结算 → 退休这一刻」按【在职】口径结清，再切换到养老金口径。
+
+   ★ 顺序不能反：若先切换再结算，退休后的第一次发薪会用养老金的低口径
+     去结算在职那几年 —— 凭空造出一个缺口，把「退休」变成一次错误的破产。
+   ★ 用一个显式标记 p.retireSettled 而不是靠 p.retired 判断：
+     后者是 refreshLife 的推导结果，调用顺序一变就会误判。 */
+function retireBreakOf(g){
+  if(!isSolo(g)) return null;
+  const p = g.players[0];
+  if(!p || p.out || p.retireSettled) return null;
+  if(ageOf(g) < numOrDef(window.SOLO.retireAge, 61)) return null;
+  p.retireSettled = true;                      /* 只触发一次 */
+  p.retireRound = g.round;
+  const brk = settleAtBreak(g, p);             /* 此时 p.retired 仍为 false → 在职口径 */
+  const ratio = Math.round(numOrDef(window.SOLO.pensionRatio, 0.45) * 100);
+  if(brk){
+    milestone(g, p, `第 ${g.round} 轮到达退休年龄（${ageOf(g)} 岁）：先把此前 ${brk.years} 年按在职口径结清`
+      + `${brk.deficit > 0 ? `（缺口 ${money(brk.deficit)}）` : `（入账 ${money(brk.amount)}）`}，`
+      + `此后收入改为养老金（替代率 ${ratio}%）`, brk.deficit > 0 ? 'bad' : 'info');
+  } else {
+    milestone(g, p, `第 ${g.round} 轮到达退休年龄（${ageOf(g)} 岁）：工资停发，改领养老金（替代率 ${ratio}%）`, 'info');
+  }
+  return brk;
+}
+
+/* 终局结清：把「上次结算 → 对局结束」这一段补上。
+   不做这一步，退休期（61→65 岁）的养老金永远不会入账 ——
+   这也是「突变未结算」的一种形态：不是结错，而是根本没结。
+   结完再评档，评级才是基于完整的一生。 */
+function finalSettle(g){
+  const rows = [];
+  g.players.forEach(p=>{
+    if(!p || p.out) return;
+    const since = numOrDef(p.settledAge, g.startAge - 1);
+    const due = ageOf(g) - since;
+    if(due <= 0) return;
+    const monthly = settleCashflow(p);         /* 圈层唯一真源（工资口径 / 分红口径） */
+    const amount  = annual(monthly) * due;
+    p.settledAge = ageOf(g);
+    amortize(g, p, due);                       /* 领几年就还几年，与常规结算一致 */
+    if(amount >= 0){
+      p.cash += amount;
+      log(g, `${p.name} 终局结清 ${due} 年：入账 ${money(amount)}`, 'good', p.name);
+    } else {
+      log(g, `${p.name} 终局结清 ${due} 年：入不敷出 ${money(-amount)}`, 'bad', p.name);
+      payCash(p, -amount);                     /* 尽力支付 */
+      settleNegativeCash(g, p);                /* 不足部分兜底变现，保证现金非负 */
+    }
+    rows.push({ id:p.id, years:due, monthly, amount });
+  });
+  g.finalSettled = rows;
+  return rows;
+}
+
 function startJobless(g, p, severance){
   const U = window.UNEMPLOYMENT, age = ageOf(g);
   /* 退休之后不该再有「求职期」—— 这个年龄已经不会有人来招了。
@@ -339,6 +485,9 @@ function startJobless(g, p, severance){
     return { ok:true, retired:true, hit:paid, shortfall:r.ok ? 0 : r.shortfall, need:0, severance:0 };
   }
   const need = U.effortBase + (age > 40 ? U.over40Extra : 0) + (age > 50 ? U.over50Extra : 0);
+  /* ① 先按【在职】口径把这段未结算周期结清（见 settleAtBreak 的注释） */
+  const brk = settleAtBreak(g, p);
+  /* ② 再切到失业状态 */
   p.joblessProgress = 0;
   p.joblessNeed = need;
   if(severance) p.cash += severance;
@@ -346,7 +495,7 @@ function startJobless(g, p, severance){
   bump(p, 'downsized');
   milestone(g, p, `第 ${g.round} 轮被裁员失业，进入求职期（预计 ${need} 个回合），期间工资归零`, 'bad');
   log(g, `${p.name} 被裁员失业：工资归零，需要投入时间求职（预计 ${need} 个回合）${severance ? `，领取离职补偿 ${money(severance)}` : ''}`, 'bad', p.name);
-  return { ok:true, need, severance:severance||0 };
+  return { ok:true, need, severance:severance||0, brk };
 }
 /* 求职：消耗精力推进进度。精力不足时只能先休息，求职期相应拉长 ——
    越疲惫越难找到工作，这在现实中完全成立。 */
@@ -405,6 +554,18 @@ function checkSoloStage(g){
   return { index:i, prev, stage:st };
 }
 
+/* ------------------------------ 生活基线 ------------------------------ */
+/* 住房基线：自有住房的成本从未归零 —— 房贷还清后只是从「还本付息」
+   变成「物业 + 修缮 + 改善 + 换租」。
+   它解决的是「门槛随负债消失而崩塌」：旧版门槛 = 总支出，房贷一还清
+   门槛就从 ¥3,000 掉到 ¥400，出圈瞬时变成走过场。
+   见 data-careers.js 的 LIFEBASE 注释（现实依据与「为什么只对住房设基线」）。 */
+function lifeBaseHousing(p){
+  const LB = window.LIFEBASE || {};
+  const base = numOrDef(p.baseSalary, numOrDef(p.job && p.job.salary, 0));
+  return Math.max(0, Math.round(base * numOrDef(LB.housingRate, 0) * numOrDef(p.lifeCoef, 1)));
+}
+
 /* ------------------------------ 财务计算 ------------------------------ */
 /* 收入支出表 + 资产负债表（实时推导，任何操作后立即生效） */
 function finance(p){
@@ -420,9 +581,18 @@ function finance(p){
   /* 生活性支出随人生阶段浮动（35—55 岁是「三明治一代」的支出高峰）；
      赡养父母与医疗支出为阶段性的新增科目 */
   const lifeCoef = numOrDef(p.lifeCoef, 1);
+  /* ★ 住房支出的「地板」：max(房贷月供, 住房基线)，两者【不叠加】。
+     有房贷时按房贷算 —— 与改造前的数据完全一致，平衡不动；
+     房贷还清后按基线算 —— 成本不归零，门槛自然不崩塌。
+     ⚠️ 不能改成「房贷月供 + 基线」（开局会双算），也不能只放在门槛里
+        （那样现金流会因还清贷款而暴涨，同样不真实）。 */
+  const homeDue     = numOr(p.liabs.home) > 0 ? loanDue(p, 'home') : 0;
+  const housingBase = lifeBaseHousing(p);
+  const housingGap  = Math.max(0, housingBase - homeDue);
   const exp = {
     taxes:  numOrDef(p.taxesCur, numOrDef(p.job.taxes, 0)),
-    home:   numOr(p.liabs.home)   > 0 ? loanDue(p, 'home')   : 0,
+    home:   homeDue,
+    housingGap,
     school: numOr(p.liabs.school) > 0 ? loanDue(p, 'school') : 0,
     car:    numOr(p.liabs.car)    > 0 ? loanDue(p, 'car')    : 0,
     credit: numOr(p.liabs.credit) > 0 ? loanDue(p, 'credit') : 0,
@@ -436,11 +606,12 @@ function finance(p){
     bank:   loanDue(p, 'bank')
   };
   const totalIncome   = inc.salary + inc.interest + inc.dividend + inc.realEstate + inc.business + inc.ftBusiness;
-  const totalExpenses = exp.taxes+exp.home+exp.school+exp.car+exp.credit+exp.retail+exp.other
+  const totalExpenses = exp.taxes+exp.home+exp.housingGap+exp.school+exp.car+exp.credit+exp.retail+exp.other
     +exp.elder+exp.medical+exp.otherLoan+exp.extra+exp.children+exp.bank;
   const passive = inc.interest + inc.dividend + inc.realEstate + inc.business + inc.ftBusiness;
   const loanTotal = exp.home + exp.school + exp.car + exp.credit + exp.otherLoan + exp.bank;
-  return { inc, exp, totalIncome, totalExpenses, cashflow: totalIncome - totalExpenses, passive, bankLoanPay: exp.bank, loanTotal };
+  return { inc, exp, totalIncome, totalExpenses, cashflow: totalIncome - totalExpenses, passive,
+           bankLoanPay: exp.bank, loanTotal, housingBase, housingGap };
 }
 
 /* 跳出老鼠赛跑的门槛 */
@@ -490,6 +661,302 @@ function netWorth(p){
   return a - debt;
 }
 
+/* ------------------------------ 财务自由圈的收支 ------------------------------ */
+/* 旧版顺流层【只发钱、不扣支出】：分红日按毛被动收入入账，于是现金无上限增长
+   （实测期末中位 ¥100 万+），「财务自由」变成了一个绝对安全的区。
+   现实里并不是这样：财务自由之后生活方式会升级（换更好的房子、请人打理、
+   更高标准的医疗与出行），这些同样是固定支出，而且几乎没有上限。
+   所以顺流层也要有账本，也一样会破产。 */
+function ftExpenseOf(p, f){
+  f = f || finance(p);
+  const LB = window.LIFEBASE || {};
+  /* 只放大【生活性】支出 —— 贷款月供按实际金额计，不随生活档次膨胀 */
+  const life  = f.exp.retail + f.exp.other + f.exp.elder + f.exp.medical
+              + f.exp.children + f.exp.extra + f.exp.housingGap;
+  /* ★ 工资薪金个税不再计 —— 出圈意味着主动收入退出生活，工资既然不入账，
+     与工资绑定的个税与五险一金也一并停征（现实里财务自由后改按资产收益计税，
+     本作简化为不计）。若只停收入不停税，会出现「为不存在的工资交税」的荒谬口径。
+     但贷款月供照旧：负债不会因为你财务自由就消失。 */
+  return Math.round(life * numOrDef(LB.freeTrackMult, 1)) + f.loanTotal;
+}
+function ftFinance(p){
+  const f = finance(p);
+  const income  = ftMonthly(p);                    /* 自由圈的收入是「分红」，不是工资 */
+  const expense = ftExpenseOf(p, f);
+  return { income, expense, cashflow: income - expense,
+           loans: f.loanTotal, payrollTax: 0, living: expense - f.loanTotal };
+}
+
+/* ------------------------------ 资产估值（抵押物动态估值） ------------------------------ */
+/* 抵押物估值不能是静态的：银行放贷时看的是【当前市价】。市价会随行情涨跌，
+   资产本身还会折旧 —— 这两件事在现实中天天发生，静态估值等于把它们抹掉了。
+   估值 = 账面成本 × 市场指数（周期 × 行情冲击） × 折旧因子(持有年数)。
+   标定依据见 data-careers.js 的 MARKET 注释。 */
+
+/* 行情卡冲击（可累乘，带上下限防止漂移到荒谬区间） */
+function marketShockOf(g, kind){
+  if(!g || !g.market) return 1;
+  return numOrDef(g.market[kind], 1);
+}
+/* 价格周期：确定性正弦，不引入随机数 —— 同一存档重放必须得到同样的估值，
+   否则存档、复盘与回归都会失去可复现性。各类资产相位错开，避免同涨同跌。 */
+function marketCycleOf(g, kind){
+  const cy = (window.MARKET && window.MARKET.cycle) || {};
+  /* 不参与周期的资产（存款 / 理财）：本金是约定金额，不随行情涨跌 */
+  if((cy.flat || []).indexOf(kind) >= 0) return 1;
+  const years = Math.max(1, numOrDef(cy.years, 8));
+  const amp   = numOrDef(cy.amp, 0.15);
+  /* ⚠️ phase 里找不到该类资产时默认 0 —— 那会让它与房产同相、同步涨跌。
+     所以相位表的键名必须与 ASSET_KINDS 对齐（见 MARKET 注释与回归断言）。 */
+  const ph    = numOrDef((cy.phase || {})[kind], 0);
+  const t = (numOr(g && g.round) - 1) / years * Math.PI * 2 + ph;
+  return 1 + amp * Math.sin(t);
+}
+function marketIndex(g, kind){ return marketCycleOf(g, kind) * marketShockOf(g, kind); }
+/* 行情冲击的累乘（带 clamp） */
+function bumpMarket(g, kind, mult){
+  if(!g) return 1;
+  if(!g.market) g.market = {};
+  const cl = (window.MARKET && window.MARKET.shockClamp) || [0.4, 2.5];
+  const next = numOrDef(g.market[kind], 1) * numOrDef(mult, 1);
+  g.market[kind] = Math.max(numOrDef(cl[0], 0.4), Math.min(numOrDef(cl[1], 2.5), next));
+  return g.market[kind];
+}
+/* 资产类别清单 —— 只此一份，估值 / 抵押 / 汇总都从这里遍历，
+   避免「新增了一类资产但某个函数忘了算」这种漏项。 */
+const ASSET_KINDS = ['savings','funds','stocks','collectibles','lands','realEstate','business','ftBusiness'];
+
+/* 账面成本（取得时的金额，不随市价变动；界面上用来对照估值涨跌） */
+function assetBookOf(kind, item){
+  if(!item) return 0;
+  if(kind === 'stocks') return numOr(item.shares) * numOr(item.cost);
+  if(kind === 'realEstate') return numOr(item.cost) || numOr(item.dp);
+  return numOr(item.cost);
+}
+/* 单项资产重估：账面 → 市场指数 → 折旧 → 当前估值 */
+function appraiseAsset(g, kind, item){
+  const D = (window.MARKET && window.MARKET.decay) || {};
+  const book  = assetBookOf(kind, item);
+  const index = marketIndex(g, kind);
+  const held  = Math.max(0, numOr(g && g.round) - numOrDef(item && item.buyRound, 1));
+  const decay = Math.pow(1 - numOrDef(D[kind], 0), held);
+  return { book, index, years: held, decay,
+           value: Math.max(0, Math.round(book * index * decay)) };
+}
+/* 给资产打上「买入轮次」—— 折旧依赖持有年数，没有这个标记就只能假设从开局持有。
+   ★ 统一在这里打标（而不是在各个 push 点手写），避免漏掉某条买入路径。 */
+function stampAsset(g, item){
+  if(item && item.buyRound == null) item.buyRound = numOr(g && g.round) || 1;
+  return item;
+}
+/* 玩家全部资产的重估汇总 */
+function appraiseAll(g, p){
+  const rows = [];
+  let book = 0, value = 0;
+  if(!p) return { rows, book, value, index: 1 };
+  ASSET_KINDS.forEach(kind=>{
+    (p.assets[kind] || []).forEach(item=>{
+      const a = appraiseAsset(g, kind, item);
+      rows.push(Object.assign({ kind, item }, a));
+      book += a.book; value += a.value;
+    });
+  });
+  return { rows, book, value, index: marketIndex(g, 'realEstate') };
+}
+
+/* 可抵押资产的【当前估值净值】 —— 失业 / 无收入时的应急授信依据。
+   ★ 与 liquidatableValue 的区别：那个是「破产清算时的快速变现值」（房产不计，
+     因为卖不掉），这个是「抵押授信依据」（房产可以抵押，但要按净值算）。
+   ★ 房产与企业用【已付首付】而不是总价：还在还贷的部分不属于你，
+     银行不会为不属于你的份额放款。 */
+function collateralValue(g, p){
+  if(!p) return 0;
+  const H = (window.MARKET && window.MARKET.haircut) || {};
+  let v = 0;
+  ASSET_KINDS.forEach(kind=>{
+    (p.assets[kind] || []).forEach(item=>{
+      const ap = appraiseAsset(g, kind, item);
+      const h  = H[kind];
+      /* 'equity'：房产按「已付首付占市价的比例」折算权益 ——
+         还在还贷的部分不属于你，银行不会为不属于你的份额放款。
+         用比例而不是固定折扣的好处：房价上涨时你的权益份额同步上涨，
+         这是现实中「房子升值 → 可贷额度跟着提高」的由来。 */
+      let share;
+      if(h === 'equity'){
+        const cost = numOr(item.cost) || numOr(item.dp);
+        share = cost > 0 ? Math.min(1, numOr(item.dp) / cost) : 1;
+      } else {
+        share = numOrDef(h, 0.5);
+      }
+      v += ap.value * share;
+    });
+  });
+  return Math.round(v);
+}
+
+/* 当前适用的【月度结余】—— 两圈各用各的账本：
+   老鼠赛跑 = 工资 + 被动 − 支出；财务自由圈 = 分红 − 自由圈支出 − 仍在还的贷款。
+   ★ 界面上的每一处「年结余」都必须读它，不允许各处自己判断圈层 ——
+     否则会出现「分红日入账 ¥59,928，年结余却显示 ¥97,824」这种同一屏两套口径。 */
+function settleCashflow(p){
+  if(!p) return 0;
+  return p.inFT ? ftFinance(p).cashflow : finance(p).cashflow;
+}
+
+/* ------------------------------ 信用额度 ------------------------------ */
+/* 信用贷不是「想要多少有多少」：收入决定了你能借多少。
+   旧版无限额度、只还息、无期限 —— 回归里 AI 曾滚到 ¥5,700 万且永不破产，
+   那不是「玩家太激进」，而是规则本身在鼓励杠杆螺旋。
+   见 data-careers.js 的 CREDIT 注释（DTI / 授信倍数 / 白户 / 破产 / 退休）。 */
+/* ------------------------------ 多头借贷识别 ------------------------------ */
+/* 「多头借贷」= 同一借款人同时在多个（信用类）产品有借贷关系 ——
+   这是资金链紧张的最强信号，因为同时借这么多笔往往意味着借新还旧。
+   只统计【信用类】产品：房贷 / 车贷 / 助学属于正常负债，不计入。
+   阈值与依据见 data-careers.js 的 CREDIT.multi 注释。
+
+   ★ 使用率的基数刻意用「按收入本可获得的无抵押额度」而不是最终的 limit ——
+     用 limit 会形成循环依赖（额度要用多头系数，多头系数又要用额度）。 */
+function multiBorrowingOf(g, p, f){
+  const C = window.CREDIT || {}, M = C.multi || {};
+  if(!p) return { mult:1, level:'—', nProducts:0, products:[], draws:0, util:0, reasons:[] };
+  f = f || finance(p);
+  const counted = Array.isArray(M.counted) ? M.counted : ['credit','other','bank'];
+  const reasons = [];
+
+  /* ① 在贷信用类产品数 */
+  const products = counted.filter(k => numOr(p.liabs[k]) > 0);
+  const nProducts = products.length;
+  const pWarn = numOrDef(M.productWarn, 1);
+  let productMult = 1;
+  if(nProducts > pWarn){
+    productMult = Math.max(numOrDef(M.productFloor, 0.7),
+                           Math.pow(numOrDef(M.productStep, 0.86), nProducts - pWarn));
+    /* 文案用产品中文名 —— 界面直接把 reasons 展示给玩家，
+       显示内部 key（credit / bank）等于把实现细节漏出去。 */
+    const names = products.map(k => (loanType(k) || {}).nm || k);
+    reasons.push(`同时在 ${nProducts} 个信用类产品上有余额（${names.join(' / ')}）`);
+  }
+  /* ② 近期信用贷借款次数 —— 借新还旧的直接信号 */
+  const win   = Math.max(1, numOrDef(M.drawWindow, 6));
+  const now   = numOr(g && g.round);
+  const draws = (p.loanDrawRounds || []).filter(r => now - numOr(r) < win).length;
+  const dWarn = numOrDef(M.drawWarn, 1);
+  let drawMult = 1;
+  if(draws > dWarn){
+    drawMult = Math.max(numOrDef(M.drawFloor, 0.65),
+                        Math.pow(numOrDef(M.drawStep, 0.88), draws - dWarn));
+    reasons.push(`最近 ${win} 个回合内申请了 ${draws} 次信用贷`);
+  }
+  /* ③ 额度使用率（相对「按收入本可获得的额度」） */
+  const base = Math.max(1, Math.min(annual(numOr(f.totalIncome)) * numOrDef(C.incomeMult, 1.2),
+                                   numOrDef(C.hardCap, 600000)));
+  const util = numOr(p.liabs.bank) / base;
+  const uWarn = numOrDef(M.utilWarn, 0.6), uMax = numOrDef(M.utilMax, 1);
+  let utilMult = 1;
+  if(util > uWarn){
+    const over = Math.min(1, (util - uWarn) / Math.max(0.01, uMax - uWarn));
+    utilMult = Math.max(numOrDef(M.utilFloor, 0.75), 1 - over * (1 - numOrDef(M.utilFloor, 0.75)));
+    reasons.push(`信用贷额度使用率 ${(util * 100).toFixed(0)}%`);
+  }
+  const mult = Math.max(0.05, Math.min(1, productMult * drawMult * utilMult));
+  const level = mult >= 0.99 ? '正常' : mult >= 0.8 ? '关注' : mult >= 0.6 ? '较集中' : '多头';
+  return { mult, level, nProducts, products, draws, drawWindow: win, util, base,
+           productMult, drawMult, utilMult, reasons };
+}
+
+function creditGradeOf(score){
+  if(score >= 0.95) return { key:'A', label:'优质' };
+  if(score >= 0.75) return { key:'B', label:'良好' };
+  if(score >= 0.50) return { key:'C', label:'一般' };
+  if(score >= 0.30) return { key:'D', label:'较差' };
+  return { key:'E', label:'受限' };
+}
+function creditProfile(g, p){
+  const C = window.CREDIT || {};
+  if(!p) return null;
+  const f = finance(p);
+  const rate = loanType('bank').rate || 0.01;
+  const st = p.stats || {};
+  const monthlyIncome = numOr(f.totalIncome);
+  const annualIncome  = annual(monthlyIncome);
+  const used   = numOr(p.liabs.bank);
+  const jobless = isJobless(p);
+  const retired = !!p.retired;
+  const maxDTI  = numOrDef(C.maxDTI, 0.55);
+  const reasons = [];
+  /* 多头借贷档案要最先算出来：下面的主体资格检查会用到它的硬规则判定 */
+  const multi = multiBorrowingOf(g, p, f);
+
+  /* ① 主体资格：第一还款来源，或可抵押的资产。
+     两者都没有才是真的借不到 —— 失业但有房 / 有存单的人，现实中仍有抵押融资渠道。 */
+  const collateral   = collateralValue(g, p);
+  const byCollateral = Math.round(collateral * numOrDef(C.collateralRate, 0.5));
+  if(monthlyIncome <= 0 && byCollateral <= 0){
+    reasons.push(jobless
+      ? '当前处于失业 / 求职期，既没有稳定收入也没有可抵押的资产，无法获得授信。'
+      : '当前没有任何收入来源、也没有可抵押的资产，不符合「第一还款来源」要求。');
+  }
+  const banLeft = Math.max(0, numOr(p.creditBanUntil) - numOr(g && g.round));
+  if(banLeft > 0) reasons.push(`征信恢复期内（还需 ${banLeft} 个回合），暂不受理新的授信申请。`);
+  /* 风控硬规则：多头过于集中直接拒贷，不是降额 —— 现实里这种客户过不了审批 */
+  if(multi.nProducts >= numOrDef(C.rejectProducts, 4)){
+    reasons.push(`多头借贷：同时在 ${multi.nProducts} 个信用类产品上有余额，超出风控上限（${numOrDef(C.rejectProducts, 4)} 个）。`);
+  } else if(multi.draws >= numOrDef(C.rejectDraws, 4)){
+    reasons.push(`近期借款过于频繁：最近 ${multi.drawWindow} 个回合内申请了 ${multi.draws} 次，风控判定为「借新还旧」倾向。`);
+  }
+
+  /* ② 信用系数：还得上过吗 */
+  let score = numOrDef(C.base, 1);
+  const bankrupts     = numOr(st.bankrupts);
+  const deficitMonths = numOr(st.deficitMonths);
+  if(bankrupts > 0) score *= Math.pow(numOrDef(C.bankruptMult, 0.45), bankrupts);
+  /* 白户：只看有没有【还款记录】。若用「借过款」做判据，会出现
+     「借满之后因为不再是白户、额度反而回升」的怪事 —— 判据要跟着现实走。 */
+  else if(numOr(st.repaid) <= 0 && numOr(st.loansCleared) <= 0) score *= numOrDef(C.thinFile, 0.90);
+  if(deficitMonths > 0){
+    score *= Math.max(numOrDef(C.deficitFloor, 0.6),
+                      Math.pow(numOrDef(C.deficitMult, 0.94), deficitMonths));
+  }
+  score = Math.max(numOrDef(C.bankruptFloor, 0.2), Math.min(1, score));
+  /* ③ 多头借贷：这是【行为记录】，与有没有工作无关 ——
+     所以作用在征信分上（进而同时影响收入授信与抵押授信），
+     而不是像失业那样只压收入侧。 */
+  score = Math.max(0.05, Math.min(1, score * multi.mult));
+  /* ★ 就业状态只作用于【收入授信】，不作用于【抵押授信】：
+     抵押贷看的是抵押物价值，与有没有工作无关。
+     若把失业折扣也乘到抵押额度上，就会出现「失业 → 授信清零 → 连房子都抵押不出去」，
+     等于把「失业」直接变成「出局」—— 而现实里抵押融资恰恰是失业者的救命通道。 */
+  const incomeScore = score
+    * (jobless ? numOrDef(C.joblessMult, 0.35) : 1)
+    * (retired ? numOrDef(C.retireMult, 0.5) : 1);
+  const grade = creditGradeOf(score);
+
+  /* ③ 额度：授信倍数 与 负债收入比，取较小者，再乘信用系数 */
+  const byIncome = Math.min(annualIncome * numOrDef(C.incomeMult, 1.2), numOrDef(C.hardCap, 600000));
+  const dtiNow   = monthlyIncome > 0 ? f.loanTotal / monthlyIncome : 1;
+  const dtiRoom  = Math.max(0, monthlyIncome * maxDTI - f.loanTotal);
+  const byDTI    = dtiRoom / rate;                       /* 新增月息的剩余空间折算成本金 */
+  /* 两条独立的产品线，取较大者：
+     ① 收入授信（在职）：年收入 × 倍数，并受 DTI 约束，再乘含就业状态的系数
+     ② 资产抵押（失业 / 无收入时的主通道）：可变现资产 × 抵押率，不受 DTI 约束 */
+  const incomeCap = Math.min(byIncome, used + byDTI) * incomeScore;
+  const assetCap  = byCollateral * score;
+  const limit     = Math.max(0, Math.round(Math.max(incomeCap, assetCap)));
+  const available = Math.max(0, limit - used);
+
+  if(reasons.length === 0 && available <= 0){
+    if(used >= limit) reasons.push('授信额度已用尽。');
+    else reasons.push(`负债收入比已达 ${(maxDTI * 100).toFixed(0)}% 红线`
+      + `（当前 ${(dtiNow * 100).toFixed(0)}%），无法新增授信。`);
+  }
+  return { ok: reasons.length === 0 && available > 0, score, grade,
+           limit, used, available, byIncome, byDTI, byCollateral, collateral,
+           incomeScore, multi, appraisal: appraiseAll(g, p),
+           gross: Math.max(incomeCap, assetCap), want:0,
+           dtiNow, maxDTI, monthlyIncome, annualIncome, rate,
+           bankrupts, deficitMonths, jobless, retired, banLeft, reasons };
+}
+
 /* ------------------------------ 玩家 ------------------------------ */
 const ASSET_KEYS = ['stocks','realEstate','business','ftBusiness','savings','funds','lands','collectibles'];
 function newPlayer(i, name, job, color, icon){
@@ -504,11 +971,21 @@ function newPlayer(i, name, job, color, icon){
     pos: 0, ftPos: 0, inFT: false,
     ftBase: 0, ftGain: 0,
     charityTurns: 0, skipTurns: 0, pausedThisTurn: false, pausedNotified: false,
+    /* 上次结算时的年龄 —— 「发薪日结算自上次结算以来经过的年数」的记账位。
+       年龄 20 起步，所以初值是 startAge − 1（= 19），首次结算恰好覆盖 1 年。 */
+    settledAge: 0,
     /* 人生模拟：精力 / 就业 / 医疗，以及由年龄推导出的收入支出参数 */
     energy: 100, baseSalary: job.salary, salaryMult: 1, salaryPhase: '', taxesCur: null,
     lifeStage: '', lifeCoef: 1, elderCare: 0,
     joblessProgress: 0, joblessNeed: 0, wings: 0,
     medicalExp: 0, crisisTurns: 0,
+    /* 信用贷禁贷期（破产后的征信恢复期）：到这一轮为止不受理新的授信申请 */
+    creditBanUntil: 0,
+    /* 信用贷的申请轮次（最多保留最近若干条）—— 多头借贷识别要看「近期借了几次」，
+       这是「借新还旧」最直接的行为信号。 */
+    loanDrawRounds: [],
+    /* 退休突变点是否已结清（只触发一次；用显式标记而不是靠 p.retired 推导） */
+    retireSettled: false, retireRound: null,
     dreamIdx: i % DREAMS.length, dreamOwned: false,
     /* 单人模式：达成的里程碑（人生赢家 / 企业帝国），含达成时的年龄 ——
        单人模式不在达成瞬间结束对局，所以要记下「什么时候达成的」。 */
@@ -532,8 +1009,15 @@ function newGame(cfg){
   const mode = cfg.mode === 'solo' ? 'solo'
              : cfg.mode === 'endless' ? 'endless' : 'age';
   const n = mode === 'solo' ? 1 : cfg.count;      /* 单人模式强制 1 位玩家 */
-  const careers = shuffle(CAREERS.slice());
-  const portfolios = shuffle(PORTFOLIOS.slice());
+  /* ★ 随机源必须在洗牌【之前】建好，并贯穿到牌堆与掷骰 ——
+     否则 `cfg.seed` 只决定了掷骰，而「谁是什么职业」「先抽到哪张卡」仍走 Math.random()，
+     于是同一份 seed 两次开局会得到完全不同的对局（存档重放、复盘与回归都失去意义）。
+     不传 seed 时 rng 为 null，各处会退回 Math.random()，行为与改造前一致。 */
+  const rng = cfg.seed
+    ? (function(s){ return function(){ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; })(cfg.seed)
+    : null;
+  const careers = shuffle(CAREERS.slice(), rng);
+  const portfolios = shuffle(PORTFOLIOS.slice(), rng);
   const g = {
     rule: cfg.rule || '101',
     mode,
@@ -543,15 +1027,20 @@ function newGame(cfg){
     over: false, winner: null, winReason: '',
     /* 单人模式：当前人生阶段下标（开局为「起步期」）与退休结算结果 */
     soloStage: null, soloResult: null,
+    /* 资产行情冲击的累计值（各类资产各一份）：空对象表示尚未发生过行情冲击。
+       资产估值 = 账面 × 周期 × 该冲击 × 折旧，见 appraiseAsset。 */
+    market: {},
+    /* 退休突变点的结算结果（UI 据此提示「为什么收入突然少了一半」）*/
+    lastRetire: null, finalSettled: null,
     log: [], pending: null, lastDice: [], lastPath: [],
-    rng: cfg.seed ? (function(s){ return function(){ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; })(cfg.seed) : null,
+    rng,
     decks: {
-      small:  makeDeck(DECK_SMALL),
-      big:    makeDeck(DECK_BIG),
-      market: makeDeck(cfg.rule==='202' ? DECK_MARKET_202 : DECK_MARKET_101),
-      doodad: makeDeck(cfg.rule==='202' ? DECK_DOODAD_202 : DECK_DOODAD_101),
-      capgain:makeDeck(DECK_CAPGAIN),
-      cashflow:makeDeck(DECK_CASHFLOW)
+      small:  makeDeck(DECK_SMALL, rng),
+      big:    makeDeck(DECK_BIG, rng),
+      market: makeDeck(cfg.rule==='202' ? DECK_MARKET_202 : DECK_MARKET_101, rng),
+      doodad: makeDeck(cfg.rule==='202' ? DECK_DOODAD_202 : DECK_DOODAD_101, rng),
+      capgain:makeDeck(DECK_CAPGAIN, rng),
+      cashflow:makeDeck(DECK_CASHFLOW, rng)
     },
     marketDrawn: 0
   };
@@ -564,9 +1053,14 @@ function newGame(cfg){
       applyPortfolio(p, pf);
       ensureLoans(p);                     /* 组合卡追加的负债与月供并入计划 */
       p.portfolio = pf;
+      /* 组合卡里的资产在开局就已持有 → 买入轮次记为第 1 轮（折旧从 20 岁起算）。
+         不标记的话，它们会在玩家第一次买入任何资产时被误标成「当前轮次」，
+         折旧年限凭空少算。 */
+      ASSET_KINDS.forEach(k => (p.assets[k] || []).forEach(it => stampAsset(g, it)));
     }
     refreshLife(g, p);                    /* 按年龄推导工资 / 税负 / 支出系数 / 赡养支出 */
     p.energy = energyMax(g, p);           /* 开局精力满格 */
+    p.settledAge = g.startAge - 1;        /* 尚未结过账：首次结算覆盖「20 岁这一年」 */
     const f = finance(p);
     /* 第 7 步：起始现金 = 月现金流 + 储蓄（202 规则另加初始投资组合中的现金） */
     p.cash = f.cashflow + p.job.savings + (p.pfCash || 0);
@@ -663,6 +1157,8 @@ const STAT_KEYS = {
   liquidations:0, liquidatedValue:0, ftBusinesses:0, buyouts:0, dreams:0, loansCleared:0,
   /* 人生模拟：健康危机 / 失业求职 / 重新就业 / 精力投入总量 */
   crises:0, jobless:0, rehired:0, energySpent:0,
+  /* 破产次数：征信记录的直接依据（信用额度的乘数、禁贷期的触发条件） */
+  bankrupts:0,
   /* 入不敷出：失业或高负债导致收入盖不住支出的月份数与总额 */
   deficitMonths:0, deficitTotal:0,
   /* 消费升级：因社会等级（消费档次）而在意外支出上多付的累计金额 */
@@ -724,7 +1220,7 @@ function beginTurn(g){
   const p = current(g);
   if(g.over) return null;
   if(p.out){ nextPlayer(g); return beginTurn(g); }
-  p.turnStart = { cash:p.cash, cf:finance(p).cashflow };
+  p.turnStart = { cash:p.cash, cf:settleCashflow(p) };
   /* 慈善加成回合递减 */
   if(p.charityTurns>0) { /* 在实际掷骰后消耗 */ }
   syncPhase(g);
@@ -758,6 +1254,9 @@ function nextPlayer(g){
     if(g.cur === 0){
       trackRound(g);
       g.round++;                 /* 全局长 1 岁 → 所有人的收入与支出结构随之变化 */
+      /* ★ 退休是一次收入突变：先把「上次结算 → 退休这一刻」按【在职】口径结清，
+         再 refreshAllLife 切换到养老金口径。顺序反了就会用养老金去结算在职那几年。 */
+      g.lastRetire = retireBreakOf(g);
       refreshAllLife(g);
       refreshAllEnergy(g);
       expireOptions(g);
@@ -777,6 +1276,7 @@ function nextPlayer(g){
 function endByAge(g){
   if(g.over) return;
   g.over = true;
+  finalSettle(g);              /* 先结清最后一段，再排名 —— 否则名次建立在漏账之上 */
   const alive = alivePlayers(g).slice().sort((a,b)=>netWorth(b)-netWorth(a));
   if(alive.length){
     g.winner = alive[0].id;
@@ -864,6 +1364,10 @@ function buildSoloResult(g){
 function endSolo(g){
   if(g.over) return;
   g.over = true;
+  /* 先补上最后一段（退休期的养老金），再评档 —— 否则评级建立在漏账之上。
+     ⚠️ 破产出局走的是另一条路（checkLastStanding），刻意不做终局结清：
+        破产是「现金流断裂」的即时判定，补结收入会把断裂的时点往后推。 */
+  finalSettle(g);
   const r = buildSoloResult(g);
   log(g, `🏁 ${g.endAge} 岁退休结算 · 人生评级 ${r.grade}（${r.label}）—— ${r.reason}`, r.win ? 'good' : 'bad', g.players[0].name);
 }
@@ -915,28 +1419,74 @@ function movePlayer(g, p, steps){
   g.lastPath = path;
   if(p.inFT) p.ftPos = to; else p.pos = to;
 
-  /* 经过 / 停留 结算日格子 → 领取月现金流
-     ★ 月现金流可能为负（失业期没有工资而支出照付，或贷款月供超过了收入）——
+  /* 经过 / 停留 结算日格子 → 结算「自上次结算以来经过的年数」
+     ★ 月度结余可能为负（失业期没有工资而支出照付，或贷款月供超过了收入）——
        负值【不能直接加到现金上】，否则会破坏「现金永不为负」这条不变式。
-       这里把它记成一笔「当期入不敷出」，交给界面走统一的资金不足处理流程。 */
+       这里把它记成一笔「当期入不敷出」，交给界面走统一的资金不足处理流程。
+
+     ★★ 为什么结的是「经过的年数」而不是固定 1 年：
+     年龄由「整圈」推进（45 轮 = 45 年），而发薪日由「落格」触发（内圈每轮约 0.438 次）。
+     若每次固定只结 1 年，一生 45 年只会结到约 20 年（实测覆盖率 44.4%），
+     两个时钟永远对不上。改为结「经过的年数」后，一生累计结算 = 45 年，
+     金钱时钟与年龄时钟的刻度才真正一致。
+     ⚠️ 不能反向修（让发薪日推进年龄）：一生只有约 19 次发薪，
+        那样角色 45 轮下来只活到 39 岁，65 岁退休判定立刻失效。 */
+  const ageNow = ageOf(g);
   let collected = 0, deficit = 0;
+  /* 每个结算点各记一笔 —— 有三个用处：
+     ① 弹层能如实汇报「本回合到底结了几年、进了多少钱」，而不是拿单次的值充数；
+     ② 同一回合内两次结算的金额可能【不同】：前一次 amortize 若恰好还清某笔贷款，
+        月供会立刻从支出里消失；
+     ③ 同一回合经过两个发薪日时，第二次会因「这一年已经结过了」而不再发钱。 */
+  const settledYears = [];
   path.forEach(ix=>{
     const sp = spaces[ix];
-    if(!p.inFT && sp.t === 'paycheck'){
-      const cf = finance(p).cashflow;
-      if(cf >= 0) collected += cf; else deficit += -cf;
-      amortize(g, p);
+    const isPay = !p.inFT && sp.t === 'paycheck';
+    const isDiv = p.inFT && sp.t === 'cashflowday';
+    if(!isPay && !isDiv) return;
+
+    const since = numOrDef(p.settledAge, g.startAge - 1);
+    const due = ageNow - since;
+    if(due <= 0){
+      /* 本年的账已经结过（同一次移动经过两个发薪日，或同一岁内又踩到一次）。
+         仍记一笔，好让弹层讲清楚「踩到了，但本年已结」—— 而不是静默无反应。 */
+      settledYears.push({ ix, years:0, monthly:0, amount:0, already:true, since });
+      return;
     }
-    if(p.inFT && sp.t === 'cashflowday'){ collected += ftMonthly(p); }
+    /* 先取本年的结余，再摊还 —— 顺序不可换（摊还会改变月供）。
+       简化口径：这 due 年统一按【当前】的月度结余折算，不逐年回溯年龄曲线；
+       误差只来自跨越涨薪/降薪节点的那几年，量级很小。 */
+    /* ★ 自由圈同样要有账本：分红（毛被动收入）要减去自由圈的生活支出与仍在还的贷款。
+       旧版直接拿 ftMonthly(p) 当收入，支出侧完全空缺 —— 出圈后现金无上限增长，
+       顺流层变成绝对安全区。现实里财务自由之后生活档次会升级，
+       这些同样是固定支出，也一样可能压垮现金流。 */
+    const monthly = isPay ? finance(p).cashflow : ftFinance(p).cashflow;
+    const amount  = annual(monthly) * due;
+    if(amount >= 0) collected += amount; else deficit += -amount;
+    settledYears.push({ ix, years:due, monthly, amount, since });
+    p.settledAge = ageNow;
+    amortize(g, p, due);                     /* ★ 领几年就摊还几年 —— 两者必须同步。
+                                                财务自由圈的「分红日」同样摊还：
+                                                旧版只有内圈发薪日摊还，出圈后负债会冻结。 */
   });
+  /* settled 会一路带给 resolveSpace（含「入不敷出」处理完后重入的那一次），
+     所以弹层显示的金额与实际入账永远是同一个数。 */
+  const yearsPaid = settledYears.reduce((a, y)=> a + y.years, 0);
+  /* since = 本次结算的起点年龄。必须在这里记下来 ——
+     movePlayer 结束时 p.settledAge 已经被推到 ageNow，
+     弹层若去读 p.settledAge，就会显示成「自上次结算（今年）以来已过 N 年」。 */
+  const settled = settledYears.length
+    ? { count: settledYears.length, yearsPaid, skipped: settledYears.filter(y=>y.already).length,
+        since: settledYears[0].since, amount: collected, deficit, years: settledYears }
+    : null;
   if(collected !== 0){
     p.cash += collected;
-    log(g, `${p.name} 经过发薪日，领取 ${money(collected)}`, 'good', p.name);
+    log(g, `${p.name} 经过${p.inFT ? '分红日' : '发薪日'}，结算 ${yearsPaid} 年：入账 ${money(collected)}`, 'good', p.name);
   }
   if(deficit > 0){
-    log(g, `${p.name} 本月入不敷出 ${money(deficit)}（收入不足以覆盖支出）`, 'bad', p.name);
+    log(g, `${p.name} 这 ${yearsPaid} 年合计入不敷出 ${money(deficit)}`, 'bad', p.name);
   }
-  return { from, to, path, collected, deficit, space: spaces[to] };
+  return { from, to, path, collected, deficit, settled, space: spaces[to] };
 }
 
 /* ------------------------------ 格子结算 ------------------------------ */
@@ -955,10 +1505,36 @@ function resolveSpace(g, p, landed){
          否则「资产过多 → 精力下滑」只会变成一条无法自救的死亡螺旋。 */
       setPending(g, { type:'rest', ico:'🏁', title: isFT?'财务自由圈起点':'起点' });
       break;
-    case 'paycheck': case 'cashflowday':
-      setPending(g, { type:'info', ico:'💰', title: isFT?'现金流日':'发薪日',
-        msg:`已领取月现金流 ${money(isFT?ftMonthly(p):finance(p).cashflow)}。` });
+    case 'paycheck': case 'cashflowday':{
+      /* ★ 这里显示的必须是【实际入账额】。
+         旧版写的是 finance(p).cashflow（月度值），而引擎实发的是 annual(...)（年度值）——
+         弹层写 ¥674、实际到账 ¥8,088，属于典型的「账实不符」。
+         现在读 movePlayer（或补偿结算）落下的记录，显示与实扣同源。 */
+      const st = landed && landed.settled;
+      const nm = isFT ? '分红日' : '发薪日';
+      const fallback = annual(settleCashflow(p));
+      const settled9 = st && st.since != null ? st.since : numOrDef(p.settledAge, g.startAge - 1);
+      let msg;
+      if(st && st.yearsPaid === 0){
+        /* 踩到了结算格，但本年的账已经结过 —— 明说，别让玩家以为系统漏发 */
+        msg = `本年（${ageOf(g)} 岁）的账已经结过了，这里不再重复发薪。`
+            + `下一次结算会一次覆盖从 ${ageOf(g)} 岁起累积的年份。`;
+      } else if(st && st.amount === 0 && st.deficit > 0){
+        msg = `结算 ${st.yearsPaid} 年，合计入不敷出 ${money(st.deficit)}（已在上一面板补上）。`;
+      } else {
+        const yrs = st ? st.yearsPaid : 1;
+        msg = (st && yrs > 1
+                ? `自 ${settled9} 岁以来经过的 ${yrs} 年一次结清：`
+                : '结算这一年：')
+            + `入账 ${money(st ? st.amount : fallback)}。`
+            + (st && st.count > 1 && st.skipped > 0
+                ? `（本回合经过 ${st.count} 个${nm}，其中 ${st.skipped} 次因本年已结而略过）` : '');
+        if(st && st.deficit > 0)
+          msg += `另有 ${money(st.deficit)} 为入不敷出，已在上一面板补上。`;
+      }
+      setPending(g, { type:'info', ico:'💰', title:nm, msg });
       break;
+    }
     case 'opportunity':
       if(g.rule === '202'){
         /* 202：停在投资机会格同时抽取投资卡与行情卡（投资卡由玩家选择牌堆后再抽） */
@@ -1130,6 +1706,8 @@ function declareBankruptcy(g, p){
   p.cash = Math.max(0, p.cash);
   p.out = true;
   p.outReason = '宣告破产';
+  bump(p, 'bankrupts');
+  p.creditBanUntil = numOr(g.round) + numOrDef((window.CREDIT || {}).banTurns, 10);
   milestone(g, p, `第 ${g.round} 轮现金不足以偿付到期债务，宣告破产（银行半价清算全部可变现资产抵债）`, 'bad');
   log(g, `${p.name} 无力偿付到期债务，宣告破产退出游戏`, 'bad', p.name);
   checkLastStanding(g);
@@ -1194,15 +1772,20 @@ function settleNegativeCash(g, p){
 function checkBankruptcy(g, p){
   if(p.out) return false;
   settleNegativeCash(g, p);                    /* 现金为负时先被迫变现资产 */
-  const f = finance(p);
-  if(f.cashflow >= 0) return false;            /* 月现金流为正的角色不会破产 */
+  /* ★ 两圈各用各的账本：老鼠赛跑看「工资 + 被动 − 支出」，
+     财务自由圈看「分红 − 自由圈生活支出 − 仍在还的贷款」。
+     用同一个账本会漏判自由圈的破产风险（分红减去支出后可能是负的）。 */
+  const f = p.inFT ? ftFinance(p) : finance(p);
+  if(f.cashflow >= 0) return false;            /* 现金流为正的角色不会破产 */
   const liq = p.cash + liquidatableValue(p);
   if(liq > 0) return false;                    /* 仍有资产可变现，玩家可自行扭转 */
   /* 出售所有资产仍无法扭转 → 破产出局 */
   bankLiquidate(g, p);
   p.out = true;
   p.outReason = '破产';
-  milestone(g, p, `第 ${g.round} 轮月现金流为负（${money(f.cashflow)}）且已无资产可变现，被动破产出局`, 'bad');
+  bump(p, 'bankrupts');
+  p.creditBanUntil = numOr(g.round) + numOrDef((window.CREDIT || {}).banTurns, 10);
+  milestone(g, p, `第 ${g.round} 轮${p.inFT ? '自由圈 ' : ''}现金流为负（${money(f.cashflow)}）且已无资产可变现，被动破产出局`, 'bad');
   log(g, `${p.name} 月现金流为负且已无偿付能力，出售全部资产后仍无法扭转，宣告破产，退出游戏`, 'bad', p.name);
   if(g.rule==='202'){
     log(g, `202 破产惩罚：跳过 3 回合且此后仅能就特定卡牌借贷（该玩家已出局）`, 'bad', p.name);
@@ -1404,12 +1987,23 @@ window.Engine = {
   surrender, initTrack, bump, milestone, trackRound, STAT_KEYS,
   /* 贷款计划：等额本息 + 全类型提前还款 */
   LOAN_KEYS, loanType, loanDue, loanInfo, ensureLoans, amortize, prepay, prepayPlan, periodsOf, dueOf,
+  /* 时间口径：一次发薪日 = 一年（见 window.TIME） */
+  monthsPerPayday, monthsPerYear, toYears, toYearsFloor, annual,
   /* 人生阶段：收入 / 支出 / 赡养 / 医疗，全部由年龄推导 */
   curveAt, salaryStageOf, lifeStageOf, refreshLife, refreshAllLife, refreshAllEnergy,
   /* 精力：上限与恢复随年龄衰减，持有资产持续消耗，归零触发健康危机 */
   energyMax, energyRecover, energyUpkeep, spendEnergy, tickEnergy, healthCrisis,
   /* 失业求职期 / 公益捐赠税前扣除 / 银翅膀 */
-  isJobless, startJobless, jobHunt, donationRefund, useWing,
+  isJobless, startJobless, settleAtBreak, jobHunt, donationRefund, useWing,
+  /* 生活基线 / 自由圈账本 / 信用额度 */
+  lifeBaseHousing, ftExpenseOf, ftFinance, collateralValue, creditGradeOf, creditProfile, settleCashflow,
+  /* 突变点与终局结算 */
+  retireBreakOf, finalSettle,
+  /* 资产估值：市场周期 + 行情冲击 + 折旧 */
+  ASSET_KINDS, marketShockOf, marketCycleOf, marketIndex, bumpMarket,
+  assetBookOf, appraiseAsset, appraiseAll, stampAsset,
+  /* 多头借贷识别 */
+  multiBorrowingOf,
   /* 入不敷出：月现金流为负时的统一处理入口 */
   payDeficit,
   /* 社会等级 / 消费升级：等级是意外支出金额的规则输入 */

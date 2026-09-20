@@ -111,6 +111,13 @@ function buyDeal(g, card, exec){
       log(g, `${p.name} 建立 ${card.symbol} 跨式期权（权利金 ${money(cost)}）`, 'info', p.name);
       break;
   }
+  /* ★ 给本次买入的资产打上「买入轮次」—— 抵押物折旧依赖持有年数。
+     放在 switch 之后一次遍历，而不是在每个分支里手写：
+     addStock / addCollectible 两个辅助函数也在此覆盖之内，漏不掉。
+     stampAsset 只标记尚无 buyRound 的项，所以不会覆盖已持有资产的原始轮次。 */
+  ['stocks','collectibles','lands','savings','business','realEstate']
+    .forEach(k => (p.assets[k] || []).forEach(it => E.stampAsset(g, it)));
+
   const cfAdd = Math.round((card.cf || 0) * (exec.share || 1));
   E.bump(p, 'dealsBought'); E.bump(p, 'investTotal', cost); E.bump(p, 'cfGained', cfAdd);
   E.milestone(g, p, `第 ${g.round} 轮投入 ${money(cost)} 买入「${card.nm || card.symbol || '资产'}」` +
@@ -174,13 +181,20 @@ function marketImpact(g, card){
   }
   /* 2) 租金随市场波动（202） */
   if(card.kind === 'rentDelta'){
+    /* ★ 租金与估值联动：租金下行通常意味着片区需求走弱，估值也会跟着下调 ——
+       现实中这两者的相关性很强（这也是「租金回报率」能作为估值锚的原因）。
+       联动强度取 MARKET.rentToValue（房价对租金的弹性小于 1：
+       租金跌 20% 时房价通常不会立刻跌 20%，因为房价里还含预期与稀缺性）。 */
+    const k = (window.MARKET && window.MARKET.rentToValue) || 0.8;
+    E.bumpMarket(g, 'realEstate', 1 + card.pct * k);
     g.players.forEach(p=>{
       p.assets.realEstate.forEach(re=>{
         re.baseCf = (re.baseCf===undefined? re.cf : re.baseCf);
         re.cf = Math.round(re.baseCf * (1 + card.pct));
       });
     });
-    out.note = `全体出租房产租金收入 ${card.pct>0?'+':''}${Math.round(card.pct*100)}%`;
+    out.note = `全体出租房产租金收入 ${card.pct>0?'+':''}${Math.round(card.pct*100)}%`
+             + `，房产估值联动 ${card.pct>0?'+':''}${Math.round(card.pct*k*100)}%`;
   }
   /* 3) 生成可执行交易清单 */
   out.options = marketOptions(g, card);
@@ -421,16 +435,41 @@ function doDownsized(g, amount){
   const r = E.startJobless(g, p, severance);
   /* 退休后走的是另一条路：不进入求职期，只做一次退休金调整 */
   return { ok:true, retired:!!r.retired, hit:r.hit || 0, shortfall:r.shortfall || 0,
+           /* brk = 失业【之前】那段未结算周期的结算结果。
+              若它带回了缺口，界面必须先把这个缺口处理掉，再进入失业期 ——
+              否则缺口会被带进失业状态，和失业期的缺口滚在一起。 */
+           brk:r.brk || null,
            severance:r.severance, need:r.need, cashflow:E.finance(p).cashflow };
 }
 
 /* ------------------------------ 贷款 ------------------------------ */
+/* 信用贷要过授信这一关：额度由收入决定，不是「想要多少有多少」。
+   拒绝的原因由 Engine.creditProfile 统一给出，界面与这里读同一份判定 ——
+   否则会出现「面板说不能借、点了却借到了」这类两套口径的问题。 */
 function takeLoan(g, amount){
   const p = E.current(g);
   if(amount<=0) return { ok:false, msg:'贷款金额需大于 0。' };
+  const prof = E.creditProfile(g, p);
+  if(prof && !prof.ok){
+    return { ok:false, credit:prof, msg: prof.reasons[0] || '当前无法获得授信。' };
+  }
+  if(prof && amount > prof.available){
+    return { ok:false, credit:prof,
+      msg:`超出授信额度：本次最多可借 ${money(prof.available)}` +
+          `（授信总额 ${money(prof.limit)}，已用 ${money(prof.used)}）。` };
+  }
   p.liabs.bank += amount; p.cash += amount;
+  /* 记录申请轮次 —— 多头借贷识别要看「近期借了几次」：
+     短期内反复借还是「借新还旧」最直接的行为信号（对应征信里的贷款审批查询次数）。
+     只保留最近一段窗口的记录，避免数组随对局无限增长（存档体积也会失控）。 */
+  if(!Array.isArray(p.loanDrawRounds)) p.loanDrawRounds = [];
+  p.loanDrawRounds.push(Math.max(0, Number(g.round) || 0));
+  const keep = Math.max(4, ((window.CREDIT && window.CREDIT.multi && window.CREDIT.multi.drawWindow) || 6) * 3);
+  if(p.loanDrawRounds.length > keep) p.loanDrawRounds = p.loanDrawRounds.slice(-keep);
   E.bump(p, 'loans'); E.bump(p, 'loanTotal', amount);
-  E.milestone(g, p, `第 ${g.round} 轮借入信用贷 ${money(amount)}，此后每月多付 ${money(Math.round(amount*BANK.loanRate))}`, 'info');
+  E.milestone(g, p, `第 ${g.round} 轮借入信用贷 ${money(amount)}`
+    + `（信用 ${prof ? prof.grade.key : '—'}${prof && prof.multi && prof.multi.level !== '正常' ? ` · 多头借贷 ${prof.multi.level}` : ''}），`
+    + `此后每月多付 ${money(Math.round(amount*BANK.loanRate))}`, 'info');
   log(g, `${p.name} 取得信用贷 ${money(amount)}，月息 ${(BANK.loanRate*100).toFixed(1)}%（每月还款 ${money(Math.round(amount*BANK.loanRate))}）`, 'info', p.name);
   return { ok:true };
 }
@@ -459,7 +498,7 @@ function buyFTBusiness(g, bizId){
   const en1 = needEnergy(p, energyCost('ftBusiness'), `购入企业「${biz.nm}」`);
   if(!en1.ok) return { ok:false, msg:en1.msg };
   p.cash -= biz.cost;
-  p.assets.ftBusiness.push({ nm:biz.nm, cost:biz.cost, cf:biz.cf, bizId:biz.id });
+  p.assets.ftBusiness.push(E.stampAsset(g, { nm:biz.nm, cost:biz.cost, cf:biz.cf, bizId:biz.id }));
   p.ftGain = (p.ftGain||0) + biz.cf;
   E.bump(p, 'ftBusinesses'); E.bump(p, 'investTotal', biz.cost); E.bump(p, 'cfGained', biz.cf);
   E.milestone(g, p, `第 ${g.round} 轮在财务自由圈购入企业「${biz.nm}」，月现金流 +${money(biz.cf)}（累计 ${money(p.ftGain)} / ¥50,000）`, 'good');
@@ -478,7 +517,7 @@ function openFranchise(g, bizId){
   if(!en2.ok) return { ok:false, msg:en2.msg };
   p.cash -= dp;
   const extraCf = Math.round(owned.cf*0.5);
-  p.assets.ftBusiness.push({ nm:owned.nm+' · 特许经营', cost:dp, cf:extraCf, bizId, franchise:true });
+  p.assets.ftBusiness.push(E.stampAsset(g, { nm:owned.nm+' · 特许经营', cost:dp, cf:extraCf, bizId, franchise:true }));
   p.ftGain = (p.ftGain||0) + extraCf;
   E.bump(p, 'ftBusinesses'); E.bump(p, 'investTotal', dp); E.bump(p, 'cfGained', extraCf);
   E.milestone(g, p, `第 ${g.round} 轮为「${owned.nm}」开设特许经营，额外现金流 +${money(extraCf)}（累计 ${money(p.ftGain)} / ¥50,000）`, 'good');
@@ -670,6 +709,7 @@ function buyDealWithOrg(g, card){
     nm: card.nm + '（与机构共有）', dp: mine, cost: Math.round((card.cost || 0) * share),
     cf, rent: Math.round((card.rent || 0) * share), share, joint: true, partner: '机构'
   });
+  (p.assets.realEstate || []).forEach(it => E.stampAsset(g, it));
   E.bump(p, 'dealsBought'); E.bump(p, 'investTotal', mine); E.bump(p, 'cfGained', cf);
   E.milestone(g, p, `第 ${g.round} 轮与机构合伙买入「${card.nm}」，出资 ${money(mine)}（占比 ${Math.round(share*100)}%），月现金流 +${money(cf)}`, 'good');
   E.log(g, `${p.name} 与机构合伙买入 ${card.nm}：机构出 ${money(total - mine)}（${Math.round(orgShare*100)}%），你出 ${money(mine)}（${Math.round(share*100)}%），月现金流 +${money(cf)}`, 'good', p.name);

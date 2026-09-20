@@ -1,0 +1,506 @@
+/* 发薪日触发审计（零依赖，Node 直跑）
+   回答四个问题：
+     ① 「到达发薪日」与「只是经过发薪日」是否都触发结算？
+     ② 结算会不会重复、会不会遗漏？
+     ③ 年龄（一轮 = 一年）与发薪（落格触发）两个时钟是否对齐？
+     ④ 边界：一回合经过多个发薪日、还清贷款、入不敷出、出圈、暂停回合。
+
+   运行：node test/payday-trigger.js      退出码 0 = 全部通过
+
+   ⚠️ 本脚本第 ⑧ 节会把「两个时钟不同步」与「暂停回合不结算」两条已知偏差
+      以 ⚠️ 单独列出（不计入通过/失败），它们是【待决策项】而非已修复项：
+      改动 SOLO / UNEMPLOYMENT / skipTurns / diceCount / 棋盘格型分布后必须重跑本脚本。 */
+
+const fs = require('fs'), path = require('path');
+const DIR = path.join(__dirname, '..', 'js') + '/';
+
+global.window = {};
+for (const f of ['data-careers.js', 'data-board.js', 'data-cards-101.js', 'data-cards-202.js', 'engine.js', 'engine-actions.js'])
+  eval(fs.readFileSync(DIR + f, 'utf8'));
+for (const k of Object.keys(global.window)) if (!(k in global)) global[k] = global.window[k];
+
+const E = global.Engine, A = global.Act;
+const OUT = [];
+let pass = 0, fail = 0;
+const ok  = (c, m) => { if (c) { pass++; OUT.push('   ✅ ' + m); } else { fail++; OUT.push('   ❌ ' + m); } };
+const warn = (m) => OUT.push('   ⚠️ ' + m);
+const sec = (t) => OUT.push('', '=== ' + t + ' ===');
+const money = (n) => '¥' + Math.round(n).toLocaleString('en-US');
+const fin = (v) => typeof v === 'number' && isFinite(v);
+
+/* ---------------- 通用：一局 AI ---------------- */
+let seed = 20260920;
+const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+
+/* newGame 内部用 Math.random() 洗牌分职业 —— 只给 seed 并不能让【职业】可复现。
+   涉及数值断言的地方必须显式指定职业，否则会出现「同一份代码有时通过、有时不通过」，
+   而失败的那次其实只是分到了另一个职业。 */
+function fixCareer(g, name){
+  const p = g.players[0];
+  const c = window.CAREERS.filter(x => x.name === name)[0];
+  if(!c) return p;
+  p.job = c; p.baseSalary = c.salary;
+  p.liabs = Object.assign({ home:0, school:0, car:0, credit:0, bank:0, other:0, extraPay:0 }, c.liab);
+  p.loans = null; E.ensureLoans(p); E.refreshLife(g, p);
+  p.cash = E.finance(p).cashflow + c.savings;
+  return p;
+}
+
+/* 统计：因为授信上限而借不到钱的次数（这是新规则的核心行为，值得单独计数） */
+let seenLoanReject = 0;
+/* 失业是一次收入突变，引擎会在切换状态前先把未结算周期结清（settleAtBreak）。
+   这段年份不走 movePlayer，所以必须单独累加 —— 否则覆盖率会被低估。 */
+let seenBreakYears = 0;
+function handlePending(g, p) {
+  let guard = 0;
+  while (g.pending && guard++ < 60) {
+    const P = g.pending;
+    switch (P.type) {
+      case 'deficit': {
+        let r = A.payDeficit(g, P.amount);
+        if (!r.ok) {
+          /* 真实路径：按【可借额度】借满，而不是「想要一个整数」——
+             信用贷有了上限之后，旧写法必然被拒，等于把 AI 一步逼到破产。 */
+          const prof = E.creditProfile(g, p);
+          const take = Math.min(Math.max(1000, Math.ceil((r.shortfall || 0) / 1000) * 1000),
+                                prof ? prof.available : 0);
+          if (take > 0) A.takeLoan(g, take);
+          r = A.payDeficit(g, P.amount);
+        }
+        if (!r.ok) { seenLoanReject++; E.declareBankruptcy(g, p); E.clearPending(g); return; }
+        const L = P.landed;
+        E.clearPending(g);
+        if (L) E.resolveSpace(g, p, Object.assign({}, L, { deficit: 0 }));
+        break;
+      }
+      case 'opportunity': case 'opportunity202': {
+        let d = P.deal;
+        if (!d) {
+          const dk = P.choices || (g.rule === '202' ? ['capgain', 'cashflow'] : ['small', 'big']);
+          const r = A.chooseDeck(g, dk[Math.floor(rnd() * dk.length)]);
+          if (r && r.ok) d = r.card;
+        }
+        if (d && p.cash > 8000 && p.energy > 40 && rnd() < 0.7) A.buyDeal(g, d, d.min || 1);
+        E.clearPending(g);
+        break;
+      }
+      case 'charity': A.doCharity(g, rnd() < 0.4); E.clearPending(g); break;
+      case 'rest': if (p.energy < 40 && p.cash > 5000) A.vacation(g); E.clearPending(g); break;
+      case 'downsized': {
+        const r = A.doDownsized(g, P.amount);
+        if (r && r.brk) seenBreakYears += r.brk.years;
+        E.clearPending(g);
+        break;
+      }
+      case 'doodad': {
+        let r = A.payDoodad(g, P.card, P.cost);
+        if (!r.ok) {
+          const prof = E.creditProfile(g, p);
+          const take = Math.min(Math.max(1000, Math.ceil((r.shortfall || 0) / 1000) * 1000),
+                                prof ? prof.available : 0);
+          if (take > 0) A.takeLoan(g, take);
+          r = A.payDoodad(g, P.card, P.cost);
+        }
+        if (!r.ok) E.declareBankruptcy(g, p);
+        E.clearPending(g);
+        break;
+      }
+      case 'baby': A.addBaby(g); break;
+      default: E.clearPending(g); break;
+    }
+  }
+}
+
+/* ---------------- ① 棋盘构成 ---------------- */
+sec('① 棋盘构成：发薪日 / 分红日的密度（决定触发频率的上限）');
+const payIn = window.RAT_RACE.map((s, i) => s.t === 'paycheck' ? i : -1).filter(i => i >= 0);
+const payFt = window.FAST_TRACK.map((s, i) => s.t === 'cashflowday' ? i : -1).filter(i => i >= 0);
+const RING = E.RING_LEN;
+ok(payIn.length > 0 && payFt.length > 0, `内圈发薪日 ${payIn.length} 个（位置 ${payIn.join(',')}）· 外圈分红日 ${payFt.length} 个`);
+ok(window.RAT_RACE.length === RING && window.FAST_TRACK.length === RING,
+   `两条环长度都等于 RING_LEN = ${RING}（pathBetween 用的是同一个常量）`);
+
+const g0 = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 1 });
+const g1 = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 1 });
+const innerDice = E.diceCount(g0, g0.players[0]);
+g1.players[0].inFT = true;
+const ftDice = E.diceCount(g1, g1.players[0]);
+ok(innerDice === 1 && ftDice === 2, `骰子数：内圈 ${innerDice} 粒 → 期望 ${innerDice * 3.5} 格；外圈 ${ftDice} 粒 → 期望 ${ftDice * 3.5} 格`);
+const perRoundIn = payIn.length / (RING / (innerDice * 3.5));
+const perRoundFt = payFt.length / (RING / (ftDice * 3.5));
+OUT.push(`   · 内圈：每轮经过发薪日 ${perRoundIn.toFixed(3)} 次 → 约 ${(RING / (innerDice * 3.5)).toFixed(1)} 轮走一圈`);
+OUT.push(`   · 外圈：每轮经过分红日 ${perRoundFt.toFixed(3)} 次 → 约 ${(RING / (ftDice * 3.5)).toFixed(1)} 轮走一圈`);
+warn(`出圈后的结算频率是内圈的 ${(perRoundFt / perRoundIn).toFixed(2)} 倍 —— 出圈会让「年度结算」突然密集 5 倍以上，`);
+warn('   这不是设计意图，而是「外圈 8 个分红日 + 2 粒骰子」两个因素叠加出来的副产品。');
+
+/* ---------------- ②③④ 到达 / 经过 / 重复 ---------------- */
+sec('② 到达触发：落在发薪日上');
+{
+  const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 7 });
+  const p = g.players[0];
+  p.pos = payIn[0] - 1 >= 0 ? payIn[0] - 1 : RING - 1;          // 停在发薪日前一格
+  const before = p.cash;
+  const ld = E.movePlayer(g, p, 1);                              // 走 1 步 → 正好落在发薪日
+  ok(ld.space.t === 'paycheck', `落格格型是发薪日（路径 ${JSON.stringify(ld.path)}）`);
+  ok(!!ld.settled && ld.settled.count === 1, `触发结算 1 次（settled.count = ${ld.settled && ld.settled.count}）`);
+  const exp = E.annual(E.finance(p).cashflow);
+  ok(p.cash - before === ld.collected && ld.collected === ld.settled.amount,
+     `现金变化 ${money(p.cash - before)} === 引擎 collected ${money(ld.collected)}（该年结余 ${money(exp)}）`);
+  const P = E.resolveSpace(g, p, ld);
+  const shown = String(P.msg).match(/¥[\d,]+/);
+  ok(shown && shown[0] === money(ld.collected),
+     `弹层金额与实扣同源：弹层「${shown && shown[0]}」vs 实发 ${money(ld.collected)}`);
+}
+
+sec('③ 经过触发：路径穿过发薪日但没停在那');
+{
+  const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 11 });
+  const p = g.players[0];
+  // 从 payIn[0]-2 走 3 步 → 穿过 payIn[0] 并停在其后一格
+  const from = (payIn[0] - 2 + RING) % RING;
+  p.pos = from;
+  const before = p.cash;
+  const ld = E.movePlayer(g, p, 3);
+  const hit = ld.path.filter(ix => window.RAT_RACE[ix].t === 'paycheck').length;
+  ok(hit === 1 && ld.space.t !== 'paycheck',
+     `路径 ${JSON.stringify(ld.path)} 穿过 1 个发薪日、落点不是发薪日`);
+  ok(ld.settled && ld.settled.count === 1, `经过也触发结算（count = ${ld.settled && ld.settled.count}）`);
+  ok(p.cash - before === ld.collected, `现金变化 ${money(p.cash - before)} 与 collected 一致`);
+}
+
+sec('④ 重复结算检测：落格不会被结算两次');
+{
+  const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 13 });
+  const p = g.players[0];
+  p.pos = (payIn[0] - 1 + RING) % RING;
+  const cash0 = p.cash;
+  const debt0 = E.LOAN_KEYS.reduce((s, k) => s + E.loanInfo(p, k).balance, 0);
+  const active = E.LOAN_KEYS.filter(k => E.loanInfo(p, k).balance > 0);
+  const per0 = active.map(k => E.loanInfo(p, k).periods);
+  const ld = E.movePlayer(g, p, 1);
+  const debt1 = E.LOAN_KEYS.reduce((s, k) => s + E.loanInfo(p, k).balance, 0);
+  const per1 = active.map(k => E.loanInfo(p, k).periods);
+  const eachYear = per1.every((v, i) => v - per0[i] === 12);
+  ok(p.cash - cash0 === ld.collected, `现金只增加一次（${money(p.cash - cash0)}）`);
+  ok(eachYear && active.length > 0,
+     `${active.length} 笔在贷负债【每笔】各摊还 12 期（合计 ${per1.reduce((a,b)=>a+b,0) - per0.reduce((a,b)=>a+b,0)} 期），没有一笔被重复摊还`);
+  ok(debt1 < debt0, `负债同步下降 ${money(debt0)} → ${money(debt1)}`);
+  const P = E.resolveSpace(g, p, ld);
+  ok(P.type === 'info', `落格弹层是纯提示（type = ${P.type}，不再次入账）`);
+}
+
+sec('⑤ 不遗漏：路径命中的每一次都记账');
+{
+  seed = 20260920;
+  const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['甲'], seed: 20260920 });
+  const p = g.players[0];
+  let turns = 0, moves = 0, pathHits = 0, settledHits = 0, mismatch = 0, negCash = 0, nanCash = 0;
+  let arrive = 0, passOnly = 0, multi = 0;
+  while (!g.over && turns < 400) {
+    turns++;
+    const cur = E.current(g);
+    if (!cur || cur.out) { E.nextPlayer(g); continue; }
+    handlePending(g, cur);
+    if (!cur.pausedThisTurn) {
+      const n = E.diceCount(g, cur);
+      const d = E.rollDice(g, n);
+      const ld = E.movePlayer(g, cur, d.reduce((a, b) => a + b, 0));
+      const ring = cur.inFT ? window.FAST_TRACK : window.RAT_RACE;
+      const kind = cur.inFT ? 'cashflowday' : 'paycheck';
+      const hits = ld.path.filter(ix => ring[ix].t === kind).length;
+      const onKind = ring[ld.to].t === kind;
+      if (hits > 0) { if (onKind) arrive++; else passOnly++; if (hits > 1) multi++; }
+      pathHits += hits;
+      settledHits += (ld.settled ? ld.settled.count : 0);
+      if (hits !== (ld.settled ? ld.settled.count : 0)) mismatch++;
+      moves++;
+      E.resolveSpace(g, cur, ld);
+      handlePending(g, cur);
+    }
+    E.endTurn(g);
+    if (cur.cash < 0) negCash++;
+    if (!fin(cur.cash)) nanCash++;
+  }
+  OUT.push(`   · ${moves} 次移动，路径命中发薪日 ${pathHits} 次，结算记录 ${settledHits} 次，对局结束于第 ${g.round} 轮`);
+  OUT.push(`   · 其中【到达】触发 ${arrive} 次、【仅经过】触发 ${passOnly} 次、一次经过多个 ${multi} 次`);
+  ok(arrive > 0 && passOnly > 0, `两种情形都真实发生过（到达 ${arrive} 次 / 仅经过 ${passOnly} 次）`);
+  ok(mismatch === 0, `每一次路径命中都有对应的结算记录（不一致 ${mismatch} 次）`);
+  ok(pathHits === settledHits, `命中数 === 结算数（${pathHits} vs ${settledHits}）—— 不重复、不遗漏`);
+  ok(negCash === 0, `全程现金非负（越界 ${negCash} 次）`);
+  ok(nanCash === 0, `全程现金是有限数值（NaN ${nanCash} 次）`);
+}
+
+/* ---------------- ⑥⑦ 边界：一回合经过多个 ---------------- */
+sec('⑥ 边界：一回合经过 ≥2 个发薪日');
+{
+  const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 17 });
+  const p = g.players[0];
+  p.pos = (payIn[1] - 1 + RING) % RING;      // 从 6 出发（payIn[1]=7, payIn[2]=14）
+  const steps = payIn[2] - p.pos;            // 走到第二个发薪日
+  const before = p.cash;
+  const ld = E.movePlayer(g, p, steps);
+  ok(ld.settled.count === 2, `路径命中了 ${ld.settled.count} 个发薪日（路径 ${JSON.stringify(ld.path)}）`);
+  /* ★ 方案 A：「一年只结一次账」。同一次移动里的第 2 个发薪日不会重复发钱。 */
+  ok(ld.settled.yearsPaid === 1 && ld.settled.skipped === 1,
+     `只有第 1 个真正结算（结算 ${ld.settled.yearsPaid} 年，略过 ${ld.settled.skipped} 个）—— 一年只结一次账`);
+  ok(p.cash - before === ld.settled.amount,
+     `入账 ${money(ld.settled.amount)} 与现金变化一致`);
+  const P = E.resolveSpace(g, p, ld);
+  ok(P.msg.indexOf('1 次因本年已结而略过') >= 0,
+     `弹层说清「踩到了但本年已结」，不会让玩家以为漏发：「${P.msg}」`);
+}
+
+sec('⑦ 边界：单回合最多能经过几个发薪日（枚举全部起止位置）');
+{
+  let maxIn = 0, maxFt = 0, worstIn = null, worstFt = null;
+  for (let from = 0; from < RING; from++) {
+    for (let steps = 1; steps <= 18; steps++) {          // 3 粒骰子的数学上界
+      const to = (from + steps) % RING;
+      const pth = [];
+      { let i = from, guard = 0; do { i = (i + 1) % RING; pth.push(i); guard++; } while (i !== to && guard < 60); }
+      const a = pth.filter(ix => window.RAT_RACE[ix].t === 'paycheck').length;
+      const b = pth.filter(ix => window.FAST_TRACK[ix].t === 'cashflowday').length;
+      if (a > maxIn) { maxIn = a; worstIn = { from, steps, to }; }
+      if (b > maxFt) { maxFt = b; worstFt = { from, steps, to }; }
+    }
+  }
+  /* 独立核对：路径的最后一个元素必须就是落点（否则「到达」会被漏掉） */
+  let pathOk = true;
+  for (let from = 0; from < RING; from++) {
+    for (let steps = 1; steps <= 18; steps++) {
+      const to = (from + steps) % RING;
+      let i = from, last = -1, guard = 0;
+      do { i = (i + 1) % RING; last = i; guard++; } while (i !== to && guard < 60);
+      if (last !== to) pathOk = false;
+    }
+  }
+  ok(pathOk, '全部 24×18 = 432 种走法中，路径末元素都等于落点 —— 「到达」不会被漏掉');
+
+  /* 1 粒骰子（常态）的上界单独算：最多走 6 步 */
+  let max1 = 0;
+  for (let from = 0; from < RING; from++) {
+    for (let steps = 1; steps <= 6; steps++) {
+      const to = (from + steps) % RING;
+      let i = from; const pth = []; let guard = 0;
+      do { i = (i + 1) % RING; pth.push(i); guard++; } while (i !== to && guard < 60);
+      max1 = Math.max(max1, pth.filter(ix => window.RAT_RACE[ix].t === 'paycheck').length);
+    }
+  }
+  ok(max1 === 2, `常态（1 粒骰子，≤6 步）单回合最多经过 ${max1} 个发薪日`);
+  ok(maxIn === 3, `3 粒骰子（银翅膀，≤18 步）单回合最多经过 ${maxIn} 个发薪日（最坏：从 ${worstIn && worstIn.from} 出发走 ${worstIn && worstIn.steps} 步）`);
+  ok(maxFt === 8, `外圈（2 粒骰子，≥2 步）最多经过 ${maxFt} 个分红日（从 ${worstFt && worstFt.from} 走 ${worstFt && worstFt.steps} 步）—— 分红日占外圈 1/3，密度远高于内圈`);
+  ok(18 < RING, `3 粒骰子上限 18 步 < 环长 ${RING} → 一回合不可能绕满一圈，同一格不会被重复经过`);
+  warn('但若将来加大骰子上限（如 4 粒 = 24 步），会绕满整圈、同一发薪日被结算两次；');
+  warn('   pathBetween 的 guard 是 60、movePlayer 无重复保护，届时必须先改这两处。');
+}
+
+/* ---------------- ⑧ 年龄递增时机 ---------------- */
+sec('⑧ 年龄递增时机 + 结算覆盖率（方案 A 落地后：两个时钟的刻度已对齐）');
+{
+  seed = 20260920;
+  const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['甲'], seed: 20260920 });
+  /* 固定职业：本段断言的是「覆盖率」这种数值口径，不能让职业成为变量
+     （newGame 内部用 Math.random 分职业，只给 seed 并不能复现职业）。 */
+  const p = fixCareer(g, '软件工程师');
+  const ageAtSettle = [];
+  let turns = 0, ageTicks = 0, settleCount = 0, skipped = 0, ageDuringMove = 0, settleTurns = 0;
+  seenBreakYears = 0;   /* 从零开始累计（在 handlePending 的 downsized 分支里累加） */
+  while (!g.over && turns < 400) {
+    turns++;
+    const cur = E.current(g);
+    if (!cur || cur.out) { E.nextPlayer(g); continue; }
+    handlePending(g, cur);
+    /* 失业后必须求职 —— 漏掉这一步会让 AI 永久停在求职期（工资归零、支出照付），
+       于是「第 4 轮就破产」，而那不是产品的问题，是测试脚本的缺陷。 */
+    if (E.isJobless(cur) && cur.energy >= 12) A.huntJob(g);
+    if (!cur.pausedThisTurn) {
+      const n = E.diceCount(g, cur);
+      const d = E.rollDice(g, n);
+      const ageBefore = E.ageOf(g);
+      const ld = E.movePlayer(g, cur, d.reduce((a, b) => a + b, 0));
+      /* 关键断言素材：移动（含发薪结算）过程中年龄必须【完全不变】 */
+      if (E.ageOf(g) !== ageBefore) ageDuringMove++;
+      /* ⚠️ 累加的是【结算年数】yearsPaid，不是 count —— count 是「路径命中的格数」，
+         含被略过的那些。两者在方案 A 下差别很大（20 次 vs 43 年）。 */
+      if (ld.settled) { settleCount += ld.settled.yearsPaid; settleTurns++; ageAtSettle.push(E.ageOf(g)); }
+      E.resolveSpace(g, cur, ld);
+      handlePending(g, cur);
+    } else { skipped++; }
+    const roundBefore = g.round;
+    E.endTurn(g);                              /* ← 年龄只可能在这里推进 */
+    if (g.round > roundBefore) ageTicks++;
+  }
+  const years = E.maxRounds(g);
+  OUT.push(`   · 一生 ${years} 年：年龄推进 ${ageTicks} 次、发薪结算 ${settleTurns} 次（合计 ${settleCount} 年）、暂停回合 ${skipped} 次`);
+  ok(ageTicks === years, `年龄推进 ${ageTicks} 次 === 局长度 ${years} 年（一轮 = 一年，时机在 endTurn → nextPlayer）`);
+  ok(ageDuringMove === 0, `移动与发薪结算过程中年龄从未变化（越界 ${ageDuringMove} 次）—— 发薪日不推进年龄`);
+  ok(settleTurns === ageAtSettle.length,
+     `结算记账完整：${settleTurns} 个结算回合共 ${settleCount} 年`);
+  /* ★ 方案 A 的核心验收：一生累计结算基本等于局长度（差额只是「最后一次结算之后到退休」的尾巴） */
+  /* ★ 覆盖率要算上「失业突变点的结算年数」：那段年份由 settleAtBreak 处理，
+     不经过 movePlayer，所以不在 settleCount 里 —— 漏掉它会把覆盖率凭空压低。 */
+  const settledAll = settleCount + seenBreakYears;
+  const coverage = settledAll / years;
+  /* ⚠️ 只有【走完全程】才要求高覆盖率：中途破产出局走的是另一条路，
+     刻意不做终局结清（破产是「现金流断裂」的即时判定），所以残差天然更大。 */
+  const finished = !p.out;
+  const minCoverage = finished ? 0.9 : 0.5;
+  ok(coverage >= minCoverage,
+     `结算覆盖率 ${(coverage * 100).toFixed(1)}%（${finished ? '走完全程' : '中途出局'}，`
+     + `一生 ${years} 年结算了 ${settledAll} 年 = 常规 ${settleCount} + 失业突变点 ${seenBreakYears}）`
+     + `—— 门槛 ${(minCoverage * 100).toFixed(0)}%`);
+  warn(`两个时钟的残差：${years - settledAll} 年（最后一次结算之后到退休之间的尾巴）；`);
+  warn(`  发薪时刻的年龄：${ageAtSettle.join(', ')}`);
+  warn('  ± 这一段尾巴无法靠「结经过的年数」消掉 —— 它要求每次结算都被触发。');
+  warn('  ⚠️ 别再让发薪日推进年龄：一生只有约 19 次发薪，45 轮下来只活到 39 岁，65 岁退休判定立刻失效。');
+}
+
+/* ---------------- ⑨ 入不敷出路径的金额也一致 ---------------- */
+sec('⑨ 边界：入不敷出（负结余年份）的弹层');
+{
+  const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 7 });
+  const p = g.players[0];
+  p.cash = 0; p.liabs.bank = 999999; p.loans = null; E.ensureLoans(p);
+  p.pos = (payIn[0] - 1 + RING) % RING;
+  const ld = E.movePlayer(g, p, 1);
+  ok(ld.deficit > 0 && ld.collected === 0, `年度结余为负 → 记缺口 ${money(ld.deficit)}，不写现金`);
+  ok(p.cash >= 0, `现金没有被扣成负数（${money(p.cash)}）`);
+  const P1 = E.resolveSpace(g, p, ld);
+  ok(P1.type === 'deficit', `先弹「入不敷出」面板（type = ${P1.type}）`);
+  const P2 = E.resolveSpace(g, p, Object.assign({}, ld, { deficit: 0 }));
+  ok(P2.type === 'info' && P2.msg.indexOf(money(ld.deficit)) >= 0,
+     `补完后回到发薪日提示，且金额与刚才的缺口同源：「${P2.msg}」`);
+  ok(ld.settled && ld.settled.deficit === ld.deficit, 'settled 摘要穿过「入不敷出」流程后仍在（弹层不丢信息）');
+}
+
+/* ---------------- ⑩ 出圈后不触发内圈发薪 ---------------- */
+sec('⑩ 边界：出圈后的年结算（分红日）同口径');
+{
+  const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 19 });
+  /* 指定一个低支出职业：本段要验证「分红日按自由圈账本结算」，
+     若随机到高支出职业，分红会被支出吃光而变成缺口，测的就不是原意了。 */
+  const p = fixCareer(g, '小区保安');
+  p.inFT = true; p.ftPos = 0;
+  p.assets.ftBusiness.push({ nm: '测试企业', cost: 100000, cf: 5000 });
+  const before = p.cash;
+  const ld = E.movePlayer(g, p, 1);            // 外圈 index 1 = 分红日
+  ok(ld.space.t === 'cashflowday', `落点是分红日（${ld.space.t}）`);
+  ok(ld.settled && ld.settled.count === 1, `分红日同样触发结算 1 次`);
+  /* ★ 口径已改：自由圈不再是「只发钱」—— 分红要减去自由圈生活支出与仍在还的贷款。
+     旧断言写的是 annual(ftMonthly)，那是「毛分红」，没有支出侧。
+     ⚠️ 结余为负时 collected 记 0、缺口走 deficit（与内圈同规则），
+        所以期望值要分正负两种情形，不能无条件写 annual(cashflow)。 */
+  const ft = E.ftFinance(p);
+  const wantCollected = ft.cashflow >= 0 ? E.annual(ft.cashflow) : 0;
+  ok(ld.collected === wantCollected,
+     `入账 = 年度结余 ${money(ld.collected)}（= (月分红 ${money(ft.income)}`
+     + ` − 自由圈支出 ${money(ft.expense)}) × 12${ft.cashflow < 0 ? '，为负故记 0 并转为缺口' : ''}）`);
+  ok(ft.cashflow >= 0 || ld.deficit > 0,
+     ft.cashflow >= 0 ? '分红足以覆盖自由圈支出（本年有结余入账）'
+                      : `分红不足以覆盖支出 → 记为缺口 ${money(ld.deficit)}（走统一处理面板）`);
+  ok(p.cash - before === ld.collected, `现金变化与 collected 一致`);
+  ok(ld.path.every(ix => window.FAST_TRACK[ix].t !== 'paycheck'),
+     '外圈路径不会误触发内圈的“发薪日”格型（两条环的格型不重叠）');
+  const P = E.resolveSpace(g, p, ld);
+  /* 有结余时是「分红日」提示；有缺口时先走「入不敷出」面板（这是刻意的：钱的问题优先） */
+  const expectTitle = E.ftFinance(p).cashflow >= 0 ? '分红日' : '入不敷出';
+  ok(P.title === expectTitle,
+     `弹层标题与账本一致：「${P.title}」（自由圈不叫「发薪日」）`);
+  if(expectTitle === '入不敷出'){
+    warn('   · 本次分红不足以覆盖自由圈支出，先走「入不敷出」面板 —— 这正是「顺流层也会破产」的入口');
+  }
+}
+
+/* ---------------- ⑪ 边界：还清贷款那一年 ---------------- */
+sec('⑪ 边界：同一回合内两次结算金额可能不同（前一次还清了贷款）');
+{
+  const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 23 });
+  const p = g.players[0];
+  p.liabs.home = 500; E.ensureLoans(p);         // 房贷只剩一点点 → 第一次摊还就会还清
+  E.refreshLife(g, p);
+  const m0 = E.finance(p).cashflow;
+  p.pos = (payIn[1] - 1 + RING) % RING;
+  const before = p.cash;
+  const ld = E.movePlayer(g, p, payIn[2] - p.pos);
+  ok(ld.settled.count === 2, `同一回合结算 2 年`);
+  const y0 = ld.settled.years[0], y1 = ld.settled.years[1];
+  ok(y0.monthly !== y1.monthly,
+     `两次结算的月结余不同：${money(y0.monthly)} → ${money(y1.monthly)}（第 1 次还清了房贷，月供从支出里消失）`);
+  ok(ld.settled.amount === E.annual(y0.monthly) + E.annual(y1.monthly),
+     `入账取的是【两年之和】而不是「单年 × 2」：${money(ld.settled.amount)}`);
+  ok(p.cash - before === ld.settled.amount, `现金变化与合计一致`);
+  ok(E.loanInfo(p, 'home').balance === 0, `房贷已结清（剩余 ${E.loanInfo(p, 'home').balance}）`);
+}
+
+/* ---------------- ⑫ 长局：4 人局各玩家的结算次数 ---------------- */
+sec('⑫ 边界：同局不同玩家的结算次数（同龄不同命）');
+{
+  seed = 20260920;
+  const g = E.newGame({ rule: '101', count: 4, names: ['甲', '乙', '丙', '丁'], seed: 20260920 });
+  const cnt = {}, movesOf = {};
+  let turns = 0;
+  while (!g.over && turns < 3000) {
+    turns++;
+    const p = E.current(g);
+    if (!p || p.out) { E.nextPlayer(g); continue; }
+    handlePending(g, p);
+    if (E.isJobless(p) && p.energy >= 12) A.huntJob(g);
+    if (!p.pausedThisTurn) {
+      const n = E.diceCount(g, p);
+      const d = E.rollDice(g, n);
+      const ld = E.movePlayer(g, p, d.reduce((a, b) => a + b, 0));
+      if (ld.settled) cnt[p.name] = (cnt[p.name] || 0) + ld.settled.count;
+      movesOf[p.name] = (movesOf[p.name] || 0) + 1;
+      E.resolveSpace(g, p, ld);
+      handlePending(g, p);
+    }
+    E.endTurn(g);
+  }
+  const vals = g.players.map(p => cnt[p.name] || 0);
+  OUT.push('   · ' + g.players.map(p => `${p.name}: 移动 ${movesOf[p.name] || 0} 次 / 结算 ${cnt[p.name] || 0} 年`).join(' | '));
+  ok(vals.every(v => v > 0), '每位玩家都至少结算过若干年（没有人为零）');
+  ok(Math.max(...vals) - Math.min(...vals) > 0,
+     `各玩家结算年数并不相同（差 ${Math.max(...vals) - Math.min(...vals)} 年）—— 年龄同步、账目各走各的`);
+  warn('这是「结算由落格抽签决定」的必然结果：同龄人因为掷骰运气不同，一生的收入结算次数不同。');
+}
+
+/* ---------------- ⑬ 暂停回合（已知偏差，不计入通过/失败） ---------------- */
+sec('⑬ 已知偏差：暂停回合（失业休养 / 健康危机）的年度结算');
+{
+  const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 29 });
+  const p = g.players[0];
+  p.skipTurns = 2;
+  p.pos = 1;
+  const cash0 = p.cash;
+  const per0 = E.LOAN_KEYS.reduce((s, k) => s + E.loanInfo(p, k).periods, 0);
+  E.nextPlayer(g);                                    // 触发 markTurnPause（单人局 → 回到自己）
+  const paused = p.pausedThisTurn;
+  ok(paused === true, '暂停回合被正确标记（pausedThisTurn = true）');
+  const per1 = E.LOAN_KEYS.reduce((s, k) => s + E.loanInfo(p, k).periods, 0);
+  warn(`暂停回合既【不结算收入】也【不摊还负债】：期数 ${per0} → ${per1}，现金未变 ${money(p.cash - cash0)}`);
+  warn('   但年龄照常 +1（年龄在 nextPlayer 里按整圈推进）—— 时间在走、账不走。');
+  warn('   方向还不一致：结余为正时这是罚（白丢一年收入），结余为负时这是赏（白免一年支出）；');
+  warn('   而「失业 → 休养 2 回合」恰好落在后者，等于把失业惩罚抵掉了一部分。');
+  warn('   ⚠️ 待决策：暂停是否应该照常结算（若照常，需要为暂停回合补一条入不敷出的弹层路径）。');
+}
+
+/* ---------------- ⑭ 无限模式 ---------------- */
+sec('⑭ 边界：无限模式的年龄');
+{
+  const g = E.newGame({ rule: '101', mode: 'endless', count: 2, names: ['甲', '乙'], seed: 3 });
+  ok(E.isAgeMode(g) === false, '无限模式不被判定为年龄制（不会触发 65 岁退休结算）');
+  g.round = 80;
+  ok(E.ageOf(g) === 99, `round = 80 时 ageOf 仍会算出 ${E.ageOf(g)} 岁（表观年龄会一直涨下去）`);
+  warn('界面已用 isAgeMode 屏蔽了年龄显示（只显示轮次），所以不会露出 99 岁；');
+  warn('   但 refreshLife 仍按年龄取曲线 —— SALARY_CURVE / LIFE_STAGES 的最后一档是 to:200，');
+  warn('   所以 66 岁之后收入与支出结构会永久停在「职场后期」这一档。属可接受的建模截断。');
+}
+
+/* ---------------- 结论 ---------------- */
+OUT.push('', '─'.repeat(72));
+OUT.push(fail === 0
+  ? `✅ 发薪日触发审计全部通过（到达 / 经过 / 不重复 / 不遗漏 / 年龄时机 / 边界），共 ${pass} 项`
+  : `❌ 有 ${fail} 项未通过（通过 ${pass} 项）`);
+OUT.push(`   已知偏差以 ⚠️ 标出（${OUT.filter(l => l.indexOf('⚠️') >= 0).length} 条），属待决策项，不计入通过/失败。`);
+console.log(OUT.join('\n'));
+process.exit(fail === 0 ? 0 : 1);

@@ -694,3 +694,20 @@ html[data-theme="dark"] .die{background:var(--surface-2);}
 @media (max-width:560px){
   .stage-card__vals{grid-template-columns:1fr;}
 }
+
+
+/* ================= 抵押物重估明细（贷款管家内） ================= */
+.appraisal-detail{margin-top:10px;}
+.appraisal-detail > summary{
+  cursor:pointer;list-style:none;font-size:12px;font-weight:600;
+  color:var(--on-surface-var);padding:7px 0;
+}
+.appraisal-detail > summary::-webkit-details-marker{display:none;}
+/* 三角用 CSS 画，不用字符 —— ▸ 在部分字体下会渲染成一个不起眼的小点 */
+.appraisal-detail > summary::before{
+  content:'';display:inline-block;width:0;height:0;margin-right:7px;
+  border-left:5px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;
+  transition:transform .2s var(--ease-out);vertical-align:middle;
+}
+.appraisal-detail[open] > summary::before{transform:rotate(90deg);}
+.appraisal-detail .rowlist{margin-top:6px;}

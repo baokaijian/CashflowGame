@@ -18,7 +18,7 @@ window.RING_POS = ringPositions();
 window.RAT_RACE = [
   { t:'start',        nm:'起点',     ico:'🏁', sub:'休假 · 恢复精力' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡', sub:'理财 / 置业' },
-  { t:'paycheck',     nm:'发薪日',    ico:'💰', sub:'领取月现金流' },
+  { t:'paycheck',     nm:'发薪日',    ico:'💰', sub:'结算一整年' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡' },
   { t:'doodad',       nm:'意外支出',  ico:'💳', sub:'抽取意外支出卡' },
   { t:'market',       nm:'市场行情',  ico:'📈', sub:'抽取行情 / 政策卡' },
@@ -45,7 +45,7 @@ window.RAT_RACE = [
 /* ---------- 外圈：财务自由圈（掷 2 粒骰子） ---------- */
 window.FAST_TRACK = [
   { t:'start',        nm:'自由起点',  ico:'🏁', sub:'Fast Track' },
-  { t:'cashflowday',  nm:'分红日',    ico:'💰', sub:'领取月度现金流' },
+  { t:'cashflowday',  nm:'分红日',    ico:'💰', sub:'领取年度分红' },
   { t:'business',     nm:'企业投资',  ico:'🏭', sub:'仅限现金购买' },
   { t:'cashflowday',  nm:'分红日',    ico:'💰' },
   { t:'dream',        nm:'梦想',     ico:'🌸', dream:0 },
@@ -72,23 +72,23 @@ window.FAST_TRACK = [
 
 /* ---------- 梦想格（棋子上放的“奶酪”） ---------- */
 window.DREAMS = [
-  { id:0, nm:'环游世界',          ico:'🌍', cost:500000 },
-  { id:1, nm:'一线城市大平层',     ico:'🏙️', cost:400000 },
-  { id:2, nm:'私人海岛度假村',     ico:'🏝️', cost:350000 },
-  { id:3, nm:'家乡建一栋别墅',     ico:'🏡', cost:300000 },
-  { id:4, nm:'开一家自己的咖啡馆',  ico:'☕', cost:250000 },
-  { id:5, nm:'资助一所希望小学',   ico:'🏫', cost:200000 }
+  { id:0, nm:'环游世界',          ico:'🌍', cost:1075000 },
+  { id:1, nm:'一线城市大平层',     ico:'🏙️', cost:860000 },
+  { id:2, nm:'私人海岛度假村',     ico:'🏝️', cost:752500 },
+  { id:3, nm:'家乡建一栋别墅',     ico:'🏡', cost:645000 },
+  { id:4, nm:'开一家自己的咖啡馆',  ico:'☕', cost:537500 },
+  { id:5, nm:'资助一所希望小学',   ico:'🏫', cost:430000 }
 ];
 
 /* ---------- 财务自由圈企业（绿色格：只能用现金购买，不允许贷款） ---------- */
 window.FT_BUSINESSES = [
-  { id:'b1', nm:'连锁奶茶品牌',  ico:'🧋', cost:100000, cf:6000  },
-  { id:'b2', nm:'连锁火锅店',    ico:'🍲', cost:150000, cf:9000  },
-  { id:'b3', nm:'新能源充电站',  ico:'🔌', cost:200000, cf:12000 },
-  { id:'b4', nm:'物流快递公司',  ico:'🚚', cost:250000, cf:15000 },
-  { id:'b5', nm:'商业综合体',    ico:'🏬', cost:350000, cf:22000 },
-  { id:'b6', nm:'科技公司',      ico:'💻', cost:500000, cf:30000 },
-  { id:'b7', nm:'新能源整车厂',  ico:'🏭', cost:800000, cf:50000 }
+  { id:'b1', nm:'连锁奶茶品牌',  ico:'🧋', cost:215000, cf:6000  },
+  { id:'b2', nm:'连锁火锅店',    ico:'🍲', cost:322500, cf:9000  },
+  { id:'b3', nm:'新能源充电站',  ico:'🔌', cost:430000, cf:12000 },
+  { id:'b4', nm:'物流快递公司',  ico:'🚚', cost:537500, cf:15000 },
+  { id:'b5', nm:'商业综合体',    ico:'🏬', cost:752500, cf:22000 },
+  { id:'b6', nm:'科技公司',      ico:'💻', cost:1075000, cf:30000 },
+  { id:'b7', nm:'新能源整车厂',  ico:'🏭', cost:1720000, cf:50000 }
 ];
 
 /* ---------- 财务自由圈特殊格费用 ---------- */
