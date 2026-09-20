@@ -589,7 +589,7 @@ function newGame(cfg){
     g.soloStage = soloStageOf(g);
     const st = window.SOLO_STAGES[g.soloStage];
     log(g, `单人模式规则：${S.retireAge} 岁起工资停发、改领养老金（替代率 ${Math.round(S.pensionRatio*100)}%）；` +
-           `没有其他玩家 —— 投资卡可按标价 ${Math.round(S.orgBuyRate*100)}% 转让给机构，联合购买由机构合伙人承接`, 'info');
+           `没有其他玩家 —— 遇到投资机会只能「买入」或「放弃」，202 大额房产的联合购买由机构合伙人承接`, 'info');
     log(g, `【人生阶段 1/${window.SOLO_STAGES.length}】${st.nm} · ${st.range} · ${st.tag} —— 本期核心：${st.tension}`, 'info');
   }
   trackRound(g);                   /* 起始快照：报告的财富走势从第 1 轮就有基准点 */

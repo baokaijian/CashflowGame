@@ -104,23 +104,44 @@ sec('② 退休断崖（61 岁起收入切换）');
   OUT.push(`   · 63 岁被「裁员」→ ${money(r.hit)} 的退休金调整，求职期未启动`);
 }
 
-/* ---------------- ③ 机构接盘 ---------------- */
-sec('③ 机构替代之一：投资卡转让给机构');
+/* ---------------- ③ 单人下不存在机会转让 ---------------- */
+/* 单人模式遇到机会只有【买入】或【放弃】两条路。
+   把一张自己吃不下的投资机会卖出去换现金，现实里没有对应场景
+   （机构完全可以自己找项目，不必为你「看过一眼」付费）——
+   所以这条路径是【整体取消】，而不是换成一个打折的替代品。
+   多人模式的「卖给其他玩家」必须照常保留，两组断言一起守。 */
+sec('③ 单人模式：遇到机会只有「买入」或「放弃」');
 {
   const g = soloGame();
   const p = g.players[0];
-  const card = { id: 'x1', nm: '城郊住宅', kind: 'realestate', dp: 60000, cost: 600000, cf: 3600, rent: 9000 };
-  const before = p.cash, beforeSold = p.stats.dealsSold;
-  const r = A.sellCardToOrg(g, card);
-  ok(r.ok, '转让成功');
-  ok(r.price === Math.round(60000 * SOLO.orgBuyRate),
-    `折现 = 标价 ${money(60000)} × ${Math.round(SOLO.orgBuyRate * 100)}% = ${money(r.price)}`);
-  ok(p.cash === before + r.price, `现金增加 ${money(r.price)}（${money(before)} → ${money(p.cash)}）`);
-  ok(p.stats.dealsSold === beforeSold + 1, '计入「已转让投资卡」统计');
-  /* 对股票类卡片（按单价计）也要能算出合理的折现基数 */
-  const stock = { id: 'x2', nm: '医药白马', kind: 'stock', symbol: '000777', price: 5, min: 100 };
-  const r2 = A.sellCardToOrg(g, stock);
-  ok(r2.ok && r2.price === Math.round(5 * 100 * SOLO.orgBuyRate), `股票类卡片折现基数 = 单价 × 最小手数（${money(r2.price)}）`);
+
+  /* 引擎层：转让能力必须彻底不存在，不能只是界面上藏起来 */
+  ok(typeof A.sellCardToOrg === 'undefined',
+    '引擎里已不存在 sellCardToOrg（不是只把按钮藏起来）');
+  ok(typeof A.orgPriceOf === 'undefined' && typeof A.orgBaseOf === 'undefined',
+    '与转让配套的报价函数也已移除');
+  ok(SOLO.orgBuyRate === undefined,
+    'SOLO 里不再保留 orgBuyRate（避免「定义了却没人读」的假配置）');
+
+  /* 买不了的时候必须能安全放弃，且不产生任何现金变化 */
+  p.cash = 10;
+  const before = p.cash;
+  E.setPending(g, { type:'opportunity', p:p.id, ico:'💡', title:'投资机会',
+                    deal:{ id:'x1', nm:'城郊住宅', kind:'realestate', dp:60000, cost:600000, cf:3600 } });
+  E.clearPending(g);
+  ok(p.cash === before, `放弃一张买不起的机会不产生任何现金变化（${money(before)}）`);
+  ok(g.pending === null, '放弃后 pending 被正常清掉，回合可以继续');
+
+  /* ★ 多人模式必须不受影响：区分处理 */
+  const gm = E.newGame({ rule:'101', mode:'age', count:3, names:['甲','乙','丙'] });
+  ok(typeof A.sellOpportunity === 'function', '多人模式仍保留 sellOpportunity（卖给其他玩家）');
+  const seller = gm.players[0], buyer = gm.players[1];
+  seller.cash = 0; buyer.cash = 100000;
+  const card = { id:'m1', nm:'城郊住宅', kind:'realestate', dp:30000, cost:300000, cf:1800, rent:4500 };
+  gm.cur = seller.id;
+  const rr = A.sellOpportunity(gm, card, buyer.id, 8000);
+  ok(rr.ok && seller.cash === 8000,
+    `多人模式转让照常可用：卖方向买方收到 ${money(8000)}（现金 ${money(seller.cash)}）`);
 }
 
 /* ---------------- ④ 机构合伙 ---------------- */
@@ -243,13 +264,10 @@ sec('⑥ 单人 45 轮长局回归');
         /* 决策放宽到「留 3000 应急金就投」——若过于保守，整局不会产生任何被动收入，
            「买入 → 被动收入 → 出圈」这条主路径就永远不会被回归覆盖（会给出假的通过）。 */
         if (deal && p.cash > 3000 && p.energy > 30 && rnd() < 0.70) {
-          /* 单人模式下优先用机构合伙 / 普通买入；买不起时把卡片转给机构 */
+          /* 单人模式只有买入或放弃 —— 买不起就放弃，没有转让这条退路 */
           const r2 = A.buyDeal(g, deal, deal.min || 1);
           if (r2.ok) seen.buy++;
-          else {
-            const r3 = A.sellCardToOrg(g, deal);
-            if (r3.ok) seen.sold++; else seen.buyFail++;
-          }
+          else { seen.buyFail++; seen.passed++; }
         }
         if (g.pending) E.clearPending(g);
         return true;
@@ -278,7 +296,7 @@ sec('⑥ 单人 45 轮长局回归');
     const g = E.newGame({ rule, mode: 'solo', count: 6, names: ['我'], seed: 20260920 });
     const p = g.players[0];
     let turns = 0, negCash = 0, nanSeen = 0, stuck = 0, energyNeg = 0, stageJump = 0, retiredSeen = 0;
-    const seen = { deficit: 0, buy: 0, buyFail: 0, sold: 0, downsized: 0, doodad: 0, market: 0, crisis: 0, borrow: 0, bankrupt: 0 };
+    const seen = { deficit: 0, buy: 0, buyFail: 0, passed: 0, downsized: 0, doodad: 0, market: 0, crisis: 0, borrow: 0, bankrupt: 0 };
     const cap = 400;
     let lastStage = g.soloStage;
     while (!g.over && turns < cap) {
@@ -339,7 +357,7 @@ sec('⑥ 单人 45 轮长局回归');
     }
     OUT.push(`   · 事件：裁员 ${r.seen.downsized} · 额外支出 ${r.seen.doodad} · 行情 ${r.seen.market}`
       + ` · 健康危机 ${r.seen.crisis} · 入不敷出 ${r.seen.deficit}`);
-    OUT.push(`   · 卡片：买入 ${r.seen.buy} · 转让给机构 ${r.seen.sold} · 被拦 ${r.seen.buyFail}`
+    OUT.push(`   · 卡片：买入 ${r.seen.buy} · 买不起而放弃 ${r.seen.passed} · 被拦 ${r.seen.buyFail}`
       + ` · 被迫加杠杆 ${r.seen.borrow} 次 · 破产清算 ${r.seen.bankrupt} 次`);
     OUT.push(`   · 退休期经过 ${r.retiredSeen} 个回合 · 现金 ${money(r.p.cash)} · 被动收入 ${money(E.finance(r.p).passive)}`);
     if (r.g.soloResult) OUT.push(`   · 结局：${r.g.soloResult.grade} · ${r.g.soloResult.label} —— ${r.g.soloResult.reason}`);
@@ -348,6 +366,6 @@ sec('⑥ 单人 45 轮长局回归');
 
 OUT.push('', '══════════════════════════════════');
 OUT.push(bad.length ? `❌ 失败 ${bad.length} 项：\n   ` + bad.join('\n   ')
-                    : '✅ 单人模式全部通过（阶段 / 退休断崖 / 机构替代 / 结局评级 / 长局回归）');
+                    : '✅ 单人模式全部通过（阶段 / 退休断崖 / 仅买入或放弃 / 机构合伙 / 结局评级 / 长局回归）');
 console.log(OUT.join('\n'));
 process.exit(bad.length ? 1 : 0);

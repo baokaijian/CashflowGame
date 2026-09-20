@@ -298,7 +298,7 @@ function renderSetupRules(){
         <li><b>${window.SOLO.retireAge} 岁起工资停发</b>，改领养老金（基础工资的
           ${Math.round(window.SOLO.pensionRatio * 100)}%），且养老金免征个税 ——
           此后只能靠资产生活</li>
-        <li>没有其他玩家：投资卡可按标价 <b>${Math.round(window.SOLO.orgBuyRate * 100)}% 转让给机构</b>；
+        <li>没有其他玩家：遇到投资机会<b>只能「买入」或「放弃」</b>（没有转让给他人 / 机构这条路）；
           202 大额房产可与<b>机构合伙人</b>联合购买（机构出
           ${Math.round(window.SOLO.partnerShare * 100)}% 首付、分走同比例现金流）</li>
       </ul>

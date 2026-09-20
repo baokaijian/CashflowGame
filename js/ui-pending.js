@@ -69,7 +69,9 @@ function doodadFace(card, cost){
 }
 
 /* 投资卡：可买标的，字段完整 */
-function dealFace(deckName, card){
+/* solo 只用于把「可多人联合购买」改成单人下正确的说法 ——
+   单人局里没有「多人」，写着可多人联合会让人以为还能拉人。 */
+function dealFace(deckName, card, solo){
   let rows = '';
   switch(card.kind){
     case 'stock':
@@ -89,7 +91,7 @@ function dealFace(deckName, card){
     case 'realestate':
       rows = r('买价', money(card.cost)) + r('首付', money(card.dp))
            + r('月现金流', sign(card.cf)) + (card.rent? r('租金', money(card.rent)+' / 月'):'')
-           + (card.joint? r('202 规则','可多人联合购买'):'')
+           + (card.joint? r('202 规则', solo ? '可与机构合伙购买' : '可多人联合购买'):'')
            + (card.capital? r('类型','资本利得型 · 无现金流'):'');
       break;
     case 'business':
@@ -111,11 +113,11 @@ function dealFace(deckName, card){
   return cardface(DECK_LABEL[deckName] || '投资机会', card.id, card.nm || card.symbol || '卡片', rows, card.note);
 }
 
-function face(deckName, card, cost){
+function face(deckName, card, cost, solo){
   if(!card) return '';
   if(deckName === 'market') return marketFace(card);
   if(deckName === 'doodad') return doodadFace(card, cost);
-  return dealFace(deckName, card);
+  return dealFace(deckName, card, solo);
 }
 function foot(btns){ return `<div class="modal__foot">${btns}</div>`; }
 function finishTurnAction(){
@@ -240,9 +242,8 @@ function showDealCard(g, p, card, P){
   const minCost = A.dealCost(g, card, card.min||1);
   const others = g.players.filter(x=>x.id!==p.id && !x.out);
   const solo = E.isSolo(g);
-  /* 机构的分账与报价读自引擎的纯函数 —— 界面上写的数字必须与实扣一致 */
+  /* 机构合伙的分账读自引擎的纯函数 —— 界面上写的数字必须与实扣一致 */
   const orgPlan = A.orgPartnerPlan(g, card);
-  const orgRate = Math.round((window.SOLO.orgBuyRate || 0.2) * 100);
 
   const qtyHtml = unitDeal ? `
     <div class="sec__title">购买数量（${card.min} — ${card.max}）</div>
@@ -278,18 +279,11 @@ function showDealCard(g, p, card, P){
       <div class="rowlist__row"><span>你需出资</span><b id="jointMine">${money(card.dp)}</b></div>
     </div>`) : '';
 
-  const sellHtml = solo ? `
-    <div class="sec__title" style="margin-top:12px">把投资卡转让给机构</div>
-    <p class="hint">单人模式下没有其他玩家可以接手。自己买不起时，
-      可以把这张机会按标价 <b>${orgRate}%</b> 转让给机构换取信息费
-      （现实对应：把项目信息卖给中介 / 同行）。</p>
-    <div class="rowlist">
-      <div class="rowlist__row">
-        <span>机构接盘价（标价 ${money(A.orgBaseOf(card))} 的 ${orgRate}%）</span>
-        <span><b>${money(A.orgPriceOf(card))}</b>
-        <button class="btn btn--s btn--outline" data-orgsell>转让</button></span>
-      </div>
-    </div>` : (others.length ? `
+  /* ★ 单人模式【没有】机会转让这条路 —— 遇到机会只有「买入」或「放弃」。
+     把一张自己吃不下的投资机会卖出去换现金，现实里并无对应场景
+     （机构完全可以自己找项目，不必为你「看过一眼」付费）。
+     多人模式照常可以卖给其他玩家。 */
+  const sellHtml = (!solo && others.length) ? `
     <div class="sec__title" style="margin-top:12px">把投资卡卖给其他玩家</div>
     <p class="hint">自己买不起时，可以把抽到的投资卡出售给其他玩家换取现金（对方需自付首付）。</p>
     <div class="rowlist">
@@ -298,12 +292,12 @@ function showDealCard(g, p, card, P){
         <span><input type="number" class="textfield" style="width:110px;padding:6px 8px" data-sp="${o.id}" value="1000" step="500" min="0">
         <button class="btn btn--s btn--outline" data-sellto="${o.id}">出售</button></span>
       </div>`).join('')}
-    </div>` : '');
+    </div>` : '';
 
   U.openModal(`
     <div class="modal__head"><h3>${card.deck==='big'||card.deck==='cashflow'?'🏢':'💡'} ${esc(card.nm||card.symbol)}</h3></div>
     <div class="modal__body">
-      ${face(card.deck, card)}
+      ${face(card.deck, card, null, solo)}
       <div class="sec__total"><span>你需支付</span><b class="money" id="needCost">${money(cost)}</b></div>
       <div class="sec__total"><span>你的现金</span><span class="money ${affordable?'':'neg'}">${money(p.cash)}</span></div>
       <div class="sec__total"><span>需要精力（研究 + 筹建）</span><span class="money ${energyOK?'':'neg'}">${eCost} / 当前 ${Math.round(p.energy)}</span></div>
@@ -349,16 +343,10 @@ function showDealCard(g, p, card, P){
       }
       $$('[data-jp]',m).forEach(cb=>{ cb.onchange = upd; });
       if($('#orgPartner',m)) $('#orgPartner',m).onchange = upd;
-      if($('[data-orgsell]',m)) $('[data-orgsell]',m).onclick = ()=>{
-        const r = A.sellCardToOrg(g, card);
-        if(!r.ok) return U.toast(r.msg, 'err');
-        finishTurnAction();
-        window.UiGame.renderAll();
-        U.toast(`已转让给机构，获得信息费 ${money(r.price)}`, 'ok');
-      };
       $$('[data-jamt]',m).forEach(inp=>{ inp.oninput = upd; });
       $('[data-pass]',m).onclick = ()=>{
         E.bump(p, 'dealsPassed');
+        /* 单人下放弃就是唯一的退路（没有转让）—— 顺手把这件事讲清楚 */
         E.milestone(g, p, `第 ${g.round} 轮放弃投资机会「${card.nm||card.symbol}」`, 'info');
         E.log(g, `${p.name} 放弃投资机会【${card.nm||card.symbol}】`, 'info', p.name);
         finishTurnAction();

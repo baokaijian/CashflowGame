@@ -633,32 +633,13 @@ function payDeficit(g, amount){
 function huntJob(g){ return E.jobHunt(g, E.current(g)); }
 
 /* ------------------------------ 单人模式：机构替代 ------------------------------ */
-/* 单人模式的根本约束是「没有其他玩家」，而原规则里有两处依赖他人：
-   投资卡转让、202 联合购买。直接砍掉会削弱规则完整性，
-   所以给它们各配一个现实里真实存在的替代物 —— 机构。 */
-
-/* 把投资卡转让给机构。
-   现实对应：自己吃不下这个项目时，把信息卖给中介 / 同行 / 财务顾问，拿一笔信息费。
-   折现率取 SOLO.orgBuyRate（20%）—— 明显低于卖给同行，因为信息本身不值全价；
-   但足以让「考察机会」在单人下仍然是正期望，而不是纯亏精力。 */
-/* 折现基数与机构报价 —— 抽成纯函数，界面与引擎共用同一份计算。
-   否则「弹层写着 ¥12,000、实际到账 ¥11,000」这类账实不符迟早会发生。 */
-function orgBaseOf(card){
-  return card.dp || card.cost || (card.price ? card.price * (card.min || 1) : 0) || 0;
-}
-function orgPriceOf(card){
-  return Math.round(orgBaseOf(card) * (window.SOLO.orgBuyRate || 0.2));
-}
-
-function sellCardToOrg(g, card){
-  const p = E.current(g), S = window.SOLO;
-  const price = orgPriceOf(card);
-  p.cash += price;
-  E.bump(p, 'dealsSold'); E.bump(p, 'dealsSoldTotal', price);
-  E.milestone(g, p, `第 ${g.round} 轮把投资卡「${card.nm || card.symbol || '投资机会'}」按标价 ${Math.round((S.orgBuyRate||0.2)*100)}% 转让给机构，换取现金 ${money(price)}`, 'info');
-  E.log(g, `${p.name} 把投资机会【${card.nm || card.symbol || '投资机会'}】转让给机构，获得信息费 ${money(price)}`, 'info', p.name);
-  return { ok:true, price, rate:S.orgBuyRate || 0.2 };
-}
+/* 单人模式的根本约束是「没有其他玩家」，原规则里依赖他人的只剩一条：202 联合购买，
+   它的现实替代物是「机构合伙人」（见下）。
+   ★ 「投资卡转让」在单人下【整体取消】，不做替代：
+     把一张自己吃不下的投资机会卖出去换现金，现实里没有对应场景 ——
+     机构完全可以自己找项目，不必为你「看过一眼」付费。
+     所以单人模式遇到机会只能【买入】或【放弃】。
+     多人模式的 sellOpportunity（卖给其他玩家）照常保留。 */
 
 /* 与机构合伙人联合购买（202 大额房产的「联合购买」在单人下的等价形式）。
    机构出 partnerShare 的首付、分走同比例的现金流 —— 现实里找投资人搭伙就是这样：
@@ -714,7 +695,7 @@ window.Act = {
   /* 人生模拟：精力校验 / 休假 / 补缺口 / 求职 */
   energyCost, dealEnergy, needEnergy, vacation, payDeficit, huntJob,
   /* 单人模式：机构接盘（投资卡转让）与机构合伙（联合购买的替代） */
-  sellCardToOrg, buyDealWithOrg, orgBaseOf, orgPriceOf, orgPartnerPlan,
+  buyDealWithOrg, orgPartnerPlan,
   /* 现金不变式：付不出时的两条出路 + 破产 */
   liquidate: E.liquidate, declareBankruptcy: E.declareBankruptcy
 };
