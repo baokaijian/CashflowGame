@@ -596,3 +596,56 @@ html[data-theme="dark"] .die{background:var(--surface-2);}
 @media (max-width:560px){
   .rules-cols{grid-template-columns:1fr;}
 }
+
+/* ================= 社会等级评估 ================= */
+/* --sc 由 JS 按当前层级的语义色（红 / 橙 / 绿）注入，整块共享同一个强调色 */
+.sc-card{
+  padding:14px;border-radius:var(--r-m);background:var(--surface-2);
+  border:1px solid var(--sep);border-left:3px solid var(--sc);
+}
+.sc-head{display:flex;align-items:flex-start;gap:11px;}
+.sc-ico{font-size:26px;line-height:1;flex:none;}
+.sc-head__t{min-width:0;}
+.sc-head__t b{display:block;font-size:16px;font-weight:750;letter-spacing:-.02em;color:var(--sc);}
+.sc-head__t small{display:block;margin-top:5px;font-size:11.5px;color:var(--on-surface-var);line-height:1.55;}
+
+/* 八级阶梯：走过的实心、当前的高亮 */
+.sc-ladder{display:flex;gap:4px;margin-top:13px;}
+.sc-step{flex:1;height:6px;border-radius:var(--r-pill);background:color-mix(in srgb,var(--on-surface) 10%,transparent);}
+.sc-step--on{background:color-mix(in srgb,var(--sc) 52%,transparent);}
+.sc-step--cur{background:var(--sc);}
+
+.sc-ev{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:13px;}
+.sc-ev__i{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--on-surface-var);line-height:1.45;}
+.sc-ev__i b{font-size:12px;font-weight:650;color:var(--on-surface);font-variant-numeric:tabular-nums;}
+
+.sc-next{margin-top:13px;padding-top:12px;border-top:1px solid var(--sep);}
+.sc-next__hd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:12.5px;font-weight:600;color:var(--on-surface-var);}
+.sc-next__hd b{font-size:16px;font-weight:750;color:var(--on-surface);font-variant-numeric:tabular-nums;}
+.sc-next .progress{margin-top:7px;}
+.sc-next .hint{margin-top:7px;}
+
+@media (max-width:560px){
+  .sc-ev{grid-template-columns:1fr;}
+}
+
+/* 财务面板里的社会等级阶梯：比复盘里的更紧凑 */
+.sc-ladder--sm{margin-top:9px;}
+.sc-ladder--sm .sc-step{height:5px;}
+
+/* ================= 消费档次加成（意外支出） ================= */
+/* 用橙色而不是红色：它是「地位带来的隐性成本」，不是惩罚性扣款 ——
+   要在视觉上区分「你被罚了」与「你维持这个档次的代价」。 */
+.tier-note{
+  margin:12px 0;padding:12px 13px;border-radius:var(--r-m);
+  background:color-mix(in srgb,var(--orange) 10%,transparent);
+  border:1px solid color-mix(in srgb,var(--orange) 32%,transparent);
+}
+.tier-note__hd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:12.5px;font-weight:650;color:var(--orange);}
+.tier-note__hd b{font-size:17px;font-weight:750;font-variant-numeric:tabular-nums;}
+.tier-note__row{display:flex;justify-content:space-between;gap:12px;margin-top:6px;
+  font-size:12px;color:var(--on-surface-var);}
+.tier-note__row b{color:var(--on-surface);font-weight:650;font-variant-numeric:tabular-nums;}
+.tier-note .hint{margin:8px 0 0;}

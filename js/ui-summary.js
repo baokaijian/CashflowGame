@@ -210,6 +210,171 @@ function verdictOf(g, p, m, sc){
   return '风险敞口过大：现金流为负且缺少缓冲，最终没能撑住。';
 }
 
+/* ------------------------------ 社会等级（展示层） ------------------------------ */
+/* ★ 等级【判定】在 engine.js（Engine.LADDER / Engine.socialClassOf）——
+   因为它已经是游戏规则的输入：意外支出的「消费档次」系数由它决定。
+   判定若留在表现层，引擎就得反过来依赖 UI，会破坏「引擎零 DOM 依赖」的约定。
+   这里只负责把结论讲清楚：判定依据、距上一层的差距、以及怎么往上走。 */
+function classDetail(g, p, m){
+  const cls = E.socialClassOf(g, p);
+  return Object.assign({}, cls, {
+    next: nextReqOf(g, p, cls),
+    evidence: classEvidence(g, p, m, cls),
+    levers: classLevers(g, p, m, cls)
+  });
+}
+/* 给对局面板用的精简入口：只要「等级 + 距上一级」两件事。
+   不复用 classDetail —— 那个会连带构造判定依据与建议文案，而面板每次操作都会重渲染。 */
+function classBrief(g, p){
+  const cls = E.socialClassOf(g, p);
+  return Object.assign({}, cls, { next: nextReqOf(g, p, cls), mult: E.lifestyleOf(g, p).mult });
+}
+/* 距离上一层：达标条件 + 还差多少 + 达成度。
+   只有这一层需要把数字格式化成文案，所以留在展示层。 */
+function nextReqOf(g, p, cls){
+  const L = E.LADDER, lv = cls.lv;
+  const seg = (lo, hi, v)=> hi > lo ? clamp((v - lo) / (hi - lo), 0, 1) : 0;
+  if(lv === 7) return null;
+  if(lv <= 1) return { name:L[2].name, req:'应急金达到 3 个月支出',
+    need:`还差 ${money(Math.max(0, cls.safety3 - cls.peakCash))}（目前峰值现金 ${money(cls.peakCash)}）`,
+    prog: cls.safetyProg };
+  if(lv === 2) return { name:L[3].name, req:`被动收入达到门槛的 25%（${money(cls.target * 0.25)}）`,
+    need:`还差 ${money(Math.max(0, cls.target * 0.25 - cls.passive))}`, prog: seg(0, 0.25, cls.cover) };
+  if(lv === 3) return { name:L[4].name, req:`被动收入达到门槛的 50%（${money(cls.target * 0.5)}）`,
+    need:`还差 ${money(Math.max(0, cls.target * 0.5 - cls.passive))}`, prog: seg(0.25, 0.50, cls.cover) };
+  if(lv === 4) return { name:L[5].name, req:`被动收入达到门槛的 80%（${money(cls.target * 0.8)}）`,
+    need:`还差 ${money(Math.max(0, cls.target * 0.8 - cls.passive))}`, prog: seg(0.50, 0.80, cls.cover) };
+  if(lv === 5) return { name:L[6].name, req:`被动收入超过门槛（${money(cls.target + 1)}）`,
+    need:`还差 ${money(Math.max(0, cls.target + 1 - cls.passive))}，达标当轮就出圈拿资金`,
+    prog: seg(0.80, 1.00, cls.cover) };
+  return { name:L[7].name, req:'达成获胜条件（梦想格付清 / 企业月现金流累计 ≥ ¥50,000）',
+    need: p.inFT ? `企业现金流累计 ${money(num(p.ftGain))} / ¥50,000`
+                 : '进入财务自由圈后，在梦想格付清费用即获胜',
+    prog: clamp(num(p.ftGain) / 50000, 0, 1) };
+}
+/* 判定依据：把「凭什么给这个等级」摊开，玩家可以自己核对 */
+function classEvidence(g, p, m, cls){
+  const ls = E.lifestyleOf(g, p);
+  return [
+    ['被动收入覆盖度', `${pct(cls.cover)}%（${money(cls.passive)} / 门槛 ${money(cls.target)}）`],
+    ['应急金', `${cls.safetyMonths.toFixed(1)} 个月支出${cls.safetyProg >= 1 ? '（已达 3 个月）' : '（不足 3 个月）'}`],
+    ['月现金流', `${money(m.f.cashflow)}${m.f.cashflow < 0 ? ' · 为负' : ''}`],
+    ['消费档次', `×${ls.mult.toFixed(2)} —— 意外支出按此系数计价`],
+    ['净资产', `${money(m.nw)}（峰值 ${money(m.peakNet)}）`]
+  ];
+}
+
+/* 提升等级的具体财商手段：按【当前层级】给动作，回答「怎么往上走一层」。
+   与 adviceOf 的分工：那份是整局的结构性诊断，这份是登台阶的动作清单。 */
+function classLevers(g, p, m, cls){
+  const lv = cls.lv, cover = cls.cover, passive = cls.passive, target = cls.target;
+  const out = [];
+  const add = (t, d)=> out.push({ t, d });
+  const exp = m.f.totalExpenses;
+  const upkeep = m.upkeep, recover = E.energyRecover(g, p);
+
+  if(lv === 0){
+    add('止血优先于赚钱',
+      `当前净资产 ${money(m.nw)}。任何「未来很赚」的资产都比不上先让月度收支转正 —— ` +
+      `优先偿清月息最高的那笔负债（信用贷月息 1%，年化约 12%，是所有负债里最贵的）。`);
+    add('永远留一项可折价变现的资产',
+      '它是你的第二次机会。把全部现金压进流动性差的资产后，一旦遇到意外支出，就只剩「破产出局」这一条路。');
+    add('把「月现金流为负」写进禁投清单',
+      '哪怕标的账面很便宜 —— 负现金流资产不会让你变富，只会加速把你推出局。');
+  }
+  if(lv === 1){
+    add('第一优先级是攒够 3 个月应急金',
+      `按你每月支出 ${money(exp)} 算，目标是 ${money(exp * 3)}；目前现金峰值只有 ${money(m.peakCash)}。` +
+      '在攒够之前，不要把钱投入流动性差的资产。');
+    add('把「出圈门槛」当成 KPI 来管理',
+      `门槛 = 总支出（现在是 ${money(target)}）。每还清一笔贷款，门槛就降一截 —— ` +
+      '这是唯一能同时「减少支出」和「变相提高被动收入」的动作。');
+    add('每轮固定完成一个动作，不要等「合适的时机」',
+      '把「买入 1 笔月现金流为正的资产」写进每轮流程。内圈的财富来自「机会 → 资产」的转化率，不是来自等待。');
+  }
+  if(lv === 2){
+    add('让闲置的现金开始工作',
+      `你已经有 ${money(m.peakCash)} 的现金峰值，但被动收入只有 ${money(passive)}/月 —— 钱放在手上不会生钱。` +
+      '下一步是把这笔钱换成能持续产生月现金流的资产。');
+    add('先配「不需要打理」的金融资产起步',
+      '指数基金、存款、债券几乎不占精力、流动性好，适合作为第一桶生息资产；' +
+      '等现金流转正、应急金稳固之后，再考虑需要投入时间打理的房产与企业。');
+    add('开始接触正现金流房产',
+      '判断标准只有一条：租金能否覆盖月供。从「房客替你还贷」开始，而不是从「赌房价上涨」开始。');
+  }
+  if(lv === 3){
+    if(m.seen >= 3 && m.hitRate < 0.5){
+      add('提高出手率：机会是内圈唯一的原料',
+        `你拿到 ${m.seen} 次机会只出手 ${m.buys} 次（出手率 ${pct(m.hitRate)}）。` +
+        '买不起大标的时，就先用成本低、月现金流为正的小额标的上车 —— 空手过格等于放弃一轮复利。');
+    } else {
+      add('把单笔现金流做大，而不是增加笔数',
+        `本局单笔平均带来 ${money(m.avgCf)}/月现金流。下一局把目标定在 +${money(Math.round(Math.max(m.avgCf, 300) * 1.2))}/月以上，` +
+        '让每一笔买入都更接近出圈门槛。');
+    }
+    add('用杠杆，但要让资产替你还债',
+      '只有当「月现金流 ≥ 月供」时借钱才是加速；否则杠杆只是把出局的时间提前。');
+    add('别只买一类资产',
+      '房产/企业拉高被动收入，存款/基金提供流动性防止节奏被打断 —— 两者搭配才能连续爬台阶。');
+  }
+  if(lv === 4){
+    add('同时推「两条边」，比只盯被动收入更快',
+      `门槛就是总支出（${money(target)}）。提前还清高息负债 → 支出下降 → 门槛下降，` +
+      '等于被动收入凭空多出一档。这是中产往上走最被低估的一招。');
+    if(upkeep >= recover){
+      add('先解决精力约束，再谈扩张',
+        `名下资产每回合要花 ${upkeep} 点精力维护，而你的恢复能力只有 ${recover} 点 —— ` +
+        '已经没有余量承接新机会。减持一部分需要亲自打理的资产，改配不占精力的金融资产。');
+    } else {
+      add('把资源集中到最能拉高现金流的那一类标的上',
+        `距离 80% 只差 ${money(Math.max(0, target * 0.8 - passive))}。` +
+        '与其分散买小资产，不如攒够首付一次拿下现金流最大的标的。');
+    }
+    add('守住安全垫，别为了提速把应急金也投进去',
+      `目前应急金约 ${m.safetyMonths.toFixed(1)} 个月支出。低于 3 个月时，一次意外就能把你打回上一层。`);
+  }
+  if(lv === 5){
+    add('达标当轮立刻出圈，一天都别拖',
+      `你距离门槛只差 ${money(Math.max(0, target + 1 - passive))}。出圈资金 = 被动收入 × 100，` +
+      '晚一轮就少一轮复利，也会少拿一大笔起始现金。');
+    add('最后一笔不要靠高息贷凑',
+      '月息 1% 的信用贷会立刻吃掉你刚建立起来的现金流 —— 宁可用小额标的补足，也不要用消费型负债冲线。');
+    add('提前想清楚出圈后要做什么',
+      '出圈后目标从「被动收入 ＞ 支出」切换为「企业月现金流累计 ≥ ¥50,000」。' +
+      '先把财务自由圈企业名单看一遍，出圈资金到手就直接下手，不要让现金闲置。');
+  }
+  if(lv === 6){
+    add('把重心从内圈切到企业现金流',
+      `你已经出圈，目标变成「企业月现金流累计 ≥ ¥50,000」，当前累计 ${money(num(p.ftGain))}。` +
+      '继续在内圈买小资产已经不再得分，出圈资金应优先配置到企业上。');
+    add('性价比最高的动作是特许经营',
+      '首付只需要企业成本的 20%，却能拿到原现金流 50% 的额外现金流 —— 这是财务自由圈里回报率最高的一步。');
+    add('精力依然是硬约束',
+      `企业每回合要花 3 点精力维护（当前维护 ${upkeep} 点 / 恢复 ${recover} 点）。` +
+      '财务自由圈里同样会因过劳而触发健康危机，扩张节奏要留余量。');
+  }
+  /* 消费升级规则上线后，这条建议对所有中高等级都成立 —— 也是这条规则真正的用意 */
+  if(lv >= 4){
+    const ls = E.lifestyleOf(g, p);
+    add('注意「消费档次」正在抬高你的意外支出',
+      `你处在 L${lv}，意外支出按 ×${ls.mult.toFixed(2)} 计价 —— 这是地位的隐性成本：` +
+      '豪车的保养与保险、大房子的维护、社会圈的往来标准，都会随档次一起上涨，' +
+      '而且几乎无法通过「省一点」来规避，只能通过「不持有」来规避。' +
+      '真正的对策是让资产表里以**生息资产**（存款 / 基金 / 股票，不产生维护成本）为主，' +
+      '把**消耗型资产**（豪车、豪宅、奢侈品）控制在必要范围内。');
+  }
+  if(lv === 7){
+    add('把这一局的结构复述成你的规则',
+      `你以「被动收入 ${money(passive)} ＞ 门槛 ${money(target)}」完成出圈并达成目标。` +
+      '真正有价值的是可复用的路径：先把应急金做厚 → 集中买入正现金流资产 → 达标当轮出圈 → 立刻转投企业。');
+    add('下一局的挑战是把达标时间往前压',
+      `本局在第 ${num(p.escapeRound) || num(m.rounds)} 轮出圈。同样的机会下，能否用更少的轮数完成，是唯一的进阶方向。`);
+  }
+  /* L4 及以上多给一条：消费档次是「地位越高越贵」的一整套机制，
+     只有中产以后才会真正咬人，属于额外的维度，不该挤掉原有的登台阶建议。 */
+  return out.slice(0, lv >= 4 ? 4 : 3);
+}
+
 /* ------------------------------ 改进建议 ------------------------------ */
 /* 全部结论都由 stats / track 推出，带具体数字，可直接指导下一局操作 */
 function adviceOf(g, p, m, sc){
@@ -381,25 +546,11 @@ function sparkline(track, key, label, fmt){
   </div>`;
 }
 
-/* ------------------------------ 报告主体 ------------------------------ */
-function reportHTML(g, pid){
-  const p = g.players[pid];
-  E.initTrack(p);
-  const m = collect(g, p);
-  const out = outcomeOf(g, p);
-  const sc = scoreOf(g, p, m);
-  const advice = adviceOf(g, p, m, sc);
-  const plan = planOf(g, p, m);
-
-  const ranked = g.players.slice().sort((a, b)=> E.netWorth(b) - E.netWorth(a));
-  const rank = ranked.findIndex(x=>x.id === p.id) + 1;
-  const toneColor = TONE[out.tone] || 'var(--accent)';
-  const gradeColor = sc.total >= 72 ? 'var(--green)' : sc.total >= 45 ? 'var(--orange)' : 'var(--red)';
-  const passive = m.out ? m.peakPassive : m.f.passive;
-  const prog = m.target > 0 ? clamp(passive / m.target, 0, 1) : (passive > 0 ? 1 : 0);
-  const gap = Math.max(0, m.target - passive);
-
-  const metrics = [
+/* ------------------------------ 指标清单（HTML 与导出共用） ------------------------------ */
+/* 抽出来是为了让「屏幕上看到的」和「导出文件里的」保证是同一份数据 ——
+   两处各写一遍，迟早会对不上。 */
+function metricsOf(g, p, m){
+  return [
     ['结束时净资产', money(m.nw), `峰值 ${money(m.peakNet)}`],
     ['被动收入峰值', money(m.peakPassive), `出圈门槛 ${money(m.target)}`],
     ['累计投入', money(m.invested), `${m.buys} 笔买入 · 新增现金流 ${money(m.cfGained)}/月`],
@@ -413,6 +564,239 @@ function reportHTML(g, pid){
     ['逆流冲击', m.jobless > 0 ? `失业 ${m.jobless} 次` : '未遭遇失业',
       m.deficitMonths > 0 ? `${m.deficitMonths} 个月入不敷出 ${money(m.deficitTotal)}` : '收支始终为正']
   ];
+}
+
+/* ------------------------------ 导出 ------------------------------ */
+/* Markdown 与 JSON 两个导出器共用 analyzeAll()，保证两份文件说的是同一套数字。
+   全部数据来自 engine 全程采集的 stats / track / milestones，不额外臆测。 */
+function analyzeAll(g){
+  const ranked = g.players.slice().sort((a, b)=> E.netWorth(b) - E.netWorth(a));
+  return g.players.map(p=>{
+    const m = collect(g, p);
+    const sc = scoreOf(g, p, m);
+    return {
+      p, m, sc,
+      out: outcomeOf(g, p),
+      cls: classDetail(g, p, m),
+      rank: ranked.findIndex(x=> x.id === p.id) + 1
+    };
+  });
+}
+function metaOf(g){
+  return {
+    rule: g.rule,
+    mode: E.isAgeMode(g) ? '年龄模式' : '无限模式',
+    round: g.round,
+    age: E.isAgeMode(g) ? E.ageOf(g) : null,
+    endAge: g.endAge,
+    players: g.players.length,
+    over: !!g.over,
+    winner: (g.winner != null && g.players[g.winner]) ? g.players[g.winner].name : null,
+    winReason: g.winReason || '',
+    exportedAt: dateText()
+  };
+}
+function dateText(){
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
+}
+function fileStamp(){
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}`;
+}
+/* 纯前端下载：Blob + 临时 <a download>。file:// 下同样可用，不需要任何后端。 */
+function download(name, text, mime){
+  const blob = new Blob([text], { type:(mime || 'text/plain') + ';charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
+}
+const stripTags = s => String(s).replace(/<\/?b>/g, '').replace(/<br\s*\/?>/g, ' ');
+const mdCell = s => stripTags(s).replace(/\|/g, '\\|').replace(/\n+/g, ' ');
+
+function exportMarkdown(g){
+  const meta = metaOf(g), all = analyzeAll(g);
+  const L = [];
+  L.push('# 现金流游戏 · 本局复盘分析');
+  L.push('');
+  L.push(`> 导出时间：${meta.exportedAt}　|　数据来源：整局每一次决策记录与逐轮财富快照，非主观评价`);
+  L.push('');
+  L.push('| 项目 | 内容 |');
+  L.push('| --- | --- |');
+  L.push(`| 规则版本 | ${meta.rule} ${meta.rule === '202' ? '进阶版' : '基础版'} |`);
+  L.push(`| 游戏模式 | ${meta.mode}${meta.age != null ? `（${meta.age} 岁 / 共到 ${meta.endAge} 岁）` : ''} |`);
+  L.push(`| 进行到 | 第 ${meta.round} 轮${meta.age != null ? ` · ${meta.age} 岁` : ''}${meta.over ? '（本局已结束）' : '（对局进行中）'} |`);
+  L.push(`| 参与者 | ${meta.players} 人 |`);
+  L.push(`| 本局结果 | ${meta.winner ? `🏆 ${meta.winner} 获胜` : (meta.over ? '无人获胜（全部出局）' : '进行中')}${meta.winReason ? ` —— ${mdCell(meta.winReason)}` : ''} |`);
+  L.push('');
+
+  all.forEach((a, i)=>{
+    const { p, m, sc, out, cls, rank } = a;
+    L.push('---');
+    L.push('');
+    L.push(`## ${i + 1}/${all.length} · ${p.name} · ${p.job.name}`);
+    L.push('');
+    L.push('### 基本信息');
+    L.push('');
+    L.push('| 项目 | 内容 |');
+    L.push('| --- | --- |');
+    L.push(`| 结局 | ${out.ico} ${out.title}${p.outReason ? `（${p.outReason}）` : ''} |`);
+    L.push(`| 净资产排名 | 第 ${rank} / ${all.length} 名 |`);
+    L.push(`| 综合评级 | ${sc.grade} · ${sc.gradeText}（${sc.total} / 100） |`);
+    L.push(`| 社会等级 | **L${cls.lv} ${cls.level.name}** —— ${cls.level.real} |`);
+    L.push(`| 结束时 | 第 ${m.rounds} 轮${E.isAgeMode(g) ? ` · ${m.age} 岁` : ''} |`);
+    L.push('');
+    L.push(`> ${out.desc}`);
+    L.push('');
+
+    L.push('### 关键指标');
+    L.push('');
+    L.push('| 指标 | 数值 | 说明 |');
+    L.push('| --- | --- | --- |');
+    metricsOf(g, p, m).forEach(x=> L.push(`| ${mdCell(x[0])} | ${mdCell(x[1])} | ${mdCell(x[2])} |`));
+    L.push('');
+
+    L.push('### 维度评分');
+    L.push('');
+    L.push('| 维度 | 得分 | 分析结论 |');
+    L.push('| --- | --- | --- |');
+    sc.dims.forEach(d=> L.push(`| ${d.label} | ${Math.round(clamp(d.score, 0, 100))} | ${mdCell(d.comment)} |`));
+    L.push(`| **加权总分** | **${sc.total}** | ${mdCell(verdictOf(g, p, m, sc))} |`);
+    L.push('');
+
+    L.push(`### 社会等级评估：L${cls.lv} ${cls.level.name}`);
+    L.push('');
+    L.push(`- **当前等级定性**：${cls.level.real}`);
+    L.push('- **判定依据**：');
+    cls.evidence.forEach(x=> L.push(`  - ${x[0]}：${stripTags(x[1])}`));
+    if(cls.next){
+      L.push(`- **距离「${cls.next.name}」**：达成度 ${pct(cls.next.prog)}%`);
+      L.push(`  - 达标条件：${stripTags(cls.next.req)}`);
+      L.push(`  - 当前差距：${stripTags(cls.next.need)}`);
+    } else {
+      L.push('- 已经是本局可达到的最高等级。');
+    }
+    L.push('');
+
+    L.push('### 提升等级的财商手段');
+    L.push('');
+    cls.levers.forEach((a2, k)=>{
+      L.push(`${k + 1}. **${stripTags(a2.t)}**`);
+      L.push(`   ${stripTags(a2.d)}`);
+    });
+    L.push('');
+
+    L.push('### 出圈诊断与改进建议');
+    L.push('');
+    adviceOf(g, p, m, sc).forEach((a2, k)=>{
+      L.push(`${k + 1}. **${stripTags(a2.t)}**`);
+      L.push(`   ${stripTags(a2.d)}`);
+    });
+    L.push('');
+
+    L.push('### 下一局行动清单');
+    L.push('');
+    planOf(g, p, m).forEach((t, k)=> L.push(`${k + 1}. ${stripTags(t)}`));
+    L.push('');
+
+    const ms = p.milestones.slice().reverse().slice(0, 20);
+    if(ms.length){
+      L.push('### 关键决策时间线（近 ' + ms.length + ' 条）');
+      L.push('');
+      L.push('| 轮次 | 事件 |');
+      L.push('| --- | --- |');
+      ms.forEach(x=> L.push(`| 第 ${x.round} 轮 | ${mdCell(x.text)} |`));
+      L.push('');
+    }
+  });
+
+  L.push('---');
+  L.push('');
+  L.push('*本文件由游戏内「复盘报告 → 导出」生成，可直接用于复盘讨论或存档对照。*');
+  return L.join('\n');
+}
+
+function exportJSON(g){
+  const meta = metaOf(g), all = analyzeAll(g);
+  return JSON.stringify({
+    meta,
+    players: all.map(a=>{
+      const { p, m, sc, out, cls, rank } = a;
+      return {
+        name: p.name,
+        job: p.job.name,
+        outcome: { key: out.key, title: out.title, desc: out.desc, reason: p.outReason || '' },
+        rank: { position: rank, of: all.length },
+        grade: { total: sc.total, grade: sc.grade, text: sc.gradeText, verdict: verdictOf(g, p, m, sc) },
+        socialClass: {
+          level: cls.lv,
+          name: cls.level.name,
+          summary: cls.level.real,
+          passiveIncomeCoverage: +cls.cover.toFixed(4),
+          evidence: cls.evidence.map(x=>({ label: x[0], value: stripTags(x[1]) })),
+          next: cls.next
+            ? { name: cls.next.name, requirement: stripTags(cls.next.req),
+                gap: stripTags(cls.next.need), progress: +cls.next.prog.toFixed(4) }
+            : null,
+          levers: cls.levers.map(x=>({ title: stripTags(x.t), detail: stripTags(x.d) }))
+        },
+        metrics: {
+          rounds: m.rounds, age: m.age, escapeTarget: m.target,
+          netWorth: m.nw, peakNetWorth: m.peakNet,
+          passiveIncome: m.f.passive, peakPassiveIncome: m.peakPassive,
+          totalIncome: m.f.totalIncome, totalExpenses: m.f.totalExpenses, monthlyCashflow: m.f.cashflow,
+          cash: p.cash, peakCash: m.peakCash, safetyMonths: +m.safetyMonths.toFixed(2),
+          debt: m.debt, monthlyInterest: m.monthlyInterest,
+          invested: m.invested, dealsSeen: m.seen, dealsBought: m.buys, dealsPassed: m.passes,
+          cashflowGained: m.cfGained, avgCashflowPerDeal: m.avgCf,
+          assetKinds: m.kinds.map(k=>ASSET_CN[k]),
+          energy: m.energy, energyMax: m.energyMax, energySpent: m.energySpent, energyUpkeep: m.upkeep,
+          healthCrises: m.crises, jobless: m.jobless, rehired: m.rehired,
+          deficitMonths: m.deficitMonths, deficitTotal: m.deficitTotal, vacations: m.vacations,
+          salaryMultiplier: m.salaryMult, lifeStage: m.lifeStage,
+          escaped: m.escaped, escapeRound: num(p.escapeRound) || null, ftCashflowGain: num(p.ftGain)
+        },
+        dimensions: sc.dims.map(d=>({
+          key: d.key, label: d.label, score: Math.round(clamp(d.score, 0, 100)), comment: d.comment
+        })),
+        advice: adviceOf(g, p, m, sc).map(x=>({ title: stripTags(x.t), detail: stripTags(x.d) })),
+        nextGamePlan: planOf(g, p, m).map(stripTags),
+        milestones: p.milestones.map(x=>({ round: x.round, kind: x.kind, text: x.text })),
+        wealthTrack: m.track.map(t=>({ round: t.round, cash: t.cash, passive: t.passive, cashflow: t.cf, netWorth: t.net }))
+      };
+    })
+  }, null, 2);
+}
+
+/* 文件名：带上规则 / 模式 / 轮次 / 时间，多次导出不会互相覆盖 */
+function exportName(g, ext){
+  const meta = metaOf(g);
+  return `现金流复盘_${meta.rule}_${meta.mode}_第${meta.round}轮_${fileStamp()}.${ext}`;
+}
+
+/* ------------------------------ 报告主体 ------------------------------ */
+function reportHTML(g, pid){
+  const p = g.players[pid];
+  E.initTrack(p);
+  const m = collect(g, p);
+  const out = outcomeOf(g, p);
+  const sc = scoreOf(g, p, m);
+  const cls = classDetail(g, p, m);
+  const advice = adviceOf(g, p, m, sc);
+  const plan = planOf(g, p, m);
+
+  const ranked = g.players.slice().sort((a, b)=> E.netWorth(b) - E.netWorth(a));
+  const rank = ranked.findIndex(x=>x.id === p.id) + 1;
+  const toneColor = TONE[out.tone] || 'var(--accent)';
+  const gradeColor = sc.total >= 72 ? 'var(--green)' : sc.total >= 45 ? 'var(--orange)' : 'var(--red)';
+  const passive = m.out ? m.peakPassive : m.f.passive;
+  const prog = m.target > 0 ? clamp(passive / m.target, 0, 1) : (passive > 0 ? 1 : 0);
+  const gap = Math.max(0, m.target - passive);
+
+  const metrics = metricsOf(g, p, m);
 
   const dimsHTML = sc.dims.map(d=>{
     const s = Math.round(clamp(d.score, 0, 100));
@@ -423,6 +807,40 @@ function reportHTML(g, pid){
       <p class="sum-dim__d">${esc(d.comment)}</p>
     </div>`;
   }).join('');
+
+  /* 社会等级：阶梯 + 判定依据 + 距上一层 + 登台阶的动作 */
+  const clsTone = TONE[cls.level.tone] || 'var(--accent)';
+  const ladderHTML = E.LADDER.map((L, i)=>
+    `<span class="sc-step${i <= cls.lv ? ' sc-step--on' : ''}${i === cls.lv ? ' sc-step--cur' : ''}"
+      style="--sc:${TONE[L.tone] || 'var(--accent)'}" title="L${i} ${L.name}"></span>`).join('');
+  const clsHTML = `
+    <div class="sc-card" style="--sc:${clsTone}">
+      <div class="sc-head">
+        <span class="sc-ico">${cls.level.ico}</span>
+        <div class="sc-head__t">
+          <b>L${cls.lv} · ${esc(cls.level.name)}</b>
+          <small>${esc(cls.level.real)}</small>
+        </div>
+      </div>
+      <div class="sc-ladder">${ladderHTML}</div>
+      <div class="sc-ev">
+        ${cls.evidence.map(x=>`<div class="sc-ev__i"><span>${esc(x[0])}</span><b>${esc(x[1])}</b></div>`).join('')}
+      </div>
+      ${cls.next
+        ? `<div class="sc-next">
+             <div class="sc-next__hd"><span>距离「${esc(cls.next.name)}」</span><b>${pct(cls.next.prog)}%</b></div>
+             <div class="progress"><div class="progress__bar" style="width:${pct(cls.next.prog)}%"></div></div>
+             <p class="hint">达标条件：${esc(cls.next.req)}<br>${esc(cls.next.need)}</p>
+           </div>`
+        : `<p class="hint" style="margin-top:10px">已经是本局可达到的最高等级。</p>`}
+    </div>
+    <div class="sec__title" style="margin-top:16px">提升等级的财商手段</div>
+    <div class="sum-advice">
+      ${cls.levers.map((a, i)=>`<div class="sum-adv">
+        <div class="sum-adv__n">${i + 1}</div>
+        <div><div class="sum-adv__t">${esc(a.t)}</div><p class="sum-adv__d">${esc(a.d)}</p></div>
+      </div>`).join('')}
+    </div>`;
 
   const tl = p.milestones.slice().reverse().slice(0, 14);
   const tlHTML = tl.length
@@ -484,6 +902,11 @@ function reportHTML(g, pid){
         </div>
 
         <div class="sec">
+          <div class="sec__title"><span>社会等级评估</span><span>L${cls.lv} / ${E.LADDER.length - 1}</span></div>
+          ${clsHTML}
+        </div>
+
+        <div class="sec">
           <div class="sec__title">五维表现</div>
           <div class="sum-dims">${dimsHTML}</div>
         </div>
@@ -515,6 +938,10 @@ function reportHTML(g, pid){
       </div>
     </div>
     <div class="modal__foot">
+      <button class="btn btn--tonal" data-sum-export-md
+        title="导出全部 ${g.players.length} 位参与者的维度数据与分析结论（Markdown）">⬇️ 导出分析</button>
+      <button class="btn btn--text" data-sum-export-json
+        title="导出结构化数据，便于二次处理（JSON）">⬇️ 导出 JSON</button>
       <button class="btn btn--text" data-sum-close>关闭</button>
       ${g.over ? `<button class="btn btn--tonal" data-sum-score>查看战绩</button>` : ''}
       ${g.over ? `<button class="btn btn--primary" data-sum-restart>再来一局</button>` : ''}
@@ -532,6 +959,20 @@ function openSummary(pid){
     onMount(m){
       $$('[data-sum-close]', m).forEach(b=> b.onclick = U.closeModal);
       $$('[data-sum-pid]', m).forEach(b=> b.onclick = ()=> openSummary(+b.dataset.sumPid));
+      const expMd = $('[data-sum-export-md]', m);
+      if(expMd) expMd.onclick = ()=>{
+        try{
+          download(exportName(g, 'md'), exportMarkdown(g), 'text/markdown');
+          U.toast(`已导出全部 ${g.players.length} 位参与者的分析报告`, 'ok');
+        }catch(e){ U.toast('导出失败：' + e.message, 'err'); }
+      };
+      const expJson = $('[data-sum-export-json]', m);
+      if(expJson) expJson.onclick = ()=>{
+        try{
+          download(exportName(g, 'json'), exportJSON(g), 'application/json');
+          U.toast('已导出结构化数据（JSON）', 'ok');
+        }catch(e){ U.toast('导出失败：' + e.message, 'err'); }
+      };
       const score = $('[data-sum-score]', m);
       if(score) score.onclick = ()=>{ U.closeModal(); window.UiGame.winnerModal(); };
       const again = $('[data-sum-restart]', m);
@@ -540,5 +981,7 @@ function openSummary(pid){
   });
 }
 
-window.UiSummary = { openSummary, reportHTML, outcomeOf, collect, scoreOf, adviceOf, planOf };
+window.UiSummary = { openSummary, reportHTML, outcomeOf, collect, scoreOf, adviceOf, planOf,
+  /* 社会等级评估 + 导出（供测试与未来复用） */
+  classDetail, classBrief, nextReqOf, classEvidence, analyzeAll, metricsOf, exportMarkdown, exportJSON, exportName, download };
 })();

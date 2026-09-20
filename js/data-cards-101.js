@@ -102,16 +102,16 @@ window.DECK_MARKET_101 = [
 
 /* ---------- 意外支出卡（101：金额较轻） ---------- */
 window.DECK_DOODAD_101 = [
-  { id:'dd1', nm:'汽车保养',    cost:200,   note:'常规保养花了 ¥200。' },
-  { id:'dd2', nm:'更换轮胎',    cost:500,   note:'四条轮胎 ¥500。' },
-  { id:'dd3', nm:'家电损坏',    cost:1000,  note:'洗衣机 + 冰箱 ¥1,000。' },
-  { id:'dd4', nm:'家庭出游',    cost:1500,  note:'假期带家人出游 ¥1,500。' },
-  { id:'dd5', nm:'牙齿治疗',    cost:800,   note:'补牙与治疗 ¥800。' },
-  { id:'dd6', nm:'同事随礼',    cost:300,   note:'同事结婚随礼与置装 ¥300。' },
-  { id:'dd7', nm:'宠物就医',    cost:600,   note:'宠物手术 ¥600。' },
-  { id:'dd8', nm:'房屋维修',    cost:1200,  note:'屋顶漏水返修 ¥1,200。' },
-  { id:'dd9', nm:'手机更换',    cost:900,   note:'手机摔坏换新 ¥900。' },
-  { id:'dd10',nm:'家人过生日',  cost:400,   note:'家庭聚餐 ¥400。' },
-  { id:'dd11',nm:'补缴个税',    cost:2000,  note:'年度汇算补缴个税 ¥2,000。' },
-  { id:'dd12',nm:'电脑升级',    cost:700,   note:'工作电脑升级 ¥700。' }
+  { id:'dd1', scale:'life', nm:'汽车保养',    cost:200,   note:'到店做了一次常规保养。' },
+  { id:'dd2', scale:'life', nm:'更换轮胎',    cost:500,   note:'四条轮胎一起换掉。' },
+  { id:'dd3', scale:'life', nm:'家电损坏',    cost:1000,  note:'洗衣机与冰箱同时坏了。' },
+  { id:'dd4', scale:'life', nm:'家庭出游',    cost:1500,  note:'假期带家人出去转了一圈。' },
+  { id:'dd5', scale:'basic', nm:'牙齿治疗',    cost:800,   note:'补牙加治疗。' },
+  { id:'dd6', scale:'basic', nm:'同事随礼',    cost:300,   note:'同事结婚，随礼加置装。' },
+  { id:'dd7', scale:'basic', nm:'宠物就医',    cost:600,   note:'宠物做了一次手术。' },
+  { id:'dd8', scale:'life', nm:'房屋维修',    cost:1200,  note:'屋顶漏水返修。' },
+  { id:'dd9', scale:'life', nm:'手机更换',    cost:900,   note:'手机摔坏，换了新的。' },
+  { id:'dd10', scale:'basic',nm:'家人过生日',  cost:400,   note:'给家人办了一桌。' },
+  { id:'dd11', scale:'basic',nm:'补缴个税',    cost:2000,  note:'年度汇算补缴个税。' },
+  { id:'dd12', scale:'life',nm:'电脑升级',    cost:700,   note:'工作电脑升级。' }
 ];

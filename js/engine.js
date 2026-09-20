@@ -590,6 +590,8 @@ const STAT_KEYS = {
   crises:0, jobless:0, rehired:0, energySpent:0,
   /* 入不敷出：失业或高负债导致收入盖不住支出的月份数与总额 */
   deficitMonths:0, deficitTotal:0,
+  /* 消费升级：因社会等级（消费档次）而在意外支出上多付的累计金额 */
+  doodadTierPaid:0,
   /* 峰值用 null 哨兵：初始 0 会让「净资产长期为负」的对局把峰值误记成 0 */
   peakPassive:null, peakNetWorth:null, peakCash:null
 };
@@ -818,7 +820,11 @@ function resolveSpace(g, p, landed){
     case 'doodad':{
       const card = drawCard(g.decks.doodad, ()=>log(g,'额外支出卡用完，重新洗牌','sys'));
       if(card) g.decks.doodad.disc.push(card);   /* 用完放回弃牌堆，抽完自动重洗 */
-      setPending(g, { type:'doodad', card, title:'额外支出', ico:'💳' });
+      /* ★ 落格时就把「实际金额」算好并锁进 pending：
+         消费档次是按当下的社会等级算的，弹层上写的数字必须与实际扣款一致，
+         不能让界面和扣款各算一遍（旧版失业卡就踩过这个坑）。 */
+      const cost = card ? doodadCost(g, p, card) : null;
+      setPending(g, { type:'doodad', card, cost, title:'额外支出', ico:'💳' });
       break;
     }
     case 'charity':{
@@ -1091,6 +1097,112 @@ function win(g, p, reason){
 function checkWin(g, p, reason){ win(g, p, reason); }
 
 /* ------------------------------ 导出 ------------------------------ */
+/* ------------------------------ 社会等级 ------------------------------ */
+/* 用两条【真实的轴】定位玩家所处的社会层级，而不是按结局排名 ——
+   现实中决定一个人在哪一层的，恰恰就是这两件事：
+     ① 你对工资的依赖程度 —— 被动收入 ÷ 出圈门槛（覆盖度）
+     ② 你扛得住多久的意外 —— 应急金能撑几个月
+
+   ★ 等级判定放在引擎层，因为它已经不只是「展示指标」：
+     意外支出的金额要按等级缩放（消费升级规则），这是真正的**规则输入**。
+     若把它留在表现层，引擎就得反过来依赖 UI —— 会破坏「引擎零 DOM 依赖」的约定。
+   ★ 被动收入取的口径与出圈进度完全一致（出局玩家用峰值），
+     否则会出现「进度显示 38% 却被评成中产」这种自相矛盾的展示。
+   ★ 低三层用【应急金】而不是【净资产】做门槛：本作每个人的初始净资产都被房贷
+     拖成负数（现金 + 资产 − 剩余本金），拿它当「扛不扛得住」的信号，
+     会把所有刚开局的人一律打成最底层。而「能撑几个月」才是真实的抗风险刻度。 */
+const LADDER = [
+  { lv:0, name:'入不敷出', ico:'🆘', tone:'bad',
+    real:'月现金流为负且没有缓冲，或已被迫出局 —— 收入结构本身不成立。' },
+  { lv:1, name:'月光无余', ico:'🌙', tone:'bad',
+    real:'收支能大致打平，但应急金撑不到 3 个月 —— 收入一旦中断就立刻陷入被动。' },
+  { lv:2, name:'温饱有余', ico:'🍚', tone:'warn',
+    real:'手里有了应急金，但收入仍几乎全部来自工资，资产端还没真正启动。' },
+  { lv:3, name:'小有积累', ico:'🏠', tone:'warn',
+    real:'已经有了一批能生息的资产，被动收入开始替一部分支出买单。' },
+  { lv:4, name:'稳健中产', ico:'🏙️', tone:'good',
+    real:'半数支出已由资产覆盖，抗风险能力明显强于只靠工资的人。' },
+  { lv:5, name:'临门一脚', ico:'🚪', tone:'good',
+    real:'只差最后一笔，被动收入就足以覆盖全部支出。' },
+  { lv:6, name:'财务自由', ico:'🕊️', tone:'good',
+    real:'被动收入已经超过全部支出 —— 工作由必答题变成选择题。' },
+  { lv:7, name:'人生赢家', ico:'🏆', tone:'good',
+    real:'在财务自由之上还完成了自己的梦想，是这一局里唯一走到终点的人。' }
+];
+/* 峰值口径与复盘里的 peak() 保持一致：走势快照、统计记录、当前值三者取最大；
+   出局玩家的「当前值」是清算后的残值，不能当峰值用。 */
+function peakCashOf(p){
+  const tr = p.track || [];
+  const fromTrack = tr.length ? tr.reduce((m, t)=>Math.max(m, numOr(t.cash)), -Infinity) : -Infinity;
+  const fromStat = (p.stats && typeof p.stats.peakCash === 'number') ? p.stats.peakCash : -Infinity;
+  const v = Math.max(fromTrack, fromStat, p.out ? -Infinity : numOr(p.cash));
+  return isFinite(v) ? v : 0;
+}
+function peakPassiveOf(p){
+  const tr = p.track || [];
+  const fromTrack = tr.length ? tr.reduce((m, t)=>Math.max(m, numOr(t.passive)), -Infinity) : -Infinity;
+  const fromStat = (p.stats && typeof p.stats.peakPassive === 'number') ? p.stats.peakPassive : -Infinity;
+  const v = Math.max(fromTrack, fromStat);
+  return isFinite(v) ? Math.max(0, v) : 0;
+}
+function socialClassOf(g, p){
+  const f = finance(p);
+  const target = Math.max(0, escapeTarget(g, p));
+  const passive = p.out ? peakPassiveOf(p) : f.passive;
+  const exp = f.totalExpenses;
+  const cover = target > 0 ? passive / target : (passive > 0 ? 1 : 0);
+  const safety3 = exp * 3;
+  const peakCash = peakCashOf(p);
+  const safetyProg = safety3 > 0 ? Math.max(0, Math.min(1, peakCash / safety3)) : 0;
+  const bankrupt = !!p.out && p.outReason !== '主动认输';
+  const isWin = !!g.over && g.winner === p.id;
+
+  /* 自上而下匹配：越高层级的条件越强，第一个命中即为当前层级 */
+  let lv;
+  if(isWin) lv = 7;
+  else if(p.inFT || p.escaped || cover > 1) lv = 6;
+  else if(cover >= 0.80) lv = 5;
+  else if(cover >= 0.50) lv = 4;
+  else if(cover >= 0.25) lv = 3;
+  else if(safetyProg >= 1) lv = 2;
+  else if(bankrupt) lv = 0;
+  else lv = 1;
+
+  return { lv, level:LADDER[lv], nextLv: lv < 7 ? lv + 1 : null,
+           passive, target, cover, peakCash, exp, safety3,
+           safetyMonths: exp > 0 ? peakCash / exp : 0, safetyProg,
+           bankrupt, escaped: !!(p.inFT || p.escaped), win: isWin };
+}
+
+/* ------------------------------ 消费升级 ------------------------------ */
+/* 消费档次：由社会等级决定的意外支出系数。
+   地位越高 → 名下值钱的东西越多 → 同一件「意外」要花的钱越多。
+   这是「生活方式膨胀」的直接建模：不是买不起，而是**养不起**。 */
+function lifestyleOf(g, p){
+  const L = window.LIFESTYLE || { byLevel:[1], why:[], label:'消费档次' };
+  const cls = socialClassOf(g, p);
+  const mult = numOrDef(L.byLevel[cls.lv], 1);
+  return { lv:cls.lv, level:cls.level, mult,
+           why:(L.why || [])[cls.lv] || '', label:L.label || '消费档次', cls };
+}
+/* 意外支出的实际金额 = 卡片标价 × 消费档次系数。
+   按卡片敏感度分两档承接：
+     scale:'life'  消费升级型（修车 / 换车 / 房屋 / 出游 / 培训）→ 全额承接，系数 1.75 就是 1.75
+     scale:'basic' 基础型（税费 / 罚款 / 医疗 / 人情）→ 只承接 basicDamp 的比例
+   —— 否则「补缴个税」也会随豪车一起涨价，不合逻辑。 */
+function doodadCost(g, p, card){
+  const ls = lifestyleOf(g, p);
+  const kind = (card && card.scale) === 'basic' ? 'basic' : 'life';
+  const damp = kind === 'basic' ? numOrDef((window.LIFESTYLE || {}).basicDamp, 0) : 1;
+  const factor = 1 + (ls.mult - 1) * damp;
+  const base = Math.max(0, Math.round(numOr(card && card.cost)));
+  const extraBase = Math.max(0, Math.round(numOr(card && card.extraPay)));
+  const cost = Math.round(base * factor);
+  return { base, extraBase, cost, extraPay: Math.round(extraBase * factor),
+           mult: ls.mult, factor, kind, damp, lv: ls.lv, levelName: ls.level.name,
+           why: ls.why, added: cost - base };
+}
+
 window.Engine = {
   money, moneyK, shuffle, pick, finance, escapeTarget, escapeProgress, ftMonthly, netWorth,
   newGame, current, alivePlayers, beginTurn, nextPlayer, endTurn, diceCount, rollDice,
@@ -1116,6 +1228,8 @@ window.Engine = {
   /* 失业求职期 / 公益捐赠税前扣除 / 银翅膀 */
   isJobless, startJobless, jobHunt, donationRefund, useWing,
   /* 入不敷出：月现金流为负时的统一处理入口 */
-  payDeficit
+  payDeficit,
+  /* 社会等级 / 消费升级：等级是意外支出金额的规则输入 */
+  LADDER, peakCashOf, peakPassiveOf, socialClassOf, lifestyleOf, doodadCost
 };
 })();

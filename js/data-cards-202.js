@@ -112,14 +112,14 @@ window.DECK_MARKET_202 = [
 
 /* ---------- 意外支出卡（202：金额更重） ---------- */
 window.DECK_DOODAD_202 = [
-  { id:'d201', nm:'购置度假房产',  cost:12000, extraPay:300, note:'度假房产首付 ¥12,000，此后每月额外支出 ¥300。' },
-  { id:'d202', nm:'购入新车',      cost:25000, extraPay:300, note:'换车支出 ¥25,000，此后每月额外支出 ¥300。' },
-  { id:'d203', nm:'房屋大修',      cost:8000,  extraPay:0,   note:'房屋结构与防水大修 ¥8,000。' },
-  { id:'d204', nm:'家人急诊手术',  cost:6000,  extraPay:150, note:'急诊手术自付 ¥6,000，此后每月康复支出 ¥150。' },
-  { id:'d205', nm:'举办婚礼',      cost:15000, extraPay:0,   note:'婚礼支出 ¥15,000。' },
-  { id:'d206', nm:'车辆年度成本',  cost:5000,  extraPay:200, note:'保险 + 保养 + 年检 ¥5,000，此后每月养车 ¥200。' },
-  { id:'d207', nm:'自然灾害损失',  cost:10000, extraPay:0,   note:'保险未覆盖的自然灾害损失 ¥10,000。' },
-  { id:'d208', nm:'税务稽查补缴',  cost:9000,  extraPay:0,   note:'税务稽查补缴税款 ¥9,000。' },
-  { id:'d209', nm:'子女培训年费',  cost:4000,  extraPay:150, note:'课外培训年费 ¥4,000，此后每月 ¥150。' },
-  { id:'d210', nm:'房屋加装设备',  cost:3000,  extraPay:0,   note:'加装新风 / 净水设备 ¥3,000。' }
+  { id:'d201', scale:'life', nm:'购置度假房产',  cost:12000, extraPay:300, note:'买下一套度假房产，此后每月多出物业与维护。' },
+  { id:'d202', scale:'life', nm:'购入新车',      cost:25000, extraPay:300, note:'换了新车，此后每月的保险与保养跟着上涨。' },
+  { id:'d203', scale:'life', nm:'房屋大修',      cost:8000,  extraPay:0,   note:'房屋结构与防水大修。' },
+  { id:'d204', scale:'basic', nm:'家人急诊手术',  cost:6000,  extraPay:150, note:'家人急诊手术，自付部分不小，此后每月还有康复支出。' },
+  { id:'d205', scale:'life', nm:'举办婚礼',      cost:15000, extraPay:0,   note:'办了一场婚礼。' },
+  { id:'d206', scale:'life', nm:'车辆年度成本',  cost:5000,  extraPay:200, note:'保险、保养加年检，此后每月的养车成本固定支出。' },
+  { id:'d207', scale:'life', nm:'自然灾害损失',  cost:10000, extraPay:0,   note:'保险未覆盖的自然灾害损失。' },
+  { id:'d208', scale:'basic', nm:'税务稽查补缴',  cost:9000,  extraPay:0,   note:'税务稽查补缴税款。' },
+  { id:'d209', scale:'life', nm:'子女培训年费',  cost:4000,  extraPay:150, note:'子女课外培训年费，此后每月固定支出。' },
+  { id:'d210', scale:'life', nm:'房屋加装设备',  cost:3000,  extraPay:0,   note:'加装新风与净水设备。' }
 ];

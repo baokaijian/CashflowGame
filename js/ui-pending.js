@@ -58,9 +58,13 @@ function marketFace(card){
 }
 
 /* 额外支出卡：数据里没有 kind，必须按牌堆识别 */
-function doodadFace(card){
-  let rows = r('需支付', money(card.cost));
-  if(card.extraPay) rows += r('每月额外支出', sign(card.extraPay));
+function doodadFace(card, cost){
+  /* 卡面显示的必须是【实际金额】：消费档次系数由社会等级决定，
+     卡面写标价、弹层写实付，会让人以为系统算错了。 */
+  const amount = cost ? cost.cost : card.cost;
+  const extra  = cost ? cost.extraPay : (card.extraPay || 0);
+  let rows = r('需支付', money(amount));
+  if(extra) rows += r('每月额外支出', sign(extra));
   return cardface('额外支出', card.id, card.nm || '额外支出', rows, card.note);
 }
 
@@ -107,10 +111,10 @@ function dealFace(deckName, card){
   return cardface(DECK_LABEL[deckName] || '投资机会', card.id, card.nm || card.symbol || '卡片', rows, card.note);
 }
 
-function face(deckName, card){
+function face(deckName, card, cost){
   if(!card) return '';
   if(deckName === 'market') return marketFace(card);
-  if(deckName === 'doodad') return doodadFace(card);
+  if(deckName === 'doodad') return doodadFace(card, cost);
   return dealFace(deckName, card);
 }
 function foot(btns){ return `<div class="modal__foot">${btns}</div>`; }
@@ -571,28 +575,45 @@ function showDeficit(g, p, P){
 /* ------------------------------ 额外支出 ------------------------------ */
 function showDoodad(g, p, P){
   const card = P.card;
-  const enough = p.cash >= card.cost;
+  /* 消费档次（由社会等级决定）在落格时已算好并锁进 P.cost —— 界面只负责展示。
+     若这里重算一遍，玩家在弹层停留期间等级一变，弹层写的数字就会和扣款对不上。
+     旧存档没有该字段时兜底现算一次。 */
+  const c = P.cost || E.doodadCost(g, p, card);
+  const enough = p.cash >= c.cost;
+  const tiered = c.factor > 1.001;
   U.openModal(`
     <div class="modal__head"><h3>💳 额外支出</h3></div>
     <div class="modal__body">
-      ${face('doodad', card)}
-      <div class="sec__total"><span>需要支付</span><span class="money neg">${money(card.cost)}</span></div>
+      ${face('doodad', card, c)}
+      ${tiered ? `<div class="tier-note">
+        <div class="tier-note__hd">
+          <span>消费档次 · L${c.lv} ${esc(c.levelName)}</span><b>×${c.factor.toFixed(2)}</b>
+        </div>
+        <div class="tier-note__row"><span>卡片标价</span><b>${money(c.base)}</b></div>
+        <div class="tier-note__row"><span>档次加成</span><b class="neg">+${money(c.added)}</b></div>
+        <p class="hint">${esc(c.why)}</p>
+        <p class="hint">${c.kind === 'basic'
+          ? `属于<b>基础型</b>支出（税费 / 罚款 / 医疗 / 人情），与消费档次关系较弱，只承担 ${Math.round(c.damp * 100)}% 的加成。`
+          : '属于<b>消费升级型</b>支出 —— 你名下的东西越贵，维护、置换与服务的成本就越高。'}</p>
+      </div>` : ''}
+      <div class="sec__total"><span>需要支付</span><span class="money neg">${money(c.cost)}</span></div>
+      ${c.extraPay ? `<div class="sec__total"><span>此后每月额外支出</span><span class="money neg">${money(c.extraPay)}${c.extraPay !== c.extraBase ? `<span class="muted">（标价 ${money(c.extraBase)}）</span>` : ''}</span></div>` : ''}
       <div class="sec__total"><span>手头现金</span><span class="money ${enough?'':'neg'}">${money(p.cash)}</span></div>
-      ${enough ? '' : shortfallPanel(g, p, card.cost)}
+      ${enough ? '' : shortfallPanel(g, p, c.cost)}
     </div>
     ${foot(`
       ${enough ? '' : `<button class="btn btn--danger" data-bankrupt>宣告破产</button>`}
       <button class="btn btn--primary" data-ok ${enough?'':'disabled'}>
-        ${enough ? `支付 ${money(card.cost)}` : `还差 ${money(card.cost - p.cash)}`}</button>
+        ${enough ? `支付 ${money(c.cost)}` : `还差 ${money(c.cost - p.cash)}`}</button>
     `)}`,
     { onMount(m){
       $('[data-ok]',m).onclick = ()=>{
-        const r = A.payDoodad(g, card);
+        const r = A.payDoodad(g, card, c);      /* 用锁定值付款，保证账实一致 */
         if(!r.ok) return U.toast(r.msg, 'err');
         finishTurnAction();
-        U.toast(`已支付 ${money(r.paid)}`, 'ok');
+        U.toast(`已支付 ${money(r.paid)}${r.cost && r.cost.added > 0 ? `（含消费档次加成 ${money(r.cost.added)}）` : ''}`, 'ok');
       };
-      bindShortfall(m, g, p, card.cost);
+      bindShortfall(m, g, p, c.cost);
     }});
 }
 

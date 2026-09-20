@@ -361,15 +361,23 @@ function marketSell(g, opt){
 
 /* ------------------------------ 额外支出 / 慈善 / 孩子 / 失业 ------------------------------ */
 /* 强制支出统一走 E.payCash：现金不足时【拒绝扣款并返回差额】，绝不产生负数现金 */
-function payDoodad(g, card){
+/* 意外支出：实际金额 = 卡片标价 × 消费档次系数（消费升级规则，系数由社会等级决定）。
+   ★ locked 由落格时算好并锁进 pending —— 保证「弹层上写的数字」与「实际扣款」是同一个数。
+     若这里重新算一遍，玩家在弹层停留期间等级发生变化，就会出现账实不符。 */
+function payDoodad(g, card, locked){
   const p = E.current(g);
-  const r = E.payCash(p, card.cost);
-  if(!r.ok) return { ok:false, shortfall:r.shortfall, msg:`现金不足，还差 ${money(r.shortfall)}，请先贷款或变卖资产。` };
-  if(card.extraPay) p.liabs.extraPay = (p.liabs.extraPay||0) + card.extraPay;
+  const c = locked || E.doodadCost(g, p, card);
+  const r = E.payCash(p, c.cost);
+  if(!r.ok) return { ok:false, shortfall:r.shortfall, cost:c, msg:`现金不足，还差 ${money(r.shortfall)}，请先贷款或变卖资产。` };
+  if(c.extraPay) p.liabs.extraPay = (p.liabs.extraPay||0) + c.extraPay;
   E.bump(p, 'forcedCount'); E.bump(p, 'forcedTotal', r.paid);
-  E.milestone(g, p, `第 ${g.round} 轮意外支出「${card.nm}」${money(r.paid)}${card.extraPay ? `，此后每月多支出 ${money(card.extraPay)}` : ''}`, 'bad');
-  log(g, `${p.name} 支付额外支出【${card.nm}】${money(r.paid)}${card.extraPay?`，此后每月额外支出 +${money(card.extraPay)}`:''}`, 'bad', p.name);
-  return { ok:true, paid:r.paid };
+  if(c.added > 0) E.bump(p, 'doodadTierPaid', c.added);   /* 因消费档次多付的部分，单独记账 */
+  const tier = c.factor > 1.001
+    ? `（标价 ${money(c.base)} × 消费档次 ${c.factor.toFixed(2)}）`
+    : '';
+  E.milestone(g, p, `第 ${g.round} 轮意外支出「${card.nm}」${money(r.paid)}${tier}${c.extraPay ? `，此后每月多支出 ${money(c.extraPay)}` : ''}`, 'bad');
+  log(g, `${p.name} 支付额外支出【${card.nm}】${money(r.paid)}${tier}${c.extraPay?`，此后每月额外支出 +${money(c.extraPay)}`:''}`, 'bad', p.name);
+  return { ok:true, paid:r.paid, cost:c };
 }
 /* 公益捐赠：三重真实效应 ——
    ① 税前扣除：捐赠额在应纳税所得额 30% 以内可据实扣除（《个人所得税法》第六条），

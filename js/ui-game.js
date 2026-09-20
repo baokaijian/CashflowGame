@@ -319,6 +319,39 @@ function renderFinance(){
   const f = E.finance(p), pr = E.escapeProgress(g,p);
   const host = $('#paneFinance');
   const passivePct = f.totalIncome>0 ? Math.round(f.passive/f.totalIncome*100):0;
+
+  /* 社会等级：对局中随时对照「我现在在哪一层」，不必打开复盘。
+     ★ 复用 UiSummary 的同一份评估 —— 口径只能有一处，这里只负责画出来，
+       否则迟早出现「面板说 L4、复盘说 L5」这种自相矛盾。 */
+  const SC_TONE = { bad:'var(--red)', warn:'var(--orange)', good:'var(--green)' };
+  const clsBlock = (function(){
+    const S = window.UiSummary;
+    if(!S || !S.classBrief) return '';
+    const cls = S.classBrief(g, p);
+    const tone = SC_TONE[cls.level.tone] || 'var(--accent)';
+    const stepTone = L => SC_TONE[L.tone] || 'var(--accent)';
+    const ls = E.lifestyleOf(g, p);
+    return `<div class="esc-block" style="border-left:3px solid ${tone}">
+      <div class="esc-block__hd">
+        <span>社会等级（对局中实时对照）</span>
+        <b class="esc-block__pct" style="color:${tone}">L${cls.lv}</b>
+      </div>
+      <div class="sc-ladder sc-ladder--sm">
+        ${E.LADDER.map((L, i)=>`<span class="sc-step${i <= cls.lv ? ' sc-step--on' : ''}${i === cls.lv ? ' sc-step--cur' : ''}" style="--sc:${stepTone(L)}" title="L${i} ${L.name}"></span>`).join('')}
+      </div>
+      <div class="esc-block__meta">
+        <span><b style="color:${tone}">${esc(cls.level.name)}</b></span>
+        ${cls.next
+          ? `<span>距「${esc(cls.next.name)}」<b>${Math.round(cls.next.prog * 100)}%</b></span>`
+          : '<span>已是最高等级</span>'}
+      </div>
+      <div class="esc-block__meta">
+        <span>消费档次</span>
+        <span>意外支出 <b>×${ls.mult.toFixed(2)}</b></span>
+      </div>
+      <p class="hint" style="margin-top:6px">${esc(cls.level.real)}</p>
+    </div>`;
+  })();
   host.innerHTML = `
     <div class="fin-head">
       <span class="token token--big" style="background:${p.color}">${p.icon}</span>
@@ -351,6 +384,7 @@ function renderFinance(){
                <span>${pr.canEscape ? '✅ 已达标，点主按钮即可出圈' : `还差 <b class="money">${money(pr.gap)}</b> 被动收入`}</span>
              </div>
            </div>`}
+      ${clsBlock}
       ${p.skipTurns>0?`<p class="hint" style="margin-top:8px">⏸️ 之后还有 ${p.skipTurns} 个回合轮到你时不能行动（回合仍属于你）。</p>`:''}
     </div>
 
@@ -1251,12 +1285,21 @@ function winnerModal(){
     </div>
     <div class="modal__foot">
       <button class="btn btn--text" data-close>查看棋盘</button>
+      <button class="btn btn--tonal" data-export>⬇️ 导出分析</button>
       <button class="btn btn--tonal" data-restart>再来一局</button>
       <button class="btn btn--primary" data-summary>📊 查看复盘报告</button>
     </div>`,
     { onMount(m){
       $('[data-close]',m).onclick = U.closeModal;
       $('[data-restart]',m).onclick = ()=>{ U.closeModal(); onMenu('restart'); };
+      /* 年龄模式结束后最自然的导出入口 —— 先把分析拿走，再决定要不要细看复盘 */
+      $('[data-export]',m).onclick = ()=>{
+        try{
+          const S = window.UiSummary;
+          S.download(S.exportName(g, 'md'), S.exportMarkdown(g), 'text/markdown');
+          U.toast(`已导出全部 ${g.players.length} 位参与者的分析报告`, 'ok');
+        }catch(e){ U.toast('导出失败：' + e.message, 'err'); }
+      };
       $('[data-summary]',m).onclick = ()=>{
         U.closeModal();
         window.UiSummary.openSummary(p ? p.id : null);   /* 全员破产时给当前玩家出报告 */
