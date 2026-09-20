@@ -484,7 +484,10 @@ html[data-theme="dark"] .die{background:var(--surface-2);}
 .ebar__lbl{flex:none;font-size:10.5px;color:var(--on-surface-var);white-space:nowrap;}
 .ebar__track{flex:1;min-width:36px;height:6px;border-radius:var(--r-pill);
   background:color-mix(in srgb,var(--on-surface) 11%,transparent);overflow:hidden;}
-.ebar__fill{height:100%;border-radius:var(--r-pill);background:var(--accent);
+/* ⚠️ display:block 不能省：.ebar__fill 在模板里是 <span>（默认 display:inline），
+   而行内元素上的 width / height 会被浏览器直接忽略 —— 于是「百分比算对了但条永远是空的」。
+   与 .sum-dim__bar > i 用同一套写法。 */
+.ebar__fill{display:block;height:100%;border-radius:var(--r-pill);background:var(--accent);
   transition:width .45s var(--ease-out),background .3s;}
 .ebar__v{flex:none;font-size:11px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--on-surface-var);}
 .ebar--low .ebar__fill{background:var(--orange);}
@@ -513,3 +516,83 @@ html[data-theme="dark"] .die{background:var(--surface-2);}
   background:color-mix(in srgb,var(--orange) 13%,transparent);border-color:transparent;
 }
 .turnbar[data-state="jobless"] .turnbar__state{color:var(--orange);font-weight:600;}
+
+/* ================= 出圈进度（百分比） ================= */
+/* 出圈进度条沿用 .ebar 骨架，用「蓝→绿」渐变与精力条区分：
+   精力条回答「你还剩多少体力」，出圈条回答「你离自由还有多远」。 */
+.ebar--esc .ebar__fill{background:linear-gradient(90deg,var(--accent),var(--green));}
+.ebar--esc.ebar--ready .ebar__fill,
+.ebar--esc.ebar--done  .ebar__fill{background:var(--green);}
+.ebar--esc.ebar--ready .ebar__v,
+.ebar--esc.ebar--done  .ebar__v{color:var(--green);font-weight:700;}
+.pcard__esc{margin-top:6px;}
+
+/* 财务面板里的出圈进度块：标题 + 百分比 + 条 + 两行明细 */
+.esc-block{
+  margin-top:12px;padding:12px 13px;border-radius:var(--r-m);
+  background:var(--surface-2);border:1px solid var(--sep);
+}
+.esc-block__hd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-size:12.5px;font-weight:600;color:var(--on-surface-var);}
+.esc-block__pct{font-size:20px;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums;color:var(--on-surface);}
+.esc-block .progress{margin-top:7px;}
+.esc-block__meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;
+  margin-top:7px;font-size:11.5px;color:var(--on-surface-var);line-height:1.5;}
+.esc-block__meta b{color:var(--on-surface);font-weight:650;font-variant-numeric:tabular-nums;}
+
+/* ================= 开局页：游戏规则模块 ================= */
+.setup-rules{
+  margin:0 0 22px;border:1px solid var(--sep);border-radius:var(--r-m);
+  background:var(--surface-2);overflow:hidden;
+}
+.setup-rules > summary{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:13px 15px;cursor:pointer;list-style:none;
+  font-size:13.5px;font-weight:650;letter-spacing:-.01em;
+}
+.setup-rules > summary::-webkit-details-marker{display:none;}
+.setup-rules > summary:hover{background:color-mix(in srgb,var(--on-surface) 4%,transparent);}
+.setup-rules__chev{
+  width:7px;height:7px;flex:none;margin-right:3px;
+  border-right:2px solid var(--on-surface-var);border-bottom:2px solid var(--on-surface-var);
+  transform:rotate(45deg);transition:transform .25s var(--ease-out);
+}
+.setup-rules[open] .setup-rules__chev{transform:rotate(-135deg);}
+.setup-rules__body{padding:0 15px 15px;}
+
+.rules-goal{
+  display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px;
+  padding:10px 13px;border-radius:var(--r-s);
+  background:color-mix(in srgb,var(--accent) 12%,transparent);
+}
+.rules-goal__lbl{font-size:11.5px;font-weight:650;color:var(--on-surface-var);}
+.rules-goal__val{font-size:14.5px;font-weight:750;color:var(--accent);letter-spacing:-.01em;}
+.rules-sub{margin:10px 0 14px;font-size:12px;color:var(--on-surface-var);line-height:1.65;}
+
+.rules-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.rules-col{padding:12px;border-radius:var(--r-s);background:var(--surface);border:1px solid var(--sep);}
+.rules-col h4,.rules-out h4{
+  display:flex;align-items:center;gap:6px;margin:0 0 8px;
+  font-size:12.5px;font-weight:700;letter-spacing:-.01em;
+}
+.rules-tag{
+  padding:1px 6px;border-radius:var(--r-pill);font-size:10px;font-weight:600;
+  background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);
+}
+.rules-col ul,.rules-out ul{margin:0;padding-left:16px;font-size:11.5px;line-height:1.75;color:var(--on-surface-var);}
+.rules-col li,.rules-out li{margin-bottom:2px;}
+.rules-col li b,.rules-out li b{color:var(--on-surface);font-weight:650;}
+.rules-warn,.rules-note{
+  margin:9px 0 0;padding:7px 9px;border-radius:var(--r-xs);
+  font-size:11px;line-height:1.55;
+}
+.rules-warn{background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red);}
+.rules-note{background:color-mix(in srgb,var(--green) 14%,transparent);color:var(--green);}
+.rules-warn b,.rules-note b{font-weight:750;}
+
+.rules-out{margin-top:12px;padding:12px 13px;border-radius:var(--r-s);background:var(--surface);border:1px solid var(--sep);}
+.rules-foot{margin:12px 0 0;font-size:11.5px;color:var(--on-surface-var);line-height:1.6;}
+
+@media (max-width:560px){
+  .rules-cols{grid-template-columns:1fr;}
+}

@@ -191,6 +191,22 @@ function energyBar(p, g, opts){
     <span class="ebar__v">${cur} / ${max}</span>
   </div>`;
 }
+/* 出圈进度条：沿用 .ebar 的骨架（同一套对齐、圆角与数字排版），
+   但用「蓝→绿」渐变把它和精力条区分开 —— 一条是「你还剩多少体力」，
+   一条是「你离自由还有多远」，语义完全不同，不能长得一样。
+
+   数值一律取 Engine.escapeProgress 的 pctText，界面不自己算比例：
+   进度条宽度、百分比文字、财务面板里的数字必须来自同一个口径。 */
+function escapeBar(p, g){
+  const pr = E.escapeProgress(g, p);
+  const mod = pr.status === 'escaped' ? ' ebar--done'
+            : pr.status === 'ready'   ? ' ebar--ready' : '';
+  return `<div class="ebar ebar--esc${mod}">
+    <span class="ebar__lbl">${pr.status === 'escaped' ? '已出圈' : '出圈'}</span>
+    <span class="ebar__track"><span class="ebar__fill" style="width:${pr.pctText}%"></span></span>
+    <span class="ebar__v">${pr.pctText}%</span>
+  </div>`;
+}
 /* 人生阶段标签：收入曲线阶段 + 就业状态。
    这里是玩家判断「我是不是该抓紧了」的唯一依据 —— 收入会随年龄回落，必须能看见。 */
 function lifeChips(p, g){
@@ -210,6 +226,57 @@ function lifeChips(p, g){
 }
 
 /* ------------------------------ 开局设置 ------------------------------ */
+/* 开局页的「游戏规则」模块：把出圈条件与达成方式讲清楚。
+   内容随规则版本实时切换 —— 101 与 202 的门槛倍数不同（×1 / ×2），
+   达成方式的侧重点也不同，所以不能用一段写死的文案。 */
+function renderSetupRules(){
+  const host = $('#setupRulesBody');
+  if(!host) return;
+  const r202 = Setup.rule === '202';
+  const cond = r202 ? '被动收入 ＞ 总支出 × <b>2</b>' : '被动收入 ＞ 总支出';
+  host.innerHTML = `
+    <div class="rules-goal">
+      <span class="rules-goal__lbl">出圈条件 · ${Setup.rule} 规则</span>
+      <span class="rules-goal__val">${cond}</span>
+    </div>
+    <p class="rules-sub">
+      式子左边是<b>被动收入</b>，右边是<b>总支出</b> —— 两边同时算数，
+      任何一边变化都会立刻改变你的进度。${r202 ? '202 的门槛是总支出的 <b>2 倍</b>，更难，但出圈资金也更高。' : ''}
+    </p>
+
+    <div class="rules-cols">
+      <div class="rules-col">
+        <h4>① 做高被动收入 <span class="rules-tag">分子</span></h4>
+        <ul>
+          <li><b>金融资产</b>存款利息 · 股票股利 · 基金分红</li>
+          <li><b>房地产</b>租金与房产现金流</li>
+          <li><b>企业</b>经营性现金流</li>
+        </ul>
+        <p class="rules-warn">⚠️ 副业等<b>主动收入不计入</b>被动收入 —— 工资再高也跳不出老鼠赛跑。</p>
+      </div>
+      <div class="rules-col">
+        <h4>② 压低总支出 <span class="rules-tag">分母</span></h4>
+        <ul>
+          <li><b>提前还清贷款</b>月供立刻从支出里消失</li>
+          <li><b>偿还信用贷</b>高息负债越早还越好</li>
+          <li><b>控制负债与消费</b>门槛随之下降</li>
+        </ul>
+        <p class="rules-note">门槛本身就是「总支出」，所以<b>少花一块钱等于多赚一块钱</b>。</p>
+      </div>
+    </div>
+
+    <div class="rules-out">
+      <h4>③ 达标之后</h4>
+      <ul>
+        <li>点「🎉 跳出老鼠赛跑 → 财务自由圈」出圈，获得 <b>出圈资金 = 被动收入 × 100</b></li>
+        <li>财务自由圈掷 <b>2 粒</b>骰子；企业只能<b>现金</b>购买，不可贷款</li>
+        <li>在自己的<b>梦想格</b>付清费用即获胜</li>
+      </ul>
+    </div>
+    <p class="rules-foot">对局中每位玩家的席位卡上都有<b>实时出圈进度百分比</b>，财务面板里还能看到「还差多少」。</p>
+  `;
+}
+
 const Setup = { rule:'101', mode:'age', count:4, names:[], showAll:true, fast:true };
 function initSetup(){
   /* 游戏模式：年龄模式（20→65 岁，共 45 轮） / 无限模式 */
@@ -233,6 +300,7 @@ function initSetup(){
       $('#ruleHint').innerHTML = Setup.rule==='202'
         ? '跳出条件：被动收入 &gt; 总支出 × <b>2</b>；启用杠杆交易 / 大额现金流卡、融券做空、期权、联合购买，行情卡 42 张（抽满 25 张重洗）。'
         : '跳出条件：被动收入 &gt; 总支出。仅做多，投资机会格只抽投资卡，市场波动温和。';
+      renderSetupRules();       /* 规则模块的门槛倍数与文案随版本同步切换 */
     };
   });
   const segCount = $('#segCount');
@@ -246,6 +314,7 @@ function initSetup(){
     };
   });
   renderNames();
+  renderSetupRules();           /* 首次进入即按当前规则版本填充 */
   $('#optShowAll').onchange = e => Setup.showAll = e.target.checked;
   $('#optFast').onchange = e => Setup.fast = e.target.checked;
   $('#btnStart').onclick = ()=>{
@@ -297,5 +366,5 @@ function activeTab(name){
 
 window.UI = { $, $$, esc, money, pct, setTheme, initTheme, toggleTheme, toast, openModal, closeModal, requestClose,
   confirmBox, renderIncome, renderAssets, renderLiabs, assetLine, line, initSetup, renderNames, Setup,
-  initChrome, closeDrawer, activeTab, energyBar, lifeChips };
+  initChrome, closeDrawer, activeTab, energyBar, escapeBar, lifeChips, renderSetupRules };
 })();

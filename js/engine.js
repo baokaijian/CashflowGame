@@ -402,10 +402,26 @@ function escapeTarget(g, p){
   const f = finance(p);
   return g.rule==='202' ? f.totalExpenses*2 : f.totalExpenses;
 }
+/* 出圈进度：完成度 = 被动收入 / 门槛。finance() 每次调用都重新推导，
+   所以任何操作（买资产、还款、添丁）之后进度立即反映 —— 这就是「实时」的来源。
+
+   ★ 门槛口径是【严格大于】，所以恰好等于门槛时仍需再涨 1 元。
+     pctText 因此做了一件特殊处理：只有真的能出圈时才显示 100%，
+     否则最多显示 99%。不然会出现「100% 却还不能出圈」这种自相矛盾的读法。 */
 function escapeProgress(g, p){
   const f = finance(p), t = escapeTarget(g,p);
-  return { passive:f.passive, target:t, pct: t>0 ? Math.min(1, f.passive/t) : 1,
-           canEscape: f.passive > t };
+  const passive = f.passive;
+  const canEscape = passive > t;
+  const rawPct = t > 0 ? passive / t : 1;
+  return {
+    passive, target:t,
+    pct: Math.min(1, rawPct),                                  /* 进度条填充比例 */
+    pctText: canEscape ? 100 : Math.min(99, Math.floor(rawPct * 100)),
+    gap: canEscape ? 0 : Math.round(t - passive) + 1,           /* 还差多少被动收入 */
+    canEscape,
+    escaped: !!p.inFT,
+    status: p.inFT ? 'escaped' : (canEscape ? 'ready' : 'progress')
+  };
 }
 /* 财务自由圈月现金流 = 出圈时锁定的被动收入 + 财务自由圈企业现金流 */
 function ftMonthly(p){

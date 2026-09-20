@@ -257,7 +257,7 @@ function renderPlayers(){
   const host = $('#playerList');
   host.innerHTML = '';
   g.players.forEach(p=>{
-    const f = E.finance(p), pr = E.escapeProgress(g, p);
+    const f = E.finance(p);
     const d = document.createElement('div');
     d.className = 'pcard' + (p.id===cur.id && !g.over ? ' pcard--active' : '') + (p.out?' pcard--out':'');
     d.style.borderLeftColor = p.color;
@@ -277,8 +277,7 @@ function renderPlayers(){
         <div>净资产 <b>${money(E.netWorth(p))}</b></div>
       </div>
       <div class="pcard__energy">${U.energyBar(p, g)}</div>
-      ${p.inFT ? `<div class="progress"><div class="progress__bar" style="width:${Math.min(100,(p.ftGain||0)/500)}%"></div></div>`
-               : `<div class="progress"><div class="progress__bar" style="width:${Math.round(pr.pct*100)}%"></div></div>`}`;
+      <div class="pcard__esc">${U.escapeBar(p, g)}</div>`;
     d.onclick = ()=> showPlayerDetail(p.id);
     host.appendChild(d);
   });
@@ -329,10 +328,29 @@ function renderFinance(){
       <div class="sec__total"><span>手头现金</span><span class="money">${money(p.cash)}</span></div>
       <div class="sec__total"><span>月现金流</span><span class="money ${f.cashflow<0?'neg':''}">${money(f.cashflow)}</span></div>
       ${p.inFT
-        ? `<div class="sec__total" style="background:var(--secondary-container);color:var(--secondary)"><span>财务自由圈月现金流</span><span class="money">${money(E.ftMonthly(p))}</span></div>`
+        ? `<div class="sec__total" style="background:var(--secondary-container);color:var(--secondary)"><span>财务自由圈月现金流</span><span class="money">${money(E.ftMonthly(p))}</span></div>
+           <div class="esc-block">
+             <div class="esc-block__hd"><span>出圈进度</span><b class="esc-block__pct pos">100%</b></div>
+             <div class="progress"><div class="progress__bar" style="width:100%"></div></div>
+             <div class="esc-block__meta"><span>已进入财务自由圈 —— 出圈这件事对你已经完成</span></div>
+           </div>
+           <div class="esc-block">
+             <div class="esc-block__hd"><span>企业达标进度（累计月现金流 ≥ ¥50,000 即获胜）</span><b class="esc-block__pct">${Math.min(100, Math.floor((p.ftGain||0)/500))}%</b></div>
+             <div class="progress"><div class="progress__bar" style="width:${Math.min(100,(p.ftGain||0)/500)}%"></div></div>
+             <div class="esc-block__meta"><span>累计 <b class="money">${money(p.ftGain||0)}</b> / ¥50,000</span></div>
+           </div>`
         : `<div class="sec__total" style="background:var(--secondary-container);color:var(--secondary)"><span>被动收入</span><span class="money">${money(f.passive)}</span></div>
-           <div class="sec__title" style="margin-top:10px"><span>出圈进度（${g.rule==='202'?'被动收入 ＞ 支出×2':'被动收入 ＞ 支出'}）</span><span>${money(pr.passive)} / ${money(pr.target)}</span></div>
-           <div class="progress"><div class="progress__bar" style="width:${Math.round(pr.pct*100)}%"></div></div>`}
+           <div class="esc-block">
+             <div class="esc-block__hd">
+               <span>出圈进度（${g.rule==='202'?'被动收入 ＞ 支出×2':'被动收入 ＞ 支出'}）</span>
+               <b class="esc-block__pct ${pr.canEscape?'pos':''}">${pr.pctText}%</b>
+             </div>
+             <div class="progress"><div class="progress__bar" style="width:${pr.pctText}%"></div></div>
+             <div class="esc-block__meta">
+               <span>被动收入 <b class="money">${money(pr.passive)}</b> / 门槛 <b class="money">${money(pr.target)}</b></span>
+               <span>${pr.canEscape ? '✅ 已达标，点主按钮即可出圈' : `还差 <b class="money">${money(pr.gap)}</b> 被动收入`}</span>
+             </div>
+           </div>`}
       ${p.skipTurns>0?`<p class="hint" style="margin-top:8px">⏸️ 之后还有 ${p.skipTurns} 个回合轮到你时不能行动（回合仍属于你）。</p>`:''}
     </div>
 
