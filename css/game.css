@@ -649,3 +649,48 @@ html[data-theme="dark"] .die{background:var(--surface-2);}
   font-size:12px;color:var(--on-surface-var);}
 .tier-note__row b{color:var(--on-surface);font-weight:650;font-variant-numeric:tabular-nums;}
 .tier-note .hint{margin:8px 0 0;}
+
+/* ================= 人生阶段（单人模式） ================= */
+/* 六段进度点：走过的实心、当前的加宽高亮 —— 一眼看出「这一生走到哪了」 */
+.stage-card{
+  padding:13px;border-radius:var(--r-m);background:var(--surface-2);border:1px solid var(--sep);
+}
+.stage-card__hd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+.stage-card__hd b{font-size:16px;font-weight:750;letter-spacing:-.02em;color:var(--accent);}
+.stage-card__no{font-size:11px;font-weight:600;color:var(--on-surface-var);}
+.stage-card__steps{display:flex;gap:4px;margin-top:10px;}
+.stage-card__steps > span{
+  flex:1;height:4px;border-radius:var(--r-pill);
+  background:color-mix(in srgb,var(--on-surface) 10%,transparent);
+  transition:height .25s var(--ease-out);
+}
+.stage-card__steps > span.on{background:color-mix(in srgb,var(--accent) 55%,transparent);}
+.stage-card__steps > span.cur{height:7px;background:var(--accent);}
+.stage-card__meta{
+  display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;
+  margin-top:9px;font-size:11.5px;color:var(--on-surface-var);line-height:1.5;
+}
+.stage-card__meta b{color:var(--accent);font-weight:700;}
+.stage-card__vals{
+  display:grid;grid-template-columns:1fr 1fr;gap:5px 12px;
+  margin-top:10px;padding-top:10px;border-top:1px solid var(--sep);
+  font-size:11px;color:var(--on-surface-var);line-height:1.45;
+}
+.stage-card__vals b{font-size:12px;font-weight:650;color:var(--on-surface);font-variant-numeric:tabular-nums;}
+.stage-card .hint{margin:9px 0 0;}
+
+/* ================= 单人结算页 ================= */
+.solo-hero{display:flex;align-items:center;gap:14px;}
+.solo-hero__grade{
+  flex:none;width:62px;height:62px;border-radius:var(--r-m);
+  display:flex;align-items:center;justify-content:center;
+  font-size:32px;font-weight:800;letter-spacing:-.03em;
+  color:var(--sc);background:color-mix(in srgb,var(--sc) 14%,transparent);
+}
+.solo-hero__t{min-width:0;}
+.solo-hero__t b{display:block;font-size:19px;font-weight:750;letter-spacing:-.02em;}
+.solo-hero__t small{display:block;margin-top:5px;font-size:11.5px;color:var(--on-surface-var);line-height:1.5;}
+
+@media (max-width:560px){
+  .stage-card__vals{grid-template-columns:1fr;}
+}

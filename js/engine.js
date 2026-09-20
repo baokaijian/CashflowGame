@@ -261,8 +261,15 @@ function refreshLife(g, p){
   p.lifeStage   = ls.nm;
   p.lifeCoef    = ls.coef;
   p.elderRatio  = ls.elderRatio || 0;
-  /* 失业期间主动收入归零；低精力则绩效打折（现实里状态差会直接影响产出与奖金） */
-  let salary = p.baseSalary * sc.mult;
+  /* 退休断崖（仅单人模式）：到了退休年龄，工资停发，改领养老金。
+     现实依据：我国城镇职工养老金替代率约 40%—50%，即退休后收入只有在职时的
+     一半上下 —— 这正是「只靠劳动收入」的人生在 61 岁会遇到的那道台阶。
+     多人模式不做这段：所有玩家在 65 岁同步结算，这个断崖不产生任何相对压力。 */
+  const S = window.SOLO;
+  p.retired = isSolo(g) && ageOf(g) >= S.retireAge;
+  /* 失业期间主动收入归零；低精力则绩效打折（现实里状态差会直接影响产出与奖金）。
+     注：退休后不再进入求职期（见 startJobless），所以这里三者不会同时成立。 */
+  let salary = p.retired ? p.baseSalary * S.pensionRatio : p.baseSalary * sc.mult;
   if(isJobless(p)) salary = 0;
   else if(numOr(p.energy) < window.ENERGY.lowAt) salary = salary * window.ENERGY.lowSalaryMult;
   p.salary   = Math.round(salary);
@@ -270,7 +277,8 @@ function refreshLife(g, p){
      这样失业（工资归零）时赡养负担也随之暂停 —— 现实中失去收入后，
      赡养通常由其他兄弟姐妹分担或降到最低限度，不会照旧全额支出。 */
   p.elderCare = Math.round(p.salary * p.elderRatio);
-  p.taxesCur  = Math.round(numOrDef(p.job && p.job.taxes, 0) * sc.mult);
+  /* 养老金免征个人所得税（《个人所得税法》第四条），所以退休后按 0 计税 */
+  p.taxesCur  = p.retired ? 0 : Math.round(numOrDef(p.job && p.job.taxes, 0) * sc.mult);
   return p;
 }
 function refreshAllLife(g){ g.players.forEach(p=>refreshLife(g, p)); }
@@ -316,6 +324,20 @@ function healthCrisis(g, p){
    这正是现实中「年龄越大越难再就业」的建模。 */
 function startJobless(g, p, severance){
   const U = window.UNEMPLOYMENT, age = ageOf(g);
+  /* 退休之后不该再有「求职期」—— 这个年龄已经不会有人来招了。
+     语义改成「退休返聘结束」：一次性少发一个月养老金，然后照常领。
+     否则会出现「61 岁被裁 → 投简历 → 63 岁重新就业」这种明显不真实的流程。 */
+  if(isSolo(g) && age >= window.SOLO.retireAge){
+    refreshLife(g, p);
+    const hit = Math.round(p.salary * (window.SOLO.retireShockMult || 1));
+    const r = payCash(p, hit);           /* 已退休：没有离职补偿，只有退休金少发一个月 */
+    bump(p, 'downsized'); bump(p, 'forcedCount');
+    if(r.ok) bump(p, 'forcedTotal', r.paid);
+    const paid = r.ok ? r.paid : 0;
+    milestone(g, p, `第 ${g.round} 轮退休返聘结束（${age} 岁）：不进入求职期，退休金一次性少发 ${money(paid)}`, 'bad');
+    log(g, `${p.name} 退休返聘结束（${age} 岁）：不再求职，退休金一次性少发 ${money(paid)}`, 'bad', p.name);
+    return { ok:true, retired:true, hit:paid, shortfall:r.ok ? 0 : r.shortfall, need:0, severance:0 };
+  }
   const need = U.effortBase + (age > 40 ? U.over40Extra : 0) + (age > 50 ? U.over50Extra : 0);
   p.joblessProgress = 0;
   p.joblessNeed = need;
@@ -357,6 +379,30 @@ function donationRefund(p, amount){
 function useWing(p){
   if(numOr(p.wings) > 0){ p.wings--; return true; }
   return false;
+}
+
+/* ------------------------------ 人生阶段（单人模式） ------------------------------ */
+/* 阶段只是「把三张曲线讲成一个人这一生」的叙事层，本身不含任何数值 ——
+   收入看 SALARY_CURVE、支出看 LIFE_STAGES、精力看 ENERGY，各有各的边界。
+   这么做是为了避免「阶段说 ×1.35、工资表说 ×1.20」这类两套口径：
+   界面上这两处是同时显示的，一旦对不上，玩家第一反应就是「系统算错了」。 */
+function soloStageOf(g){
+  const age = ageOf(g), S = window.SOLO_STAGES;
+  for(let i=0;i<S.length;i++) if(age <= S[i].to) return i;
+  return S.length-1;
+}
+function soloStage(g){ return window.SOLO_STAGES[soloStageOf(g)]; }
+/* 年龄跨过阶段边界时播报一次。返回 null 表示没有发生切换（同一年内重复调用不会重复播报）。 */
+function checkSoloStage(g){
+  if(!isSolo(g)) return null;
+  const i = soloStageOf(g);
+  if(g.soloStage === i) return null;
+  const prev = g.soloStage;
+  g.soloStage = i;
+  const st = window.SOLO_STAGES[i], p = current(g);
+  log(g, `【人生阶段 ${i+1}/${window.SOLO_STAGES.length}】${st.nm} · ${st.range} · ${st.tag} —— 本期核心：${st.tension}`, 'info', p.name);
+  if(p && !p.out) milestone(g, p, `第 ${g.round} 轮进入「${st.nm}」（${st.range} · ${st.tag}）：${st.tension}`, 'info');
+  return { index:i, prev, stage:st };
 }
 
 /* ------------------------------ 财务计算 ------------------------------ */
@@ -464,6 +510,9 @@ function newPlayer(i, name, job, color, icon){
     joblessProgress: 0, joblessNeed: 0, wings: 0,
     medicalExp: 0, crisisTurns: 0,
     dreamIdx: i % DREAMS.length, dreamOwned: false,
+    /* 单人模式：达成的里程碑（人生赢家 / 企业帝国），含达成时的年龄 ——
+       单人模式不在达成瞬间结束对局，所以要记下「什么时候达成的」。 */
+    achievements: [],
     options: [], shorts: [],
     turnsPlayed: 0,
     out: false, outReason: '',
@@ -477,17 +526,23 @@ function newPlayer(i, name, job, color, icon){
 
 /* ------------------------------ 开局 ------------------------------ */
 function newGame(cfg){
-  const n = cfg.count;
+  /* 游戏模式：age = 年龄模式（20 岁起步，65 岁退休结算）；
+     solo = 单人模式（同为年龄制，但只有 1 位玩家，且启用退休断崖与机构替代）；
+     endless = 无限模式 */
+  const mode = cfg.mode === 'solo' ? 'solo'
+             : cfg.mode === 'endless' ? 'endless' : 'age';
+  const n = mode === 'solo' ? 1 : cfg.count;      /* 单人模式强制 1 位玩家 */
   const careers = shuffle(CAREERS.slice());
   const portfolios = shuffle(PORTFOLIOS.slice());
   const g = {
     rule: cfg.rule || '101',
-    /* 游戏模式：age = 年龄模式（20 岁起步，65 岁退休结算）；endless = 无限模式 */
-    mode: cfg.mode === 'endless' ? 'endless' : 'age',
+    mode,
     startAge: AGE_START, endAge: AGE_END,
     players: [], cur: 0, round: 1, turnNo: 0,
     phase: 'ratrace',
     over: false, winner: null, winReason: '',
+    /* 单人模式：当前人生阶段下标（开局为「起步期」）与退休结算结果 */
+    soloStage: null, soloResult: null,
     log: [], pending: null, lastDice: [], lastPath: [],
     rng: cfg.seed ? (function(s){ return function(){ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; })(cfg.seed) : null,
     decks: {
@@ -518,7 +573,10 @@ function newGame(cfg){
     p.startCash = p.cash;
     g.players.push(p);
   }
-  log(g, `游戏开始 · ${g.rule} 规则 · ${n} 位玩家 · ${g.mode==='age' ? `年龄模式（${g.startAge}→${g.endAge} 岁，共 ${maxRounds(g)} 轮）` : '无限模式'}`, 'sys');
+  const modeNm = g.mode === 'solo'    ? `单人模式（${g.startAge}→${g.endAge} 岁，共 ${maxRounds(g)} 轮）`
+               : g.mode === 'age'     ? `年龄模式（${g.startAge}→${g.endAge} 岁，共 ${maxRounds(g)} 轮）`
+               : '无限模式';
+  log(g, `游戏开始 · ${g.rule} 规则 · ${n} 位玩家 · ${modeNm}`, 'sys');
   syncPhase(g);
   log(g, g.rule==='202'
     ? '跳出条件：被动收入 > 总支出 × 2；启用资本利得/大额现金流卡、做空与期权。'
@@ -526,6 +584,14 @@ function newGame(cfg){
   g.players.forEach(p=>{
     log(g, `${p.name} 抽到【${p.job.name}】工资 ${money(p.salary)}，起始现金 ${money(p.cash)}`, 'info', p.name);
   });
+  if(isSolo(g)){
+    const S = window.SOLO;
+    g.soloStage = soloStageOf(g);
+    const st = window.SOLO_STAGES[g.soloStage];
+    log(g, `单人模式规则：${S.retireAge} 岁起工资停发、改领养老金（替代率 ${Math.round(S.pensionRatio*100)}%）；` +
+           `没有其他玩家 —— 投资卡可按标价 ${Math.round(S.orgBuyRate*100)}% 转让给机构，联合购买由机构合伙人承接`, 'info');
+    log(g, `【人生阶段 1/${window.SOLO_STAGES.length}】${st.nm} · ${st.range} · ${st.tag} —— 本期核心：${st.tension}`, 'info');
+  }
   trackRound(g);                   /* 起始快照：报告的财富走势从第 1 轮就有基准点 */
   return g;
 }
@@ -575,7 +641,16 @@ function log(g, text, type, who){
 function ageOf(g){ return g.startAge + (g.round - 1); }
 function yearsLeft(g){ return Math.max(0, g.endAge - ageOf(g)); }
 function maxRounds(g){ return g.endAge - g.startAge; }
-function isAgeMode(g){ return g.mode === 'age'; }
+/* 单人模式同样按年龄推进（20→65 岁），所以也属于「年龄制」；
+   凡是只关心「有没有年龄与退休」的地方用 isAgeMode，
+   凡是只该在单人下生效的规则用 isSolo。 */
+function isAgeMode(g){ return g.mode === 'age' || g.mode === 'solo'; }
+function isSolo(g){ return g.mode === 'solo'; }
+/* 模式名只在这里拼一次：isAgeMode 对单人模式也返回 true，
+   各处若自己写 `isAgeMode ? '年龄模式' : '无限模式'`，单人会被显示成「年龄模式」。 */
+function modeLabel(g){
+  return g.mode === 'solo' ? '单人模式' : (g.mode === 'endless' ? '无限模式' : '年龄模式');
+}
 
 /* ------------------------------ 复盘数据采集 ------------------------------ */
 /* 游戏结束时能给出「有据可依」的复盘：结论全部由这里记录的计数与快照推导，
@@ -592,6 +667,8 @@ const STAT_KEYS = {
   deficitMonths:0, deficitTotal:0,
   /* 消费升级：因社会等级（消费档次）而在意外支出上多付的累计金额 */
   doodadTierPaid:0,
+  /* 单人模式：本局达成的「获胜类」成就次数（人生赢家 / 企业帝国） */
+  soloWins:0,
   /* 峰值用 null 哨兵：初始 0 会让「净资产长期为负」的对局把峰值误记成 0 */
   peakPassive:null, peakNetWorth:null, peakCash:null
 };
@@ -688,7 +765,8 @@ function nextPlayer(g){
     guard++;
   } while(g.players[g.cur].out && guard < g.players.length*2);
   /* 年龄模式：完成一整轮（所有玩家各行动一次，即 round 递增）即长 1 岁，满 65 岁退休结算 */
-  if(isAgeMode(g) && g.round > maxRounds(g)){ endByAge(g); return null; }
+  if(isAgeMode(g) && g.round > maxRounds(g)){ isSolo(g) ? endSolo(g) : endByAge(g); return null; }
+  checkSoloStage(g);             /* 年龄跨过阶段边界 → 播报人生阶段切换 */
   markTurnPause(g);
   refreshLife(g, current(g));    /* 精力可能在上一回合变化 → 主动收入与税负跟着刷新 */
   syncPhase(g);
@@ -709,6 +787,85 @@ function endByAge(g){
     g.winReason = `到达 ${g.endAge} 岁，但全部玩家均已破产出局，本局无人获胜`;
     log(g, `🏁 到达 ${g.endAge} 岁，全部玩家均已出局，本局结束`, 'sys');
   }
+}
+
+/* ------------------------------ 单人模式结算 ------------------------------ */
+/* 结局判定：自上而下，第一个命中即为结局。判据全部来自「什么时候做到了什么」，
+   而不是「比别人多多少钱」—— 单人模式没有可比的人，只能与时间比。 */
+function soloOutcome(g, p){
+  const S = window.SOLO, A = p.achievements || [];
+  const firstAge = k => {
+    const xs = A.filter(x=>x.kind === k).map(x=>x.age).sort((a,b)=>a-b);
+    return xs.length ? xs[0] : null;
+  };
+  const dreamAge  = firstAge('dream');
+  const empireAge = firstAge('empire');
+  const escapeAge = (p.escapeRound != null) ? (g.startAge + p.escapeRound - 1) : null;
+  const base = { dreamAge, empireAge, escapeAge, winAge:S.winAge };
+  if(p.out){
+    return Object.assign(base, { key:'bankrupt', win:false,
+      label: p.outReason === '主动认输' ? '中途退出' : '中途出局',
+      reason: `${ageOf(g)} 岁时${p.outReason || '出局'} —— 现金流断裂是财富积累中唯一不可逆的失败，` +
+              '它不会给你「下次再说」的机会' });
+  }
+  if(dreamAge != null && dreamAge <= S.winAge){
+    return Object.assign(base, { key:'winner', win:true, label:'人生赢家',
+      reason: `${dreamAge} 岁进入财务自由圈并实现梦想，早于 ${S.winAge} 岁这道门槛；` +
+              '此后即便不再工作，生活也由资产支撑 —— 这就是「财务自由」的全部含义' });
+  }
+  if(dreamAge != null){
+    return Object.assign(base, { key:'late', win:true, label:'大器晚成',
+      reason: `${dreamAge} 岁实现梦想 —— 做到了，但晚于 ${S.winAge} 岁这道门槛；` +
+              '赢了结果，输了时间，而时间恰恰是财富积累里最不可再生的东西' });
+  }
+  if(p.inFT || p.escaped){
+    return Object.assign(base, { key:'free', win:false, label:'自由未圆梦',
+      reason: (escapeAge != null ? `${escapeAge} 岁跳出老鼠赛跑，` : '进入了财务自由圈，') +
+              `到退休时仍未把梦想落到具体的事上 —— 有了自由，但自由没有被兑现` });
+  }
+  return Object.assign(base, { key:'stuck', win:false, label:'仍在老鼠赛跑',
+    reason: `到 ${g.endAge} 岁退休时，被动收入仍未覆盖支出 —— 一生都在用时间换钱，` +
+            '一旦停下工作，收入就归零' });
+}
+
+/* 人生评级：把「结局 + 最终社会等级」压缩成一个字母，作为单人模式的成绩。
+   未出圈的人和破产的人必须区分开 —— 前者是「没做到」，后者是「没走下去」。 */
+function soloGrade(g, p, oc, cls){
+  if(oc.key === 'bankrupt') return 'F';
+  if(oc.key === 'winner')   return 'S';
+  if(oc.key === 'late')     return 'A';
+  if(oc.key === 'free')     return 'B';
+  /* 未出圈：已经积累了可观的资产（L3 小有积累及以上）算「差一步」，
+     否则与破产同档处理 —— 都没能摆脱「用时间换钱」。 */
+  return cls && cls.lv >= 3 ? 'C' : 'D';
+}
+
+/* 结算结果只在这里算一次。
+   ★ 必须独立于 endSolo：单人最常见的失败路径是【中途破产】，
+     而破产走的是 checkLastStanding 而不是「到 65 岁」——
+     若结算只在 endSolo 里生成，破产那条路上会没有任何结算可看。 */
+function buildSoloResult(g){
+  const p = g.players[0];
+  const cls = socialClassOf(g, p);
+  const oc = soloOutcome(g, p);
+  const grade = soloGrade(g, p, oc, cls);
+  g.soloResult = {
+    key:oc.key, label:oc.label, grade, win:oc.win, reason:oc.reason,
+    lv:cls.lv, levelName:cls.level.name, cover:cls.cover, passive:cls.passive, target:cls.target,
+    dreamAge:oc.dreamAge, escapeAge:oc.escapeAge, winAge:oc.winAge,
+    netWorth: netWorth(p), endAge: g.endAge, endRound: g.round, endAgeNow: ageOf(g),
+    over: g.over
+  };
+  g.winner = oc.win ? p.id : null;
+  g.winReason = oc.reason;
+  return g.soloResult;
+}
+
+function endSolo(g){
+  if(g.over) return;
+  g.over = true;
+  const r = buildSoloResult(g);
+  log(g, `🏁 ${g.endAge} 岁退休结算 · 人生评级 ${r.grade}（${r.label}）—— ${r.reason}`, r.win ? 'good' : 'bad', g.players[0].name);
 }
 
 /* 期权 3 回合限制 */
@@ -1082,6 +1239,13 @@ function checkLastStanding(g){
   /* 全员破产出局：本局无人获胜，直接结束（否则会在没有存活玩家的情况下无限空转） */
   if(alive.length === 0){
     g.over = true; g.winner = null;
+    if(isSolo(g)){
+      /* 单人出局 = 这一生没能走下去。结算必须照常产出 ——
+         这正是单人模式最需要复盘的一条路径（钱是怎么断的）。 */
+      const r = buildSoloResult(g);
+      log(g, `🏁 人生提前结束 · 评级 ${r.grade}（${r.label}）—— ${r.reason}`, 'bad', g.players[0].name);
+      return;
+    }
     g.winReason = '全部玩家均已破产出局，本局无人获胜';
     log(g, '🏁 全部玩家均已破产出局，本局结束', 'sys');
     return;
@@ -1090,7 +1254,24 @@ function checkLastStanding(g){
     win(g, alive[0], '通过买断与破产机制成为最后的存活者');
   }
 }
-function win(g, p, reason){
+function win(g, p, reason, kind){
+  if(p.out) return;
+  /* 单人模式：达成即记录，但【不结束对局】。
+     理由有两层 ——
+       ① 单人模式的目标是「完整走完一生」。若买到梦想就收场，玩家会看不到
+          财务自由圈的后续人生（企业、更多梦想）以及最关键的退休期；
+       ② 这更贴近财富流原意：进入顺流层后赚钱更快，但能否守住仍取决于后续决策。
+     于是把「什么时候达成的」记下来，留到 65 岁退休结算时按达成时间评档。 */
+  if(isSolo(g)){
+    p.achievements = p.achievements || [];
+    if(!p.achievements.some(a=>a.reason === reason)){
+      p.achievements.push({ age:ageOf(g), round:g.round, reason, kind:kind || 'other' });
+    }
+    bump(p, 'soloWins');
+    milestone(g, p, `第 ${g.round} 轮（${ageOf(g)} 岁）达成：${reason}`, 'good');
+    log(g, `🎉 ${p.name} 达成「${reason}」——单人模式对局继续，直到 ${g.endAge} 岁退休结算`, 'good', p.name);
+    return;
+  }
   g.over = true; g.winner = p.id; g.winReason = reason;
   log(g, `🏆 ${p.name} 获胜：${reason}`, 'good', p.name);
 }
@@ -1212,7 +1393,9 @@ window.Engine = {
   /* 现金不变式：现金永不为负 */
   SELL_RATE, BANK_RATE, assetLabel, payCash, sellableAssets, sellValue, liquidate, declareBankruptcy,
   /* 年龄 / 轮次 */
-  ageOf, yearsLeft, maxRounds, isAgeMode, endByAge,
+  ageOf, yearsLeft, maxRounds, isAgeMode, isSolo, modeLabel, endByAge,
+  /* 单人模式：人生阶段（叙事层）与退休结算 */
+  soloStageOf, soloStage, checkSoloStage, soloOutcome, soloGrade, buildSoloResult, endSolo,
   /* 圈层：状态属于玩家自身，g.phase 仅为镜像 */
   phaseOf, syncPhase,
   /* 暂停回合：回合仍属于该玩家，只是本回合不能行动 */

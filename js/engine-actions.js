@@ -419,7 +419,9 @@ function doDownsized(g, amount){
   const base = (amount == null) ? E.finance(p).totalExpenses : amount;
   const severance = Math.round(base * (window.UNEMPLOYMENT.severance || 1));
   const r = E.startJobless(g, p, severance);
-  return { ok:true, severance:r.severance, need:r.need, cashflow:E.finance(p).cashflow };
+  /* 退休后走的是另一条路：不进入求职期，只做一次退休金调整 */
+  return { ok:true, retired:!!r.retired, hit:r.hit || 0, shortfall:r.shortfall || 0,
+           severance:r.severance, need:r.need, cashflow:E.finance(p).cashflow };
 }
 
 /* ------------------------------ 贷款 ------------------------------ */
@@ -462,7 +464,7 @@ function buyFTBusiness(g, bizId){
   E.bump(p, 'ftBusinesses'); E.bump(p, 'investTotal', biz.cost); E.bump(p, 'cfGained', biz.cf);
   E.milestone(g, p, `第 ${g.round} 轮在财务自由圈购入企业「${biz.nm}」，月现金流 +${money(biz.cf)}（累计 ${money(p.ftGain)} / ¥50,000）`, 'good');
   log(g, `${p.name} 现金购入企业【${biz.nm}】，月现金流 +${money(biz.cf)}（累计增加 ${money(p.ftGain)}）`, 'good', p.name);
-  if(p.ftGain >= 50000) E.win(g, p, `在财务自由圈上通过购买企业使月现金流增加 ${money(p.ftGain)}（≥ ¥50,000）`);
+  if(p.ftGain >= 50000) E.win(g, p, `在财务自由圈上通过购买企业使月现金流增加 ${money(p.ftGain)}（≥ ¥50,000）`, 'empire');
   return { ok:true };
 }
 /* 202：停在已拥有的企业格 → 支付首付开设特许经营 */
@@ -481,7 +483,7 @@ function openFranchise(g, bizId){
   E.bump(p, 'ftBusinesses'); E.bump(p, 'investTotal', dp); E.bump(p, 'cfGained', extraCf);
   E.milestone(g, p, `第 ${g.round} 轮为「${owned.nm}」开设特许经营，额外现金流 +${money(extraCf)}（累计 ${money(p.ftGain)} / ¥50,000）`, 'good');
   log(g, `${p.name} 为【${owned.nm}】开设特许经营，支付首付 ${money(dp)}，额外现金流 +${money(extraCf)}`, 'good', p.name);
-  if(p.ftGain >= 50000) E.win(g, p, `特许经营使月现金流累计增加 ${money(p.ftGain)}`);
+  if(p.ftGain >= 50000) E.win(g, p, `特许经营使月现金流累计增加 ${money(p.ftGain)}`, 'empire');
   return { ok:true };
 }
 function buyDream(g){
@@ -489,6 +491,9 @@ function buyDream(g){
   /* 只看玩家自己的圈：原先还允许全局 g.phase==='fasttrack' 放行，会泄漏到内圈玩家 */
   if(!p.inFT) return { ok:false, msg:'梦想格只在财务自由圈生效。' };
   const dream = DREAMS[p.dreamIdx];
+  /* 同一个梦想不该被重复购买：多人模式下买到就结束对局，单人模式下若不加这道闸，
+     玩家会反复为一个已经拥有的东西付钱。 */
+  if(p.dreamOwned) return { ok:false, msg:`你已经实现过梦想「${dream.nm}」了。` };
   if(!canPay(p, dream.cost)) return { ok:false, msg:`购买梦想需要 ${money(dream.cost)}，现金不足。` };
   const en3 = needEnergy(p, energyCost('dream'), `实现梦想「${dream.nm}」`);
   if(!en3.ok) return { ok:false, msg:en3.msg };
@@ -497,7 +502,7 @@ function buyDream(g){
   E.bump(p, 'dreams');
   E.milestone(g, p, `第 ${g.round} 轮支付 ${money(dream.cost)} 买下梦想「${dream.nm}」——达成获胜条件`, 'good');
   log(g, `${p.name} 支付 ${money(dream.cost)} 买下梦想【${dream.nm}】`, 'good', p.name);
-  E.win(g, p, `第一个在财务自由圈买下梦想【${dream.nm}】`);
+  E.win(g, p, `${E.isSolo(g) ? '' : '第一个'}在财务自由圈买下梦想【${dream.nm}】`, 'dream');
   return { ok:true };
 }
 /* 财务自由圈事件：金额在落格时已锁定并传入，扣款精确一致
@@ -594,7 +599,7 @@ function buyout(g, targetId){
   E.milestone(g, t, `第 ${g.round} 轮全部资产被 ${p.name} 以 ${money(price)} 买断，无力维持而出局`, 'bad');
   log(g, `${p.name} 以 ${money(price)} 买断 ${t.name} 的全部资产，${t.name} 因无力维持而出局`, 'bad');
   E.checkLastStanding(g);
-  if(p.ftGain >= 50000) E.win(g, p, `买断资产使月现金流累计增加 ${money(p.ftGain)}`);
+  if(p.ftGain >= 50000) E.win(g, p, `买断资产使月现金流累计增加 ${money(p.ftGain)}`, 'empire');
   return { ok:true };
 }
 
@@ -627,6 +632,69 @@ function payDeficit(g, amount){
 /* 求职（失业期间） */
 function huntJob(g){ return E.jobHunt(g, E.current(g)); }
 
+/* ------------------------------ 单人模式：机构替代 ------------------------------ */
+/* 单人模式的根本约束是「没有其他玩家」，而原规则里有两处依赖他人：
+   投资卡转让、202 联合购买。直接砍掉会削弱规则完整性，
+   所以给它们各配一个现实里真实存在的替代物 —— 机构。 */
+
+/* 把投资卡转让给机构。
+   现实对应：自己吃不下这个项目时，把信息卖给中介 / 同行 / 财务顾问，拿一笔信息费。
+   折现率取 SOLO.orgBuyRate（20%）—— 明显低于卖给同行，因为信息本身不值全价；
+   但足以让「考察机会」在单人下仍然是正期望，而不是纯亏精力。 */
+/* 折现基数与机构报价 —— 抽成纯函数，界面与引擎共用同一份计算。
+   否则「弹层写着 ¥12,000、实际到账 ¥11,000」这类账实不符迟早会发生。 */
+function orgBaseOf(card){
+  return card.dp || card.cost || (card.price ? card.price * (card.min || 1) : 0) || 0;
+}
+function orgPriceOf(card){
+  return Math.round(orgBaseOf(card) * (window.SOLO.orgBuyRate || 0.2));
+}
+
+function sellCardToOrg(g, card){
+  const p = E.current(g), S = window.SOLO;
+  const price = orgPriceOf(card);
+  p.cash += price;
+  E.bump(p, 'dealsSold'); E.bump(p, 'dealsSoldTotal', price);
+  E.milestone(g, p, `第 ${g.round} 轮把投资卡「${card.nm || card.symbol || '投资机会'}」按标价 ${Math.round((S.orgBuyRate||0.2)*100)}% 转让给机构，换取现金 ${money(price)}`, 'info');
+  E.log(g, `${p.name} 把投资机会【${card.nm || card.symbol || '投资机会'}】转让给机构，获得信息费 ${money(price)}`, 'info', p.name);
+  return { ok:true, price, rate:S.orgBuyRate || 0.2 };
+}
+
+/* 与机构合伙人联合购买（202 大额房产的「联合购买」在单人下的等价形式）。
+   机构出 partnerShare 的首付、分走同比例的现金流 —— 现实里找投资人搭伙就是这样：
+   你出小头、让渡一部分收益，换来「买得起」。
+   精力按玩家自己承担的比例扣（跑流程的仍是他，所以不低于 partnerEnergy 那一档）。 */
+/* 机构合伙的分账：总首付 / 玩家出资 / 玩家占比 / 玩家月现金流。
+   界面上的「你自己出资」直接读这里，保证与实扣一致。 */
+function orgPartnerPlan(g, card){
+  const S = window.SOLO;
+  const total = dealCost(g, card, 1);
+  const orgShare = S.partnerShare || 0.5;
+  const share = 1 - orgShare;                        /* 玩家自己占的比例 */
+  return { total, orgShare, share, mine: Math.round(total * share),
+           cf: Math.round((card.cf || 0) * share),
+           energy: Math.max(1, Math.round(dealEnergy(card) * (S.partnerEnergy || 0.6))) };
+}
+
+function buyDealWithOrg(g, card){
+  const p = E.current(g), S = window.SOLO;
+  const plan = orgPartnerPlan(g, card);
+  const total = plan.total, orgShare = plan.orgShare, share = plan.share, mine = plan.mine;
+  if(!canPay(p, mine)) return { ok:false, msg:`机构出 ${Math.round(orgShare*100)}% 首付后，你仍需出资 ${money(mine)}，现金不足。` };
+  const en = needEnergy(p, plan.energy, `与机构合伙买入「${card.nm || '房产'}」`);
+  if(!en.ok) return { ok:false, msg:en.msg };
+  p.cash -= mine;
+  const cf = plan.cf;
+  p.assets.realEstate.push({
+    nm: card.nm + '（与机构共有）', dp: mine, cost: Math.round((card.cost || 0) * share),
+    cf, rent: Math.round((card.rent || 0) * share), share, joint: true, partner: '机构'
+  });
+  E.bump(p, 'dealsBought'); E.bump(p, 'investTotal', mine); E.bump(p, 'cfGained', cf);
+  E.milestone(g, p, `第 ${g.round} 轮与机构合伙买入「${card.nm}」，出资 ${money(mine)}（占比 ${Math.round(share*100)}%），月现金流 +${money(cf)}`, 'good');
+  E.log(g, `${p.name} 与机构合伙买入 ${card.nm}：机构出 ${money(total - mine)}（${Math.round(orgShare*100)}%），你出 ${money(mine)}（${Math.round(share*100)}%），月现金流 +${money(cf)}`, 'good', p.name);
+  return { ok:true, mine, share, cf, orgShare, total };
+}
+
 /* ------------------------------ 交易：现金/资产互易 ------------------------------ */
 function trade(g, aId, bId, cashFromA, priceLabel){
   const a = g.players[aId], b = g.players[bId];
@@ -645,6 +713,8 @@ window.Act = {
   exerciseOption, openShort, coverShort, escapeRatRace, buyout, trade,
   /* 人生模拟：精力校验 / 休假 / 补缺口 / 求职 */
   energyCost, dealEnergy, needEnergy, vacation, payDeficit, huntJob,
+  /* 单人模式：机构接盘（投资卡转让）与机构合伙（联合购买的替代） */
+  sellCardToOrg, buyDealWithOrg, orgBaseOf, orgPriceOf, orgPartnerPlan,
   /* 现金不变式：付不出时的两条出路 + 破产 */
   liquidate: E.liquidate, declareBankruptcy: E.declareBankruptcy
 };

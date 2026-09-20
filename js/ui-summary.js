@@ -585,7 +585,7 @@ function analyzeAll(g){
 function metaOf(g){
   return {
     rule: g.rule,
-    mode: E.isAgeMode(g) ? '年龄模式' : '无限模式',
+    mode: E.modeLabel(g),
     round: g.round,
     age: E.isAgeMode(g) ? E.ageOf(g) : null,
     endAge: g.endAge,
@@ -876,7 +876,7 @@ function reportHTML(g, pid){
             <div class="sum-hero__tags">
               <span class="chip" style="color:${toneColor};border-color:${toneColor}">${out.ico} ${esc(out.title)}</span>
               <span class="chip">${g.rule} 规则</span>
-              <span class="chip">${E.isAgeMode(g) ? '年龄模式' : '无限模式'}</span>
+              <span class="chip">${E.modeLabel(g)}</span>
               <span class="chip">第 ${g.round} 轮${E.isAgeMode(g) ? ' · ' + E.ageOf(g) + ' 岁' : ''}</span>
               <span class="chip">净资产第 ${rank} / ${g.players.length} 名</span>
             </div>

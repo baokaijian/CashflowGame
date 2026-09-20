@@ -226,6 +226,22 @@ function lifeChips(p, g){
 }
 
 /* ------------------------------ 开局设置 ------------------------------ */
+/* 单人模式要收掉「玩家人数」这一栏 —— 它是多人概念的残留，留着只会让人以为还能加人。
+   切回多人模式时必须完整还原（含上次选的人数），所以在进入单人前先把人数存起来。 */
+function applyModeUI(){
+  const solo = Setup.mode === 'solo';
+  if(solo){
+    if(Setup.count > 1) Setup.savedCount = Setup.count;
+    Setup.count = 1;
+  } else if(Setup.savedCount){
+    Setup.count = Setup.savedCount;
+  }
+  const fc = $('#fieldCount'), nl = $('#namesLabel'), hint = $('#modeHint');
+  if(fc) fc.hidden = solo;
+  if(nl) nl.textContent = solo ? '你的名字' : '玩家名称';
+  if(hint) hint.textContent = (window.GAME_MODES[Setup.mode] || {}).desc || '';
+  renderNames();
+}
 /* 开局页的「游戏规则」模块：把出圈条件与达成方式讲清楚。
    内容随规则版本实时切换 —— 101 与 202 的门槛倍数不同（×1 / ×2），
    达成方式的侧重点也不同，所以不能用一段写死的文案。 */
@@ -273,7 +289,26 @@ function renderSetupRules(){
         <li>在自己的<b>梦想格</b>付清费用即获胜</li>
       </ul>
     </div>
-    <p class="rules-foot">对局中每位玩家的席位卡上都有<b>实时出圈进度百分比</b>，财务面板里还能看到「还差多少」。</p>
+    ${Setup.mode === 'solo' ? `
+    <div class="rules-out">
+      <h4>🎯 单人模式 · 与自己的人生赛跑</h4>
+      <ul>
+        <li>只有你一位玩家，从 <b>20 岁走到 65 岁</b>，共 45 轮 —— 完整经历六个人生阶段
+          （起步期 → 成长期 → 巅峰期 → 平台期 → 冲刺期 → 退休期）</li>
+        <li><b>${window.SOLO.retireAge} 岁起工资停发</b>，改领养老金（基础工资的
+          ${Math.round(window.SOLO.pensionRatio * 100)}%），且养老金免征个税 ——
+          此后只能靠资产生活</li>
+        <li>没有其他玩家：投资卡可按标价 <b>${Math.round(window.SOLO.orgBuyRate * 100)}% 转让给机构</b>；
+          202 大额房产可与<b>机构合伙人</b>联合购买（机构出
+          ${Math.round(window.SOLO.partnerShare * 100)}% 首付、分走同比例现金流）</li>
+      </ul>
+      <p class="rules-note"><b>不排名次</b>，按「什么时候做到的」评人生评级 ——
+        <b>${window.SOLO.winAge} 岁前</b>出圈并实现梦想＝<b>人生赢家（S）</b>；
+        圆梦但晚于门槛＝大器晚成（A）；只出圈未圆梦＝B；未出圈看积累程度＝C／D；中途出局＝F。</p>
+    </div>` : ''}
+    <p class="rules-foot">${Setup.mode === 'solo'
+      ? '对局中财务面板会显示<b>当前人生阶段</b>与<b>消费档次</b>，以及距出圈还差多少。'
+      : '对局中每位玩家的席位卡上都有<b>实时出圈进度百分比</b>，财务面板里还能看到「还差多少」。'}</p>
   `;
 }
 
@@ -286,7 +321,8 @@ function initSetup(){
       $$('.segmented__item', segMode).forEach(x=>x.classList.remove('segmented__item--active'));
       b.classList.add('segmented__item--active');
       Setup.mode = b.dataset.v;
-      $('#modeHint').textContent = (window.GAME_MODES[Setup.mode] || {}).desc || '';
+      applyModeUI();
+      renderSetupRules();          /* 单人模式追加的规则说明要跟着出现／消失 */
     };
   });
   const segRule = $('#segRule');
@@ -313,7 +349,7 @@ function initSetup(){
       renderNames();
     };
   });
-  renderNames();
+  applyModeUI();                /* 首次进入即同步一次人数 / 名称栏的显隐 */
   renderSetupRules();           /* 首次进入即按当前规则版本填充 */
   $('#optShowAll').onchange = e => Setup.showAll = e.target.checked;
   $('#optFast').onchange = e => Setup.fast = e.target.checked;
@@ -334,7 +370,7 @@ function renderNames(){
     const d = document.createElement('div');
     d.className = 'name-grid__item';
     d.innerHTML = `<span class="name-grid__dot" style="background:${c.c}"></span>
-                   <input maxlength="8" placeholder="玩家${i+1}" value="${esc(old[i]||'')}">`;
+                   <input maxlength="8" placeholder="${Setup.mode === 'solo' ? '我' : '玩家'+(i+1)}" value="${esc(old[i]||'')}">`;
     grid.appendChild(d);
   }
 }
@@ -365,6 +401,6 @@ function activeTab(name){
 }
 
 window.UI = { $, $$, esc, money, pct, setTheme, initTheme, toggleTheme, toast, openModal, closeModal, requestClose,
-  confirmBox, renderIncome, renderAssets, renderLiabs, assetLine, line, initSetup, renderNames, Setup,
+  confirmBox, renderIncome, renderAssets, renderLiabs, assetLine, line, initSetup, renderNames, applyModeUI, Setup,
   initChrome, closeDrawer, activeTab, energyBar, escapeBar, lifeChips, renderSetupRules };
 })();

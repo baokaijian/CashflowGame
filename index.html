@@ -111,6 +111,7 @@
       <label class="field__label">游戏模式</label>
       <div class="segmented" id="segMode">
         <button class="segmented__item segmented__item--active" data-v="age">年龄模式</button>
+        <button class="segmented__item" data-v="solo">单人模式</button>
         <button class="segmented__item" data-v="endless">无限模式</button>
       </div>
       <p class="hint" id="modeHint">20 岁起步，每完成一整轮长 1 岁，65 岁退休结算，共 45 轮。</p>
@@ -125,13 +126,13 @@
       <p class="hint" id="ruleHint">跳出条件：被动收入 &gt; 总支出。仅做多，投资机会格只抽投资卡。</p>
     </div>
 
-    <div class="field">
+    <div class="field" id="fieldCount">
       <label class="field__label">玩家人数（2—6 人）</label>
       <div class="segmented" id="segCount"></div>
     </div>
 
-    <div class="field">
-      <label class="field__label">玩家名称</label>
+    <div class="field" id="fieldNames">
+      <label class="field__label" id="namesLabel">玩家名称</label>
       <div class="name-grid" id="nameGrid"></div>
     </div>
 

@@ -148,7 +148,16 @@ function resetGame(){
 /* ------------------------------ 总渲染 ------------------------------ */
 function renderAll(){
   if(!Game.g) return;
+  syncDrawerForMode(Game.g);
   renderBoard(); renderPlayers(); renderFinance(); renderLog(); renderRules(); renderSettings(); updateActions();
+}
+/* 抽屉里有两项是「多人专属」：玩家间交易、买断对手资产（202）。
+   单人模式没有对手，留着它们只会让人点进去看到一张空表。
+   注意这里是【隐藏】而不是删除 —— 切回多人模式时要能原样回来。 */
+function syncDrawerForMode(g){
+  const solo = E.isSolo(g);
+  const t = document.querySelector('.drawer__item[data-act="trade"]');
+  if(t) t.hidden = solo;
 }
 window.renderAll = renderAll;
 
@@ -233,6 +242,9 @@ function renderCenter(){
     </div>
     <div class="bc-stats">
       <div class="bc-stat"><span class="bc-stat__k">${E.isAgeMode(g)?'年龄 / 轮次':'轮次'}</span><b>${E.isAgeMode(g)? E.ageOf(g)+' 岁' : '第 '+g.round+' 轮'}<i>${E.isAgeMode(g)? '第 '+g.round+' 轮 · 距退休 '+E.yearsLeft(g)+' 年' : '无限模式'}</i></b></div>
+      ${E.isSolo(g) ? (()=>{ const st = E.soloStage(g), i = E.soloStageOf(g);
+        return `<div class="bc-stat"><span class="bc-stat__k">人生阶段 ${i+1}/${window.SOLO_STAGES.length}</span>
+          <b>${esc(st.nm)}<i>${esc(st.range)} · ${esc(st.tag)}</i></b></div>`; })() : ''}
       <div class="bc-stat"><span class="bc-stat__k">当前玩家</span><b style="color:${cur.color}">${esc(cur.name)}</b></div>
       <div class="bc-stat"><span class="bc-stat__k">手头现金</span><b>${money(cur.cash)}</b></div>
       <div class="bc-stat"><span class="bc-stat__k">月现金流</span><b class="${E.finance(cur).cashflow<0?'neg':''}">${money(E.finance(cur).cashflow)}</b></div>
@@ -390,6 +402,32 @@ function renderFinance(){
 
     <div class="sec">
       <div class="sec__title"><span>精力与人生状态</span><span>${E.isAgeMode(g) ? E.ageOf(g)+' 岁 · 距退休 '+E.yearsLeft(g)+' 年' : '无限模式'}</span></div>
+      ${(function(){
+        /* 人生阶段卡片：只呈现叙事 + 当前实时的曲线值。
+           数值全部读自引擎（salary / lifeCoef / elderCare / energyMax），
+           阶段表本身不含任何业务数值 —— 否则会出现「阶段说 ×1.35、工资表说 ×1.20」。 */
+        if(!E.isSolo(g)) return '';
+        const i = E.soloStageOf(g), st = window.SOLO_STAGES[i];
+        return `<div class="stage-card">
+          <div class="stage-card__hd">
+            <span class="stage-card__no">人生阶段 ${i+1} / ${window.SOLO_STAGES.length}</span>
+            <b>${esc(st.nm)}</b>
+          </div>
+          <div class="stage-card__steps">${window.SOLO_STAGES.map((_, k)=>
+            `<span class="${k <= i ? 'on' : ''}${k === i ? ' cur' : ''}"></span>`).join('')}</div>
+          <div class="stage-card__meta">
+            <span>${esc(st.range)} · ${esc(st.tag)}</span>
+            <span>核心：<b>${esc(st.tension)}</b></span>
+          </div>
+          <div class="stage-card__vals">
+            <span>主动收入 <b>${money(p.salary)}</b>${p.retired ? '（养老金）' : '（工资）'}</span>
+            <span>生活支出 <b>×${p.lifeCoef}</b></span>
+            <span>赡养 <b>${p.elderCare > 0 ? money(p.elderCare) + '/月' : '无'}</b></span>
+            <span>精力上限 <b>${E.energyMax(g, p)}</b></span>
+          </div>
+          <p class="hint">${esc(st.note)}</p>
+        </div>`;
+      })()}
       <div class="energy-panel">
         <div class="energy-panel__hd">
           <span>精力（决定你还能同时推进多少事）</span>
@@ -539,7 +577,7 @@ function renderSettings(){
     <div class="sec">
       <div class="sec__title">游戏信息</div>
       <div class="rowlist">
-        <div class="rowlist__row"><span>游戏模式</span><b>${E.isAgeMode(g) ? '年龄模式' : '无限模式'}</b></div>
+        <div class="rowlist__row"><span>游戏模式</span><b>${E.modeLabel(g)}${E.isSolo(g) ? ` · ${E.soloStage(g).nm}` : ''}</b></div>
         <div class="rowlist__row"><span>规则版本</span><b>${g.rule} 规则</b></div>
         <div class="rowlist__row"><span>玩家人数</span><b>${g.players.length} 人</b></div>
         <div class="rowlist__row"><span>当前轮次</span><b>第 ${g.round} 轮${E.isAgeMode(g) ? ` / 共 ${E.maxRounds(g)} 轮` : ''}</b></div>
@@ -832,7 +870,11 @@ function onMenu(act){
       break;
     case 'help': openHelp(); break;
     case 'loan': openLoanCenter(); break;
-    case 'trade': openTrade(); break;
+    case 'trade':
+      /* 单人下不是「禁用」，而是明确告知替代路径 —— 玩家看到「按钮不见了」会困惑，
+         看到「改用机构转让」才知道该怎么做。 */
+      if(E.isSolo(g)) return U.toast('单人模式没有其他玩家：抽到的投资卡可在卡片弹层里「转让给机构」，无需玩家间交易。', 'info');
+      openTrade(); break;
     case 'short': openShortPanel(); break;
     case 'summary': window.UiSummary.openSummary(); break;
     case 'surrender': surrenderFlow(); break;
@@ -1263,6 +1305,10 @@ function openShortPanel(){
 /* ------------------------------ 胜利 ------------------------------ */
 function winnerModal(){
   const g = Game.g;
+  if(E.isSolo(g) && g.soloResult) return soloResultModal(g);
+  return winnerModalMulti(g);
+}
+function winnerModalMulti(g){
   const p = (g.winner != null) ? g.players[g.winner] : null;   /* 全员破产时为 null */
   U.openModal(`
     <div class="modal__head"><h3 class="crown">${p ? '🏆 游戏结束' : '🏁 游戏结束'}</h3></div>
@@ -1306,6 +1352,69 @@ function winnerModal(){
       };
     }});
 }
+
+/* 单人模式的结算页：不排名次，只回答「这一生走到了哪一步」。
+   评级 / 结局 / 达成时间 / 关键数字全部读自 g.soloResult（引擎算一次，界面只展示）。 */
+const SOLO_TONE = { S:'var(--green)', A:'var(--green)', B:'var(--accent)',
+                    C:'var(--orange)', D:'var(--orange)', F:'var(--red)' };
+function soloResultModal(g){
+  const S = g.soloResult, p = g.players[0];
+  const tone = SOLO_TONE[S.grade] || 'var(--accent)';
+  const f = E.finance(p), cls = E.socialClassOf(g, p);
+  const reached = S.endAgeNow >= S.endAge;
+  return U.openModal(`
+    <div class="modal__head"><h3>${S.win ? '🏆 人生结算' : '🏁 人生结算'}</h3></div>
+    <div class="modal__body">
+      <div class="solo-hero" style="--sc:${tone}">
+        <div class="solo-hero__grade">${esc(S.grade)}</div>
+        <div class="solo-hero__t">
+          <b style="color:${tone}">${esc(S.label)}</b>
+          <small>${reached ? `走完 ${g.startAge}—${g.endAge} 岁，共 ${E.maxRounds(g)} 轮` : `人生在 ${S.endAgeNow} 岁提前结束`}</small>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:10px">${esc(S.reason)}</p>
+
+      <div class="sec__title" style="margin-top:16px">关键时间点</div>
+      <div class="rowlist">
+        <div class="rowlist__row"><span>跳出老鼠赛跑</span><b>${S.escapeAge != null ? S.escapeAge + ' 岁' : '未出圈'}</b></div>
+        <div class="rowlist__row"><span>实现梦想</span><b>${S.dreamAge != null ? S.dreamAge + ' 岁' : '未达成'}</b></div>
+        <div class="rowlist__row"><span>人生赢家门槛</span><b>${S.winAge} 岁前</b></div>
+        <div class="rowlist__row"><span>结束时间</span><b>${S.endAgeNow} 岁 · 第 ${S.endRound} 轮</b></div>
+      </div>
+
+      <div class="sec__title" style="margin-top:16px">最终状态</div>
+      <div class="rowlist">
+        <div class="rowlist__row"><span>社会等级</span><b>L${S.lv} · ${esc(S.levelName)}</b></div>
+        <div class="rowlist__row"><span>被动收入覆盖度</span><b>${Math.round(S.cover * 100)}%（${money(S.passive)} / 门槛 ${money(S.target)}）</b></div>
+        <div class="rowlist__row"><span>净资产</span><b>${money(S.netWorth)}</b></div>
+        <div class="rowlist__row"><span>月现金流</span><b class="${f.cashflow < 0 ? 'neg' : ''}">${money(f.cashflow)}</b></div>
+        <div class="rowlist__row"><span>退休状态</span><b>${p.retired ? '已退休 · 领取养老金' : '尚未退休'}</b></div>
+        <div class="rowlist__row"><span>健康危机 / 失业</span><b>${num(p.stats.crises)} 次 / ${num(p.stats.downsized)} 次</b></div>
+      </div>
+      ${cls.lv < 6 ? `<p class="hint" style="margin-top:10px">距 L6 财务自由还差
+        <b>${money(Math.max(0, cls.target - cls.passive))}</b> 的月被动收入 ——
+        这正是本局最值得复盘的差距。</p>` : ''}
+    </div>
+    <div class="modal__foot">
+      <button class="btn btn--text" data-close>查看棋盘</button>
+      <button class="btn btn--tonal" data-export>⬇️ 导出分析</button>
+      <button class="btn btn--tonal" data-restart>再来一局</button>
+      <button class="btn btn--primary" data-summary>📊 查看复盘报告</button>
+    </div>`,
+    { onMount(m){
+      $('[data-close]', m).onclick = U.closeModal;
+      $('[data-restart]', m).onclick = ()=>{ U.closeModal(); onMenu('restart'); };
+      $('[data-export]', m).onclick = ()=>{
+        try{
+          const Su = window.UiSummary;
+          Su.download(Su.exportName(g, 'md'), Su.exportMarkdown(g), 'text/markdown');
+          U.toast('已导出本局分析报告', 'ok');
+        }catch(e){ U.toast('导出失败：' + e.message, 'err'); }
+      };
+      $('[data-summary]', m).onclick = ()=>{ U.closeModal(); window.UiSummary.openSummary(p.id); };
+    }});
+}
+function num(v){ return Math.round(v || 0); }
 
 /* ------------------------------ 健康危机提示 ------------------------------ */
 /* 精力归零触发。这里要把「怎么变成这样的」讲清楚，并给出可执行的恢复路径，

@@ -239,6 +239,10 @@ function showDealCard(g, p, card, P){
   const energyOK = Math.round(p.energy) >= eCost;
   const minCost = A.dealCost(g, card, card.min||1);
   const others = g.players.filter(x=>x.id!==p.id && !x.out);
+  const solo = E.isSolo(g);
+  /* 机构的分账与报价读自引擎的纯函数 —— 界面上写的数字必须与实扣一致 */
+  const orgPlan = A.orgPartnerPlan(g, card);
+  const orgRate = Math.round((window.SOLO.orgBuyRate || 0.2) * 100);
 
   const qtyHtml = unitDeal ? `
     <div class="sec__title">购买数量（${card.min} — ${card.max}）</div>
@@ -249,7 +253,21 @@ function showDealCard(g, p, card, P){
       <button class="btn btn--s btn--outline" data-max>全部买入（${money(card.price*card.max)}）</button>
     </div>`: '';
 
-  const jointHtml = (card.kind==='realestate' && card.joint) ? `
+  const jointHtml = (card.kind==='realestate' && card.joint) ? (solo ? `
+    <div class="sec__title" style="margin-top:12px">与机构合伙人联合购买</div>
+    <p class="hint">你只有一个人，没法和其他玩家凑首付 —— 但可以找机构搭伙：
+      机构出 <b>${Math.round(orgPlan.orgShare*100)}%</b> 首付、分走同比例的现金流。
+      现实里找投资人就是这样：<b>让渡一部分收益，换来「买得起」</b>。</p>
+    <div class="rowlist">
+      <div class="rowlist__row"><span>你自己出资</span><b>${money(orgPlan.mine)}</b></div>
+      <div class="rowlist__row"><span>你将获得的月现金流</span><b>+${money(orgPlan.cf)}</b></div>
+      <div class="rowlist__row"><span>牵头所需精力</span><b>${orgPlan.energy}</b></div>
+    </div>
+    <label class="switch" style="margin-top:10px">
+      <input type="checkbox" id="orgPartner">
+      <span class="switch__track"><span class="switch__thumb"></span></span>
+      <span class="switch__label">引入机构合伙人（首付减半 · 现金流减半）</span>
+    </label>` : `
     <div class="sec__title" style="margin-top:12px">202 联合购买</div>
     <p class="hint">可与多名玩家共同购买，按出资比例分配现金流与资本利得。需要首付 ${money(card.dp)}，你的现金 ${money(p.cash)}。</p>
     <div class="rowlist" id="jointRows">
@@ -258,9 +276,20 @@ function showDealCard(g, p, card, P){
         <input type="number" class="textfield" style="width:120px;padding:6px 8px" data-jamt="${o.id}" value="0" step="1000" min="0">
       </div>`).join('')}
       <div class="rowlist__row"><span>你需出资</span><b id="jointMine">${money(card.dp)}</b></div>
-    </div>` : '';
+    </div>`) : '';
 
-  const sellHtml = others.length ? `
+  const sellHtml = solo ? `
+    <div class="sec__title" style="margin-top:12px">把投资卡转让给机构</div>
+    <p class="hint">单人模式下没有其他玩家可以接手。自己买不起时，
+      可以把这张机会按标价 <b>${orgRate}%</b> 转让给机构换取信息费
+      （现实对应：把项目信息卖给中介 / 同行）。</p>
+    <div class="rowlist">
+      <div class="rowlist__row">
+        <span>机构接盘价（标价 ${money(A.orgBaseOf(card))} 的 ${orgRate}%）</span>
+        <span><b>${money(A.orgPriceOf(card))}</b>
+        <button class="btn btn--s btn--outline" data-orgsell>转让</button></span>
+      </div>
+    </div>` : (others.length ? `
     <div class="sec__title" style="margin-top:12px">把投资卡卖给其他玩家</div>
     <p class="hint">自己买不起时，可以把抽到的投资卡出售给其他玩家换取现金（对方需自付首付）。</p>
     <div class="rowlist">
@@ -269,7 +298,7 @@ function showDealCard(g, p, card, P){
         <span><input type="number" class="textfield" style="width:110px;padding:6px 8px" data-sp="${o.id}" value="1000" step="500" min="0">
         <button class="btn btn--s btn--outline" data-sellto="${o.id}">出售</button></span>
       </div>`).join('')}
-    </div>` : '';
+    </div>` : '');
 
   U.openModal(`
     <div class="modal__head"><h3>${card.deck==='big'||card.deck==='cashflow'?'🏢':'💡'} ${esc(card.nm||card.symbol)}</h3></div>
@@ -293,9 +322,15 @@ function showDealCard(g, p, card, P){
       const upd = ()=>{
         const n = q ? Math.max(card.min, Math.min(card.max, Math.round(+q.value||card.min))) : 1;
         const c = A.dealCost(g, card, n);
-        $('#needCost', m).textContent = money(c);
+        /* 勾了机构合伙人 → 实付与精力都按合伙方案算，否则按钮状态会与实际扣款脱节 */
+        const orgCb = $('#orgPartner', m);
+        const useOrg = !!(orgCb && orgCb.checked);
+        const need = useOrg ? orgPlan.mine : c;
+        const needEnergy = useOrg ? orgPlan.energy : A.dealEnergy(card);
+        $('#needCost', m).textContent = money(need);
         const b = $('[data-buy]', m);
-        b.disabled = (p.cash < c) || (Math.round(p.energy) < A.dealEnergy(card));
+        b.textContent = useOrg ? '与机构合伙买入' : '确认买入';
+        b.disabled = (p.cash < need) || (Math.round(p.energy) < needEnergy);
         if(q) q.value = n;
         /* 联合购买：你需出资 */
         if($('#jointMine', m)){
@@ -313,6 +348,14 @@ function showDealCard(g, p, card, P){
         $('[data-max]',m).onclick   = ()=>{ q.value = card.max; upd(); };
       }
       $$('[data-jp]',m).forEach(cb=>{ cb.onchange = upd; });
+      if($('#orgPartner',m)) $('#orgPartner',m).onchange = upd;
+      if($('[data-orgsell]',m)) $('[data-orgsell]',m).onclick = ()=>{
+        const r = A.sellCardToOrg(g, card);
+        if(!r.ok) return U.toast(r.msg, 'err');
+        finishTurnAction();
+        window.UiGame.renderAll();
+        U.toast(`已转让给机构，获得信息费 ${money(r.price)}`, 'ok');
+      };
       $$('[data-jamt]',m).forEach(inp=>{ inp.oninput = upd; });
       $('[data-pass]',m).onclick = ()=>{
         E.bump(p, 'dealsPassed');
@@ -331,6 +374,17 @@ function showDealCard(g, p, card, P){
       const buyBtn = $('[data-buy]',m);
       buyBtn.onclick = ()=>{
         const n = q ? Math.max(card.min, Math.min(card.max, Math.round(+q.value||card.min))) : 1;
+        /* 单人模式：勾了机构合伙人就走合伙路径（实扣只是自己那一半首付） */
+        const orgCb = $('#orgPartner', m);
+        if(orgCb && orgCb.checked){
+          const r = A.buyDealWithOrg(g, card);
+          if(!r.ok) return U.toast(r.msg, 'err');
+          finishTurnAction();
+          window.UiGame.renderAll();
+          U.toast(`与机构合伙买入成功：你出资 ${money(r.mine)}（${Math.round(r.share*100)}%），月现金流 +${money(r.cf)}`, 'ok');
+          checkEscapePrompt(g, p);
+          return;
+        }
         const useJoint = $('#jointMine', m) && card.kind==='realestate' && card.joint;
         if(useJoint){
           const parts = [];
