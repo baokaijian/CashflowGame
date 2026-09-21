@@ -1490,6 +1490,40 @@ function movePlayer(g, p, steps){
 }
 
 /* ------------------------------ 格子结算 ------------------------------ */
+/* 「经过结算格（发薪日 / 分红日）但未停留」时的提示数据。
+   ★ 为什么需要它：结算本身发生在 movePlayer（经过与到达都结算），
+     但界面原本只在【停在】结算格时才弹确认面板 —— 仅经过时只有一条日志，
+     玩家看到现金涨了却不知道是发薪，也不知道涨的是哪几年的钱。
+
+   ★ 两个「不提示」的分支，都是为了不重复播报同一件事：
+     ① 停在结算格 —— resolveSpace 会弹出一个完整的确认面板（结算年数 / 金额 / 略过次数）；
+     ② 纯入不敷出 —— resolveSpace 会优先弹出入不敷出面板处理缺口。
+     两者都比一条 Toast 说得更清楚，再叠一条就是同一件事说两遍。
+
+   ★ 本函数只返回【数据】，不拼文案、不碰 DOM ——
+     与「判定归引擎，文案归 UI」的既有约定一致（也使它能被 Node 侧直接断言）。 */
+function paydayNoticeOf(g, landed, inFT){
+  if(!landed || !landed.settled) return null;
+  const st = landed.settled, sp = landed.space;
+  const settleType = inFT ? 'cashflowday' : 'paycheck';
+  if(sp && sp.t === settleType) return null;          /* ① 停在结算格 → 交给确认面板 */
+  if(st.deficit > 0 && st.amount <= 0) return null;    /* ② 纯入不敷出 → 交给入不敷出面板 */
+  return {
+    /* 'paid' = 确实发了钱（amount 可能为 0：收支恰好打平，但账确实结了）
+       'already' = 踩到了结算格，可这一年的账之前已经结过，本次不再发钱 */
+    kind: st.yearsPaid === 0 ? 'already' : 'paid',
+    inFT: !!inFT,
+    years: st.yearsPaid,        /* 本次实际结算的年数（可能是多年） */
+    amount: st.amount,          /* 实发金额（与入账同源，界面不再自己算） */
+    deficit: st.deficit,        /* 同一次移动里另有入不敷出的部分 */
+    count: st.count,            /* 本回合经过几个结算格 */
+    skipped: st.skipped,        /* 其中几个因「本年已结」而略过 */
+    since: st.since,            /* 本次结算的起点年龄 */
+    age: g ? ageOf(g) : null,   /* 结到几岁 */
+    landedType: sp ? sp.t : null
+  };
+}
+
 function resolveSpace(g, p, landed){
   /* 入不敷出优先处理：现金是硬约束，钱的问题没解决，后面的格子事件没有意义。
      处理完之后界面会带着 landed 回到这里，继续走原来的落格事件。 */
@@ -1970,7 +2004,7 @@ function doodadCost(g, p, card){
 window.Engine = {
   money, moneyK, shuffle, pick, finance, escapeTarget, escapeProgress, ftMonthly, netWorth,
   newGame, current, alivePlayers, beginTurn, nextPlayer, endTurn, diceCount, rollDice,
-  movePlayer, resolveSpace, clearPending, setPending, drawDeal, drawMarket, drawCard,
+  movePlayer, resolveSpace, paydayNoticeOf, clearPending, setPending, drawDeal, drawMarket, drawCard,
   log, expireOptions, checkBankruptcy, settleNegativeCash, checkLastStanding, win, ftMonthlyIncome: ftMonthly,
   RING_LEN, ASSET_KEYS, liquidatableValue, applyPortfolio, deckLeft,
   /* 现金不变式：现金永不为负 */

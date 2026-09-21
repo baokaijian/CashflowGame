@@ -25,6 +25,41 @@ function toggleTheme(){
 }
 
 /* ------------------------------ Toast ------------------------------ */
+/* 发薪 / 分红的即时提示 —— 只在【经过结算格但未停留】时出现。
+   为什么用 Toast 而不是弹层：经过是常态（内圈每轮约 0.44 次，一生约 20 次），
+   每次都要求点一次「确定」会变成纯粹的点击负担；而停在结算格时已经有确认弹层。
+   数据全部来自 Engine.paydayNoticeOf —— 界面不自己判断「该不该提示」，
+   也不自己算金额（否则迟早出现「提示写 ¥674、到账 ¥8,088」这类账实不符）。 */
+function paydayNotice(n){
+  if(!n) return false;
+  const nm = n.inFT ? '分红' : '发薪';
+
+  /* 踩到了结算格，可这一年的账之前已经结过 —— 必须明说，
+     否则玩家看到「什么都没发生」会以为系统漏发了。 */
+  if(n.kind === 'already'){
+    /* 与「已发薪」保持同一套两行结构：第一行是「发生了什么」，第二行是「为什么没有钱」。
+       若只写一行整句，两种提示在同一位置会呈现成完全不同的版式。 */
+    toast(`💰 经过${nm}日<span class="toast__sub">${n.age} 岁这一年的账已结过，本次不再重复${nm}</span>`, null);
+    return true;
+  }
+
+  /* 第二行放细节：一次结几年、本回合经过几次、是否另有缺口。
+     变长的是「说明」而不是「金额」——金额永远固定在第一行，保证一眼可见。 */
+  const sub = [];
+  if(n.years > 1) sub.push(`自 ${n.since} 岁以来 ${n.years} 年一次结清`);
+  else sub.push(`结算 ${n.age} 岁这一年`);
+  if(n.count > 1 && n.skipped > 0)
+    sub.push(`本回合经过 ${n.count} 个${nm}日，${n.skipped} 个因本年已结而略过`);
+  if(n.deficit > 0) sub.push(`另有 ${money(n.deficit)} 入不敷出，需另行补上`);
+
+  const tone = n.deficit > 0 ? 'err' : 'ok';
+  const head = n.amount > 0
+    ? `💰 已${nm} <b>${money(n.amount)}</b>`
+    : `${nm}日结算：收支恰好打平`;
+  toast(`${head}<span class="toast__sub">${sub.join(' · ')}</span>`, tone);
+  return true;
+}
+
 function toast(msg, type){
   const host = $('#toastHost');
   /* 最多同时保留 3 条：提示堆叠过高会向下蔓延到「掷骰子 / 结束回合」所在的操作区，
@@ -442,5 +477,5 @@ function activeTab(name){
 
 window.UI = { $, $$, esc, money, pct, setTheme, initTheme, toggleTheme, toast, openModal, closeModal, requestClose,
   confirmBox, renderIncome, renderAssets, renderLiabs, assetLine, line, initSetup, renderNames, applyModeUI, Setup,
-  initChrome, closeDrawer, activeTab, energyBar, escapeBar, lifeChips, renderSetupRules };
+  initChrome, closeDrawer, activeTab, energyBar, escapeBar, lifeChips, renderSetupRules, paydayNotice };
 })();

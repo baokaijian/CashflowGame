@@ -832,6 +832,11 @@ function finishRoll(dice){
   const res = E.movePlayer(g, p, sum);
   Game.rolled = true;
   Game.animating = false;
+  /* ★ 发薪提示：现金已在这里进账（movePlayer 内完成结算），
+     所以提示必须紧随其后 —— 落在 resolveSpace 之前，玩家先看到「已发薪」，
+     随后才是所在格子的面板。停在结算格与纯入不敷出时 paydayNoticeOf 返回 null，
+     由对应的弹层负责说明（见该函数的注释）。 */
+  U.paydayNotice(E.paydayNoticeOf(g, res, p.inFT));
   E.resolveSpace(g, p, res);
   renderAll();
     if(g.pending) {

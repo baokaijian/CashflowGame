@@ -4,6 +4,8 @@
      ② 结算会不会重复、会不会遗漏？
      ③ 年龄（一轮 = 一年）与发薪（落格触发）两个时钟是否对齐？
      ④ 边界：一回合经过多个发薪日、还清贷款、入不敷出、出圈、暂停回合。
+     ⑤ 「经过但未停留」时是否给出即时提示，且与「停在结算格」「纯入不敷出」
+        两种由弹层通知的情形互斥而不重复。
 
    运行：node test/payday-trigger.js      退出码 0 = 全部通过
 
@@ -496,10 +498,155 @@ sec('⑭ 边界：无限模式的年龄');
   warn('   所以 66 岁之后收入与支出结构会永久停在「职场后期」这一档。属可接受的建模截断。');
 }
 
+/* ---------------- ⑮ 发薪提示（经过结算格但未停留） ---------------- */
+sec('⑮ 发薪提示：经过结算格（未停留）时的即时通知');
+{
+  /* ★ 这条提示只覆盖【经过但未停留】这一种情形：
+       停在结算格时 resolveSpace 会弹出完整的确认面板（结算年数 / 金额 / 略过次数），
+       纯入不敷出时则会先弹入不敷出面板 —— 两者都比一条提示说得更清楚，
+       再叠一条就是同一件事说两遍。下面把四种情形逐一钉住。 */
+
+  /* ① 经过发薪日、落在别的格 → 应提示，且金额与实发同源 */
+  {
+    const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 20260920 });
+    const p = fixCareer(g, '软件工程师');
+    p.settledAge = g.startAge - 1;
+    p.pos = (payIn[0] - 1 + RING) % RING;          /* 发薪日前一格 */
+    const ld = E.movePlayer(g, p, 2);              /* 走 2 步：经过发薪日，落在它后一格 */
+    ok(ld.path[0] === payIn[0] && ld.space.t !== 'paycheck',
+       `构造正确：路径 ${JSON.stringify(ld.path)} 穿过发薪日（${payIn[0]}）但落在「${ld.space.t}」`);
+    const n = E.paydayNoticeOf(g, ld, p.inFT);
+    ok(!!n, '经过发薪日 → 产生了提示数据');
+    ok(n && n.kind === 'paid', `kind = ${n && n.kind}（确实发了钱）`);
+    /* 金额必须与实发同源：界面不再自己算，否则迟早出现「提示写 ¥674、到账 ¥8,088」 */
+    ok(n && n.amount === ld.collected && n.amount > 0,
+       `提示金额 ${money(n && n.amount)} 与实发入账 ${money(ld.collected)} 同源`);
+    ok(n && n.since + n.years === n.age,
+       `年龄自洽：自 ${n && n.since} 岁结到 ${n && n.age} 岁（覆盖 ${n && n.years} 年）`);
+    ok(n && n.count === 1 && n.skipped === 0,
+       `本回合经过 ${n && n.count} 个发薪日、无略过（提示不需要解释「略过」）`);
+  }
+
+  /* ② 停在发薪日格 → 不提示（交给确认面板） */
+  {
+    const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 20260920 });
+    const p = fixCareer(g, '软件工程师');
+    p.settledAge = g.startAge - 1;
+    p.pos = (payIn[0] - 1 + RING) % RING;
+    const ld = E.movePlayer(g, p, 1);              /* 走 1 步：停在发薪日 */
+    ok(ld.space.t === 'paycheck', '构造正确：停在发薪日格');
+    ok(E.paydayNoticeOf(g, ld, p.inFT) === null,
+       '停在结算格时不产生提示（由确认面板负责，避免同一件事说两遍）');
+  }
+
+  /* ③ 同一年内再次经过 → 提示「本年已结」，而不是让玩家以为漏发 */
+  {
+    const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 20260920 });
+    const p = fixCareer(g, '软件工程师');
+    p.settledAge = g.startAge - 1;
+    p.pos = (payIn[0] - 1 + RING) % RING;
+    E.movePlayer(g, p, 2);                         /* 第一次：结清（settledAge 推到当前年龄） */
+    const ageA = E.ageOf(g);
+    p.pos = (payIn[0] - 1 + RING) % RING;
+    const ld2 = E.movePlayer(g, p, 2);             /* 第二次：同一岁，本年已结 */
+    ok(ld2.settled.yearsPaid === 0 && ld2.collected === 0,
+       `${ageA} 岁这一年内再次经过：结算 0 年、入账 0（一年只结一次账）`);
+    const n = E.paydayNoticeOf(g, ld2, p.inFT);
+    ok(!!n && n.kind === 'already',
+       `仍然产生提示（kind = ${n && n.kind}）—— 明说「本年已结」，不让玩家以为系统漏发`);
+    ok(n && n.count === 1 && n.skipped === 1,
+       `并说明踩到了 ${n && n.count} 个、其中 ${n && n.skipped} 个因本年已结而略过`);
+  }
+
+  /* ④ 纯入不敷出 → 不提示（由入不敷出面板接管） */
+  {
+    const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 7 });
+    const p = fixCareer(g, '小区保安');
+    p.cash = 0; p.liabs.bank = 999999; p.loans = null; E.ensureLoans(p);
+    p.settledAge = g.startAge - 1;
+    p.pos = (payIn[0] - 1 + RING) % RING;
+    const ld = E.movePlayer(g, p, 2);
+    ok(ld.deficit > 0 && ld.collected === 0, `构造正确：年度结余为负（缺口 ${money(ld.deficit)}）`);
+    ok(E.paydayNoticeOf(g, ld, p.inFT) === null,
+       '纯入不敷出时不产生发薪提示（由入不敷出面板负责，它会把缺口讲得更清楚）');
+    ok(E.resolveSpace(g, p, ld).type === 'deficit', '确认此时弹出的确实是「入不敷出」面板');
+  }
+
+  /* ⑤ 财务自由圈的分红日同样适用（换用「分红日」的说法） */
+  {
+    const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 19 });
+    const p = fixCareer(g, '小区保安');
+    p.inFT = true; p.ftPos = 0;
+    p.assets.ftBusiness.push({ nm: '测试企业', cost: 100000, cf: 5000 });
+    const ld = E.movePlayer(g, p, 2);              /* 外圈 0 → 经过 1（分红日）→ 落在 2 */
+    ok(ld.path[0] === payFt[0] && ld.space.t !== 'cashflowday',
+       `构造正确：经过分红日（${payFt[0]}）但落在「${ld.space.t}」`);
+    const n = E.paydayNoticeOf(g, ld, p.inFT);
+    ok(!!n && n.kind === 'paid' && n.inFT === true,
+       `自由圈同样提示，且标记为「分红」而非「发薪」（inFT = ${n && n.inFT}）`);
+    ok(n && n.amount === ld.collected && n.amount > 0,
+       `分红提示金额 ${money(n && n.amount)} 与实发同源`);
+  }
+
+  /* ⑥ 没有经过结算格 → 不提示（不能凭空多出一条提示） */
+  {
+    const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 20260920 });
+    const p = fixCareer(g, '软件工程师');
+    let quiet = 0;
+    for (let i = 0; i < RING; i++) {
+      if (window.RAT_RACE[i].t !== 'paycheck' && window.RAT_RACE[(i + 1) % RING].t !== 'paycheck') { quiet = i; break; }
+    }
+    p.pos = quiet;
+    const ld = E.movePlayer(g, p, 1);
+    ok(ld.settled === null, `路径 ${JSON.stringify(ld.path)} 未经过结算格（settled = null）`);
+    ok(E.paydayNoticeOf(g, ld, p.inFT) === null, '未经过结算格时不产生任何提示');
+  }
+
+  /* ⑦ 长局：三种通知方式必须【互斥且穷尽】—— 同一件事不会被说两遍，也不会一次都不说 */
+  {
+    const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 20260920 });
+    const p = fixCareer(g, '软件工程师');
+    let turns = 0, settleTurns = 0, viaToast = 0, viaModal = 0, viaDeficit = 0, alreadyN = 0;
+    while (!g.over && turns < 200 && !p.out) {
+      turns++;
+      const cur = E.current(g);
+      if (!cur || cur.out) { E.nextPlayer(g); continue; }
+      let gd = 0; while (g.pending && gd++ < 60) E.clearPending(g);
+      if (E.isJobless(cur) && cur.energy >= 12) A.huntJob(g);
+      if (!cur.pausedThisTurn) {
+        const dn = E.diceCount(g, cur);
+        const d = E.rollDice(g, dn);
+        const ld = E.movePlayer(g, cur, d.reduce((a, b) => a + b, 0));
+        const st = ld.settled;
+        if (st && st.yearsPaid > 0) {
+          settleTurns++;
+          const onSettle = !!(ld.space && (cur.inFT ? ld.space.t === 'cashflowday' : ld.space.t === 'paycheck'));
+          if (onSettle) viaModal++;                              /* 确认面板 */
+          else if (st.deficit > 0 && st.amount <= 0) viaDeficit++; /* 入不敷出面板 */
+          else viaToast++;                                        /* 本次新增的提示 */
+        }
+        const nt = E.paydayNoticeOf(g, ld, cur.inFT);
+        if (nt && nt.kind === 'already') alreadyN++;
+        E.resolveSpace(g, cur, ld);
+        let g2 = 0; while (g.pending && g2++ < 60) E.clearPending(g);
+      }
+      E.endTurn(g);
+    }
+    ok(viaToast > 0,
+       `一生中有 ${viaToast} 个回合「经过结算格但未停留且有金额进账」—— 这正是本提示覆盖的场景`);
+    ok(settleTurns === viaToast + viaModal + viaDeficit,
+       `结算回合 ${settleTurns} = 提示 ${viaToast} + 确认面板 ${viaModal} + 入不敷出面板 ${viaDeficit}`
+       + '（三种通知方式互斥且穷尽）');
+    ok(viaToast / Math.max(1, settleTurns) > 0.2,
+       `其中 ${(viaToast / Math.max(1, settleTurns) * 100).toFixed(0)}% 靠本提示覆盖 —— 没有它，这些回合在界面上是「静默」的`);
+    warn(`   · 本局另出现 ${alreadyN} 次「本年已结」提示（踩到了但不再发钱，明说以免像是漏发）。`);
+  }
+}
+
 /* ---------------- 结论 ---------------- */
 OUT.push('', '─'.repeat(72));
 OUT.push(fail === 0
-  ? `✅ 发薪日触发审计全部通过（到达 / 经过 / 不重复 / 不遗漏 / 年龄时机 / 边界），共 ${pass} 项`
+  ? `✅ 发薪日触发审计全部通过（到达 / 经过 / 不重复 / 不遗漏 / 年龄时机 / 发薪提示 / 边界），共 ${pass} 项`
   : `❌ 有 ${fail} 项未通过（通过 ${pass} 项）`);
 OUT.push(`   已知偏差以 ⚠️ 标出（${OUT.filter(l => l.indexOf('⚠️') >= 0).length} 条），属待决策项，不计入通过/失败。`);
 console.log(OUT.join('\n'));

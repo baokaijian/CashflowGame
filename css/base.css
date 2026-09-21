@@ -328,6 +328,9 @@ button{cursor:pointer;}
   box-shadow:var(--shadow-3);font-size:14px;line-height:1.5;letter-spacing:-.01em;
   animation:toastIn .34s var(--ease-out);
 }
+/* 次要行（结算年数 / 略过次数 / 缺口说明）：与主行的金额拉开层级。
+   不加这一条，所有细节会挤在 440px 宽的一行里折成三四行，金额反而被淹没。 */
+.toast__sub{display:block;margin-top:4px;font-size:12px;font-weight:400;line-height:1.5;opacity:.78;}
 .toast--ok{color:#6ee787;}
 .toast--err{color:#ff8a85;}
 @keyframes toastIn{from{opacity:0;transform:translateY(-14px) scale(.96)}to{opacity:1;transform:none}}

@@ -4,7 +4,7 @@
 > [`发薪日触发审计.md`](发薪日触发审计.md)（审计结论与待决策项）。
 > 本文记录**待决策项 №1 的落地**：让「金钱时钟」跟上「年龄时钟」，并配一轮价格标定。
 >
-> 可复跑：`node test/payday-trigger.js`（53 项）、`node test/price-calibration.js`（15 项）。
+> 可复跑：`node test/payday-trigger.js`（76 项）、`node test/price-calibration.js`（15 项）。
 
 ---
 
@@ -168,7 +168,7 @@ node tools/calibrate-prices.js 2.15
 
 | 脚本 | 内容 |
 |---|---|
-| `test/payday-trigger.js`（53 项） | 到达/经过/不重复/不遗漏、**覆盖率 ≥ 90%**、一年只结一次账、摊还期数 = 结算年数 × 12 |
+| `test/payday-trigger.js`（76 项） | 到达/经过/不重复/不遗漏、**覆盖率 ≥ 90%**、一年只结一次账、摊还期数 = 结算年数 × 12、发薪提示的触发边界 |
 | `test/price-calibration.js`（15 项） | 标定元信息、价格字段无 0/负数（期权单独钉）、**备注与字段同值**、意外支出未换算、买卖两侧同口径、财务圈目标已换算 |
 | `test/time-unit.js` | 更新「一次移动最多只结一次账」的断言 |
 | 既有 5 个脚本 + 浏览器 50 项断言 | 全绿 |
