@@ -178,6 +178,18 @@ window.addEventListener('load', function(){
     ok(!document.getElementById('btnDiceChoice').hidden, '操作区出现银翅膀切换按钮：' + document.getElementById('btnDiceChoice').textContent);
     ok(window.Engine.useWing(C.p6) === true && C.p6.wings === 0, '掷出后消耗银翅膀');
     ok(window.Engine.diceCount(C.g6, C.p6) === 1, '用尽后回落为 1 粒');
+
+    /* 单人模式同源验证：银翅膀骰数读同一个 WINGS.dice，不因模式而异 */
+    window.startGame({rule:'101', mode:'solo', count:1, names:['单人测'], showAll:true});
+    var gs = window.Game.g, ps = gs.players[0];
+    ps.cash = 2000000;
+    var rs = window.Act.doCharity(gs, true);
+    ok(rs.ok && ps.wings === 1, '单人模式捐赠同样获得银翅膀 ×' + ps.wings);
+    ps.diceChoice = window.WINGS.dice;
+    var ns = window.Engine.diceCount(gs, ps);
+    ok(ns === 2, '单人模式选择银翅膀后掷 ' + ns + ' 粒（应为 2，与多人同源）');
+    var dsc = window.Engine.rollDice(gs, ns);
+    ok(dsc.length === 2, '单人模式实际掷出 ' + dsc.length + ' 粒骰子：[' + dsc.join(', ') + ']');
   });
 
   /* ============ G. 健康危机 ============ */
