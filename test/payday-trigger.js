@@ -132,8 +132,8 @@ const perRoundIn = payIn.length / (RING / (innerDice * 3.5));
 const perRoundFt = payFt.length / (RING / (ftDice * 3.5));
 OUT.push(`   · 内圈：每轮经过发薪日 ${perRoundIn.toFixed(3)} 次 → 约 ${(RING / (innerDice * 3.5)).toFixed(1)} 轮走一圈`);
 OUT.push(`   · 外圈：每轮经过分红日 ${perRoundFt.toFixed(3)} 次 → 约 ${(RING / (ftDice * 3.5)).toFixed(1)} 轮走一圈`);
-warn(`出圈后的结算频率是内圈的 ${(perRoundFt / perRoundIn).toFixed(2)} 倍 —— 出圈会让「年度结算」突然密集 5 倍以上，`);
-warn('   这不是设计意图，而是「外圈 8 个分红日 + 2 粒骰子」两个因素叠加出来的副产品。');
+  warn(`出圈后的结算频率是内圈的 ${(perRoundFt / perRoundIn).toFixed(2)} 倍 —— 外圈 4 个分红日 + 2 粒骰子，`);
+  warn('   同一年里第 2 次踩到分红日会因「本年已结」而略过，不会多发钱。');
 
 /* ---------------- ②③④ 到达 / 经过 / 重复 ---------------- */
 sec('② 到达触发：落在发薪日上');
@@ -237,7 +237,7 @@ sec('⑥ 边界：一回合经过 ≥2 个发薪日');
 {
   const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 17 });
   const p = g.players[0];
-  p.pos = (payIn[1] - 1 + RING) % RING;      // 从 6 出发（payIn[1]=7, payIn[2]=14）
+  p.pos = (payIn[1] - 1 + RING) % RING;      // 从 9 出发（payIn = 2/10/18，等距 8 格）
   const steps = payIn[2] - p.pos;            // 走到第二个发薪日
   const before = p.cash;
   const ld = E.movePlayer(g, p, steps);
@@ -248,7 +248,7 @@ sec('⑥ 边界：一回合经过 ≥2 个发薪日');
   ok(p.cash - before === ld.settled.amount,
      `入账 ${money(ld.settled.amount)} 与现金变化一致`);
   const P = E.resolveSpace(g, p, ld);
-  ok(P.msg.indexOf('1 次因本年已结而略过') >= 0,
+  ok(P.msg.indexOf('因本年已结而略过') >= 0 && P.msg.indexOf('经过 2 个') >= 0,
      `弹层说清「踩到了但本年已结」，不会让玩家以为漏发：「${P.msg}」`);
 }
 
@@ -261,7 +261,9 @@ sec('⑦ 边界：单回合最多能经过几个发薪日（枚举全部起止�
       const pth = [];
       { let i = from, guard = 0; do { i = (i + 1) % RING; pth.push(i); guard++; } while (i !== to && guard < 60); }
       const a = pth.filter(ix => window.RAT_RACE[ix].t === 'paycheck').length;
-      const b = pth.filter(ix => window.FAST_TRACK[ix].t === 'cashflowday').length;
+      /* 外圈只掷 2 粒骰子（≤12 步），所以外圈的上界要按 12 步算 ——
+         用 18 步枚举会算出一个实际到不了的上界。 */
+      const b = steps <= 12 ? pth.filter(ix => window.FAST_TRACK[ix].t === 'cashflowday').length : 0;
       if (a > maxIn) { maxIn = a; worstIn = { from, steps, to }; }
       if (b > maxFt) { maxFt = b; worstFt = { from, steps, to }; }
     }
@@ -288,9 +290,11 @@ sec('⑦ 边界：单回合最多能经过几个发薪日（枚举全部起止�
       max1 = Math.max(max1, pth.filter(ix => window.RAT_RACE[ix].t === 'paycheck').length);
     }
   }
-  ok(max1 === 2, `常态（1 粒骰子，≤6 步）单回合最多经过 ${max1} 个发薪日`);
+  /* ★ 等距棋盘（发薪日 2/10/18，间隔 8 格）的结构性保证：
+     8 > 6 → 单粒骰子（常态）永远跨不过第 2 个发薪日。 */
+  ok(max1 === 1, `常态（1 粒骰子，≤6 步）单回合最多经过 ${max1} 个发薪日 —— 间隔 8 格 > 骰子上限 6 步`);
   ok(maxIn === 3, `3 粒骰子（银翅膀，≤18 步）单回合最多经过 ${maxIn} 个发薪日（最坏：从 ${worstIn && worstIn.from} 出发走 ${worstIn && worstIn.steps} 步）`);
-  ok(maxFt === 8, `外圈（2 粒骰子，≥2 步）最多经过 ${maxFt} 个分红日（从 ${worstFt && worstFt.from} 走 ${worstFt && worstFt.steps} 步）—— 分红日占外圈 1/3，密度远高于内圈`);
+  ok(maxFt === 2, `外圈（2 粒骰子，≤12 步）最多经过 ${maxFt} 个分红日（从 ${worstFt && worstFt.from} 走 ${worstFt && worstFt.steps} 步）`);
   ok(18 < RING, `3 粒骰子上限 18 步 < 环长 ${RING} → 一回合不可能绕满一圈，同一格不会被重复经过`);
   warn('但若将来加大骰子上限（如 4 粒 = 24 步），会绕满整圈、同一发薪日被结算两次；');
   warn('   pathBetween 的 guard 是 60、movePlayer 无重复保护，届时必须先改这两处。');
@@ -413,25 +417,29 @@ sec('⑩ 边界：出圈后的年结算（分红日）同口径');
   }
 }
 
-/* ---------------- ⑪ 边界：还清贷款那一年 ---------------- */
-sec('⑪ 边界：同一回合内两次结算金额可能不同（前一次还清了贷款）');
+/* ---------------- ⑪ 边界：一次结算覆盖多年 ---------------- */
+sec('⑪ 边界：一次结算覆盖多年（settledAge 落后时的合并结算）');
 {
   const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 23 });
   const p = g.players[0];
-  p.liabs.home = 500; E.ensureLoans(p);         // 房贷只剩一点点 → 第一次摊还就会还清
+  p.liabs.home = 500; E.ensureLoans(p);         // 房贷只剩一点点 → 摊还第 1 年就会还清
   E.refreshLife(g, p);
-  const m0 = E.finance(p).cashflow;
-  p.pos = (payIn[1] - 1 + RING) % RING;
+  g.round = 8; E.refreshLife(g, p);             // 推到 27 岁
+  p.settledAge = g.startAge - 1;                // 但账还停在 19 岁 → 落后 8 年
+  const due = E.ageOf(g) - p.settledAge;
   const before = p.cash;
-  const ld = E.movePlayer(g, p, payIn[2] - p.pos);
-  ok(ld.settled.count === 2, `同一回合结算 2 年`);
-  const y0 = ld.settled.years[0], y1 = ld.settled.years[1];
-  ok(y0.monthly !== y1.monthly,
-     `两次结算的月结余不同：${money(y0.monthly)} → ${money(y1.monthly)}（第 1 次还清了房贷，月供从支出里消失）`);
-  ok(ld.settled.amount === E.annual(y0.monthly) + E.annual(y1.monthly),
-     `入账取的是【两年之和】而不是「单年 × 2」：${money(ld.settled.amount)}`);
+  p.pos = (payIn[0] - 1 + RING) % RING;
+  const ld = E.movePlayer(g, p, 1);
+  ok(ld.settled.count === 1 && ld.settled.yearsPaid === due,
+     `一次结算覆盖 ${ld.settled.yearsPaid} 年（= 当前 ${E.ageOf(g)} 岁 − 上次结算 ${g.startAge - 1} 岁，期望 ${due}）`);
+  const paid = ld.settled.years.filter(y => y.years > 0)[0];
+  ok(ld.settled.amount === E.annual(paid.monthly) * due,
+     `入账 = 年结余 ${money(E.annual(paid.monthly))} × ${due} = ${money(ld.settled.amount)}（日志给出同一算式）`);
   ok(p.cash - before === ld.settled.amount, `现金变化与合计一致`);
-  ok(E.loanInfo(p, 'home').balance === 0, `房贷已结清（剩余 ${E.loanInfo(p, 'home').balance}）`);
+  ok(E.loanInfo(p, 'home').balance === 0, `${due} 年摊还后房贷已结清（剩余 ${E.loanInfo(p, 'home').balance}）`);
+  const P = E.resolveSpace(g, p, ld);
+  ok(P.msg.indexOf(`共 ${due} 年`) >= 0,
+     `弹层点明覆盖年数区间：「${String(P.msg).slice(0, 60)}…」`);
 }
 
 /* ---------------- ⑫ 长局：4 人局各玩家的结算次数 ---------------- */
@@ -641,6 +649,128 @@ sec('⑮ 发薪提示：经过结算格（未停留）时的即时通知');
        `其中 ${(viaToast / Math.max(1, settleTurns) * 100).toFixed(0)}% 靠本提示覆盖 —— 没有它，这些回合在界面上是「静默」的`);
     warn(`   · 本局另出现 ${alreadyN} 次「本年已结」提示（踩到了但不再发钱，明说以免像是漏发）。`);
   }
+}
+
+/* ---------------- ⑯ 结算是否重复：全生命周期区间核对 ---------------- */
+/* 玩家侧的疑问：「为什么经过一个发薪日会触发多次结算？」
+   真因是日志写「结算 2 年」被读成「结算了 2 次」—— 实际是方案 A：
+   一次结算覆盖「自上次结算以来经过的年数」。
+   所以本节不只看单次移动，而是把【一整局】的每一次结算都记下来，
+   断言「没有任何一年被结两次、也没有任何一年被漏掉、没有任何一次静默跳年」。 */
+sec('⑯ 结算是否重复：拦截 settledAge 的每一次写入，核对全生命周期区间');
+{
+  const g = E.newGame({ rule:'101', mode:'solo', count:1, names:['甲'], seed:20260920 });
+  const p = fixCareer(g, '小区保安');
+  p.cash = 200000;
+
+  /* ★ 拦截属性写入，是唯一能覆盖【全部四个结算入口】的做法：
+     ① movePlayer ② settleAtBreak（失业）③ retireBreakOf（退休）④ finalSettle（终局）
+     —— 后三个调的都是模块内函数，赋值给 E.settleAtBreak 根本拦不到
+     （审计第一版就栽在这里，误报「突变点 0 笔」，把缺口算成了亏损）。 */
+  const writes = [];
+  let val = p.settledAge;
+  Object.defineProperty(p, 'settledAge', {
+    get(){ return val; },
+    set(v){ writes.push({ round:g.round, age:E.ageOf(g), from:val, to:v, delta:v - val }); val = v; },
+    configurable:true, enumerable:true
+  });
+
+  let settleCells = 0, skippedCells = 0, fromMove = 0, badArith = 0;
+  const origMove = E.movePlayer;
+  E.movePlayer = function(gg, pp, steps){
+    const r = origMove.apply(this, arguments);
+    if(r.settled){
+      settleCells += r.settled.count;
+      skippedCells += r.settled.skipped;
+      /* 方案 A 下同一次移动【至多一个】格真正结算 */
+      const paid = r.settled.years.filter(y => y.years > 0)[0];
+      if(paid){
+        fromMove++;
+        if(paid.amount !== E.annual(paid.monthly) * paid.years) badArith++;
+      }
+    }
+    return r;
+  };
+
+  let turns = 0;
+  while(!g.over && turns < 300){
+    turns++;
+    const cur = E.current(g);
+    if(!cur || cur.out){ E.nextPlayer(g); continue; }
+    handlePending(g, cur);
+    if(E.isJobless(cur) && cur.energy >= 12) A.huntJob(g);
+    if(!cur.pausedThisTurn){
+      const dn = E.diceCount(g, cur);
+      const d = E.rollDice(g, dn);
+      const ld = E.movePlayer(g, cur, d.reduce((a, b) => a + b, 0));
+      E.resolveSpace(g, cur, ld);
+      handlePending(g, cur);
+    }
+    E.endTurn(g);
+  }
+  E.movePlayer = origMove;                     /* 还原，避免影响后续 */
+
+  /* ① 区间互不重叠 —— 没有任何一年被结两次（这是本题的核心结论） */
+  const segs = writes.filter(w => w.delta > 0).map(w => [w.from + 1, w.to]);
+  let overlap = 0;
+  for(let i = 0; i < segs.length; i++)
+    for(let j = i + 1; j < segs.length; j++)
+      if(segs[i][0] <= segs[j][1] && segs[j][0] <= segs[i][1]) overlap++;
+
+  /* ② 覆盖完整 —— 没有任何一年被漏掉 */
+  const cover = {};
+  segs.forEach(([a, b]) => { for(let y = a; y <= b; y++) cover[y] = (cover[y] || 0) + 1; });
+  const missed = [], twice = [];
+  for(let y = g.startAge; y <= E.ageOf(g); y++){
+    if(!cover[y]) missed.push(y);
+    if(cover[y] > 1) twice.push(y);
+  }
+  const finished = !p.out;
+
+  ok(overlap === 0,
+     `一生 ${writes.length} 次结算，区间【零重叠】—— 没有任何一年被结两次`);
+  ok(twice.length === 0,
+     `也没有任何一年同时落在两个区间里（重复计数 ${twice.length} 年）`);
+  ok(!finished || missed.length === 0,
+     finished
+       ? `20—${E.ageOf(g)} 岁共 ${E.ageOf(g) - g.startAge + 1} 年【全覆盖】（一次不漏）`
+       : `中途出局（${E.ageOf(g)} 岁）：未覆盖 ${missed.length} 年属预期，不做终局结清`);
+  ok(writes.every(w => w.to === w.age),
+     '每次写入都把账推到当前年龄 —— 不存在「静默跳年」（推走 settledAge 却没结算）');
+  /* ★ 方案 A：命中的结算格 = 真正结算的 + 显式记「本年已结」的，一个都不能静默消失。
+     「本年已结」的常见来源：失业 / 退休突变点已把账结到当前年龄，
+     同一年里再踩到发薪日 → due = 0 → 记略过（见 movePlayer 的 due <= 0 分支）。 */
+  ok(fromMove + skippedCells === settleCells,
+     `命中发薪日格 ${settleCells} 格 = 真正结算 ${fromMove} + 因本年已结略过 ${skippedCells}`
+     + '（每个命中的格子都有记账，没有静默消失的）');
+  ok(badArith === 0, '每笔金额都满足「年结余 × 年数」—— 玩家可在日志里自行核对');
+
+  /* ③ 文案自证：必须给出「一次结算覆盖 N 年」与算式，而不是只写「结算 N 年」 */
+  /* 语义断言（不钉死措辞）：必须点明「一次结算」、给出覆盖的年龄区间与年数、
+     并带上「年结余 × N」的算式 —— 这三样一起才让玩家能自己核账。 */
+  const anyLog = g.log.filter(l => /一次结算（覆盖 /.test(l.text))[0];
+  ok(!!anyLog, `日志点明「一次结算」并给出覆盖区间：${anyLog ? anyLog.text.slice(0, 62) + '…' : '（未找到）'}`);
+  ok(!!anyLog && /= 年结余 .+ × \d+/.test(anyLog.text),
+     '日志带上「年结余 × N」的算式（玩家可自行核账，不必猜是不是重复结算）');
+  ok(!g.log.some(l => /结算 \d+ 年：入账/.test(l.text)),
+     '不再使用会被读成「N 次」的旧写法「结算 N 年：入账」');
+
+  const ng = E.newGame({ rule:'101', mode:'solo', count:1, names:['乙'], seed:7 });
+  const pg = fixCareer(ng, '小区保安');
+  ng.round = 6; E.refreshLife(ng, pg);
+  pg.settledAge = ng.startAge - 1;
+  /* 站在发薪日的前一格、走 2 步：路径含该发薪日格，落点是它的下一格（非结算格）
+     → 命中 paydayNoticeOf 的「经过但未停留」分支。 */
+  pg.pos = (payIn[0] - 1 + RING) % RING;
+  const ld2 = E.movePlayer(ng, pg, 2);
+  const nn = E.paydayNoticeOf(ng, ld2, false);
+  ok(!!nn, '经过结算格（未停留）时产生了提示数据');
+  ok(!!nn && Math.abs(nn.perYear * nn.years - nn.amount) < 1,
+     nn ? `提示带上算式「年结余 ${money(nn.perYear)} × ${nn.years} = ${money(nn.amount)}」`
+        : '（无提示数据）');
+
+  warn(`   · 一生结算 ${writes.length} 次，其中 ${writes.length - fromMove} 次来自失业 / 退休 / 终局的突变点结算（不在发薪日触发，日志文案是「收入变更前一次结清」「终局一次结清」）。`);
+  warn('   · 结论：不存在重复结算。日志里的「N 年」是【一次结算覆盖的年数】，不是结算次数。');
 }
 
 /* ---------------- 结论 ---------------- */

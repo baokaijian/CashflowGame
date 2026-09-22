@@ -54,7 +54,9 @@ function dueOf(balance, rate, n){
   return Math.ceil(b * rate * f / (f - 1));
 }
 /* ------------------------------ 时间口径 ------------------------------ */
-/* ★ 一轮 = 一年；一次发薪日 = 一年（结算 12 个月）。
+/* ★ 一轮 = 一年；一次结算 = 结清「经过的年数」，每个结算年折算 12 个月。
+   ⚠️ 「一次发薪日 = 一年」是旧表述，会让人以为每次落格只结一年 ——
+      实际一次结算覆盖 1—4 年（= 自上次结算以来经过的年数）。
    见 data-careers.js 的 window.TIME —— 这里只做读取，绝不在别处写死 12。 */
 function monthsPerPayday(){
   return (window.TIME && window.TIME.monthsPerPayday) || 12;
@@ -165,7 +167,7 @@ function loanInfo(p, key){
 }
 /* 推进一期还款：利息 = 剩余本金 × 月利率，月供的其余部分冲减本金。
    在「经过发薪日」时调用 —— 与月现金流（其中已含月供）同步结算，账实一致。 */
-/* 一次发薪日 = 一年 → 摊还 monthsPerPayday() 期。
+/* 每个结算年 → 摊还 monthsPerPayday() 期（领几年就还几年）。
    ★ 为什么必须一次还 12 期，而不是「一年只还 1 期」：
      合同的月供是按【月】计息的（月利率 0.41% 等），若一年只还 1 期，
      本金下降速度远慢于时间的流逝 —— 一笔 140 期的房贷要 140 年才能还完，
@@ -402,12 +404,17 @@ function settleAtBreak(g, p){
   p.settledAge = ageOf(g);
   amortize(g, p, due);                        /* 领几年就摊还几年，与常规结算一致 */
   const out = { years:due, monthly, amount, deficit:0 };
+  /* 与 movePlayer 的结算文案同口径：点明「一次结清」、给出覆盖区间与算式 ——
+     只说「结算 N 年」会被读成「结算了 N 次」（本次审计的起因）。 */
+  const ageNow = ageOf(g);
+  const spanTxt = due > 1 ? `${since + 1}—${ageNow} 岁共 ${due} 年` : `${ageNow} 岁这一年`;
+  const perYear = annual(monthly);
   if(amount >= 0){
     p.cash += amount;
-    log(g, `${p.name} 结算 ${due} 年：入账 ${money(amount)}`, 'good', p.name);
+    log(g, `${p.name} 收入变更前一次结清（覆盖 ${spanTxt}），入账 ${money(amount)} = 年结余 ${money(perYear)} × ${due}`, 'good', p.name);
   } else {
     out.deficit = -amount;
-    log(g, `${p.name} 结算 ${due} 年：合计入不敷出 ${money(out.deficit)}`, 'bad', p.name);
+    log(g, `${p.name} 收入变更前一次结清（覆盖 ${spanTxt}），合计入不敷出 ${money(out.deficit)}`, 'bad', p.name);
   }
   return out;
 }
@@ -454,11 +461,13 @@ function finalSettle(g){
     const amount  = annual(monthly) * due;
     p.settledAge = ageOf(g);
     amortize(g, p, due);                       /* 领几年就还几年，与常规结算一致 */
+    const ageNow = ageOf(g);
+    const spanTxt = due > 1 ? `${since + 1}—${ageNow} 岁共 ${due} 年` : `${ageNow} 岁这一年`;
     if(amount >= 0){
       p.cash += amount;
-      log(g, `${p.name} 终局结清 ${due} 年：入账 ${money(amount)}`, 'good', p.name);
+      log(g, `${p.name} 终局一次结清（覆盖 ${spanTxt}），入账 ${money(amount)} = 年结余 ${money(annual(monthly))} × ${due}`, 'good', p.name);
     } else {
-      log(g, `${p.name} 终局结清 ${due} 年：入不敷出 ${money(-amount)}`, 'bad', p.name);
+      log(g, `${p.name} 终局一次结清（覆盖 ${spanTxt}），入不敷出 ${money(-amount)}`, 'bad', p.name);
       payCash(p, -amount);                     /* 尽力支付 */
       settleNegativeCash(g, p);                /* 不足部分兜底变现，保证现金非负 */
     }
@@ -1496,9 +1505,25 @@ function movePlayer(g, p, steps){
     ? { count: settledYears.length, yearsPaid, skipped: settledYears.filter(y=>y.already).length,
         since: settledYears[0].since, amount: collected, deficit, years: settledYears }
     : null;
+  /* ★ 文案必须讲清「1 次结算覆盖 N 年」，并给出「年结余 × N」的算式。
+     只写「结算 2 年」会被读成「结算了 2 次」—— 实测确实有玩家据此怀疑重复结算，
+     而实际是方案 A：一次结算覆盖「自上次结算以来经过的年数」。
+     把算式写出来，玩家可以自己核账，不必猜；也顺带解释了
+     「为什么金额不等于当前年结余」（结余在两次结算之间会随年龄 / 贷款变化）。
+     ⚠️ 每个发薪日格【恰好结算一次】：同一次移动经过多个结算格时，
+        第 2 个起会因「本年已结」而略过（见上面的 due <= 0 分支）。 */
+  const paidCell = settledYears.filter(y => y.years > 0)[0] || null;
   if(collected !== 0){
     p.cash += collected;
-    log(g, `${p.name} 经过${p.inFT ? '分红日' : '发薪日'}，结算 ${yearsPaid} 年：入账 ${money(collected)}`, 'good', p.name);
+    const perYear = paidCell ? annual(paidCell.monthly) : 0;
+    /* 用【年龄区间】而不是「自 X 岁以来」：区间能直接回答「这一次结了哪些年」，
+       也让玩家一眼看出「N 年」是覆盖范围、不是结算次数。
+       覆盖的年份 = (上次结算年龄, 当前年龄] = since+1 … age。 */
+    const sinceAge = settled && settled.since != null ? settled.since : g.startAge - 1;
+    const span = yearsPaid > 1 ? `${sinceAge + 1}—${ageNow} 岁共 ${yearsPaid} 年` : `${ageNow} 岁这一年`;
+    log(g, `${p.name} 经过${p.inFT ? '分红日' : '发薪日'}：一次结算（覆盖 ${span}）`
+      + `，入账 ${money(collected)}${paidCell ? ` = 年结余 ${money(perYear)} × ${yearsPaid}` : ''}`,
+      'good', p.name);
   }
   if(deficit > 0){
     log(g, `${p.name} 这 ${yearsPaid} 年合计入不敷出 ${money(deficit)}`, 'bad', p.name);
@@ -1531,6 +1556,12 @@ function paydayNoticeOf(g, landed, inFT){
     kind: st.yearsPaid === 0 ? 'already' : 'paid',
     inFT: !!inFT,
     years: st.yearsPaid,        /* 本次实际结算的年数（可能是多年） */
+    /* 每年均额 = 该结算格的月结余 × 12。界面要显示「年结余 × N」这个算式，
+       算式里的年结余必须由引擎给 —— 界面自己除会有取整误差，也违反单一真源。 */
+    perYear: (function(){
+      const paid = (st.years || []).filter(y => y.years > 0)[0];
+      return paid ? annual(paid.monthly) : 0;
+    })(),
     amount: st.amount,          /* 实发金额（与入账同源，界面不再自己算） */
     deficit: st.deficit,        /* 同一次移动里另有入不敷出的部分 */
     count: st.count,            /* 本回合经过几个结算格 */
@@ -1573,13 +1604,17 @@ function resolveSpace(g, p, landed){
       } else if(st && st.amount === 0 && st.deficit > 0){
         msg = `结算 ${st.yearsPaid} 年，合计入不敷出 ${money(st.deficit)}（已在上一面板补上）。`;
       } else {
+        /* 措辞要点（与日志一致）：说清「一次结算」、覆盖几年、以及算式，
+           免得被读成「结算了 N 次」。 */
         const yrs = st ? st.yearsPaid : 1;
-        msg = (st && yrs > 1
-                ? `自 ${settled9} 岁以来经过的 ${yrs} 年一次结清：`
-                : '结算这一年：')
-            + `入账 ${money(st ? st.amount : fallback)}。`
+        const paid = st && st.years ? st.years.filter(y => y.years > 0)[0] : null;
+        const perYear = paid ? annual(paid.monthly) : fallback;
+        msg = '一次结算，覆盖 '
+            + (yrs > 1 ? `${settled9 + 1}—${ageOf(g)} 岁共 ${yrs} 年` : `${ageOf(g)} 岁这一年`)
+            + `：入账 ${money(st ? st.amount : fallback)}`
+            + ` = 年结余 ${money(perYear)} × ${yrs}。`
             + (st && st.count > 1 && st.skipped > 0
-                ? `（本回合经过 ${st.count} 个${nm}，其中 ${st.skipped} 次因本年已结而略过）` : '');
+                ? `本回合经过 ${st.count} 个${nm}，其中 ${st.skipped} 个因本年已结而略过。` : '');
         if(st && st.deficit > 0)
           msg += `另有 ${money(st.deficit)} 为入不敷出，已在上一面板补上。`;
       }
@@ -2038,7 +2073,7 @@ window.Engine = {
   surrender, initTrack, bump, milestone, trackRound, STAT_KEYS,
   /* 贷款计划：等额本息 + 全类型提前还款 */
   LOAN_KEYS, loanType, loanDue, loanInfo, ensureLoans, amortize, prepay, prepayPlan, periodsOf, dueOf,
-  /* 时间口径：一次发薪日 = 一年（见 window.TIME） */
+  /* 时间口径：一轮 = 一年；一个结算年 = monthsPerPayday() 个月（见 window.TIME） */
   monthsPerPayday, monthsPerYear, toYears, toYearsFloor, annual,
   /* 人生阶段：收入 / 支出 / 赡养 / 医疗，全部由年龄推导 */
   curveAt, salaryStageOf, lifeStageOf, refreshLife, refreshAllLife, refreshAllEnergy,

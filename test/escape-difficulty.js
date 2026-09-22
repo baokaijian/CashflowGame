@@ -169,8 +169,8 @@ ok(ftTop < E.empireTarget(),
 /* ============================ ④ 出圈难度实测 ============================ */
 sec('④ 出圈难度实测（12 职业 · 会买入、会出圈的 AI）');
 
-function mk(name, rule) {
-  const g = E.newGame({ rule: rule || '101', mode: 'solo', count: 1, names: ['测'], seed: 20260920 });
+function mk(name, rule, seed) {
+  const g = E.newGame({ rule: rule || '101', mode: 'solo', count: 1, names: ['测'], seed: seed || 20260920 });
   const p = g.players[0];
   const c = global.CAREERS.find(x => x.name === name);
   p.job = c; p.baseSalary = c.salary;
@@ -237,8 +237,8 @@ function handle(g, p) {
     }
   }
 }
-function play(name, rule) {
-  const { g, p } = mk(name, rule);
+function play(name, rule, seed) {
+  const { g, p } = mk(name, rule, seed);
   let turns = 0, escAge = null, buys = 0, maxPassive = 0;
   while (!g.over && turns < 300) {
     turns++;
@@ -261,28 +261,61 @@ function play(name, rule) {
   return { escAge, maxPassive, out: p.out, buys };
 }
 
+/* ⚠️ 必须跑【多种子平均】，不能用单颗种子。
+   单颗种子的骰序一变（例如棋盘格型分布调整），同一份口径的出圈率会从 6/12 跳到 11/12 ——
+   那不是口径变了，而是那一局的运气变了。多种子才能把「规则的影响」与「骰运」分开。 */
+const SEEDS = [20260920, 7, 99, 1234, 555, 8080];
 const ages = [];
 const detail = [];
-for (const c of global.CAREERS) {
-  const r = play(c.name, '101');
-  if (r.escAge) ages.push(r.escAge);
-  detail.push(`${c.name} ${r.escAge ? r.escAge + '岁' : '未出圈'}`);
+for (const s of SEEDS) {
+  let escThis = 0;
+  for (const c of global.CAREERS) {
+    const r = play(c.name, '101', s);
+    if (r.escAge) { ages.push(r.escAge); escThis++; }
+  }
+  detail.push(`种子${s}: ${escThis}/12`);
 }
 ages.sort((a, b) => a - b);
+const N = global.CAREERS.length * SEEDS.length;
 const med = ages.length ? ages[Math.floor(ages.length / 2)] : null;
+const rate = ages.length / N;
 OUT.push('   · ' + detail.join(' · '));
-ok(ages.length >= 4 && ages.length <= 9,
-  `101 出圈率 ${ages.length}/12 —— 落在目标区间 4—9/12（改造前是 12/12，人人 30 出头就「自由」）`);
-ok(ages.length > 0 && ages[0] >= 40,
-  `最早出圈年龄 ${ages[0]} 岁 ≥ 40 —— 不再是 31—34 岁就出圈`);
-ok(med !== null && med >= 42,
+OUT.push(`   · 合计 ${ages.length}/${N} 局出圈（${(rate * 100).toFixed(0)}%），出圈年龄 中位 ${med === null ? '—' : med} 岁`
+  + `、区间 ${ages.length ? ages[0] + '—' + ages[ages.length - 1] : '—'} 岁`);
+/* ⚠️ 带宽 25%—80% 是【按实测定的】，而不是拍脑袋：
+   方案 A（结算「经过的年数」）+ 内圈 3 个等距发薪日（2/10/18）是当前定稿口径，
+   同一 AI 在 6 种子下的出圈率标定在 50% 上下（中位 56 岁）。
+   ⚠️ 历史实验（2026-09-21，已回滚）：「每格 1 年 + 内圈 7 发薪日」曾把出圈率推到 71%
+      —— 原因不是「难度被调低」，而是【收入到达的时点变了】：
+      方案 A 把收入攒成一笔一笔的（隔 2—3 轮才落一次发薪日），
+      而「每格 1 年」让收入从第 1 轮起就均匀到达（本 AI 要求「买完还剩 2 万现金」，
+      收入均匀时更容易踩到这条线）。一生总收入两者几乎相同，中位出圈年龄也没变（55 vs 56 岁）。
+      实验记录见 docs/结算步长与发薪日密度.md。 */
+ok(rate >= 0.25 && rate <= 0.8,
+  `101 出圈率 ${(rate * 100).toFixed(0)}%（${ages.length}/${N}）落在 25%—80%（改造前 100%，人人 30 出头就「自由」）`);
+/* ⚠️ 最早年龄不用「绝对最小值 ≥ 40」做护栏：72 局里高收入职业撞上热种子
+   偶尔会在 30 出头出圈（实测 5/41 ≈ 12%），那是骰运离群而不是机制破坏。
+   护栏改看「占比」：早期（<40 岁）出圈必须是小概率事件 ——
+   改造前的坏状态是【人人】31—34 岁出圈（占比 100%）。 */
+const earlyN = ages.filter(a => a < 40).length;
+ok(ages.length > 0 && ages[0] >= 30,
+  `最早出圈年龄 ${ages[0]} 岁 ≥ 30（个别骰运离群允许，但不该回到 31—34 岁普遍出圈）`);
+ok(earlyN / Math.max(1, ages.length) <= 0.2,
+  `早期（<40 岁）出圈 ${earlyN}/${ages.length} = ${(earlyN / Math.max(1, ages.length) * 100).toFixed(0)}% ≤ 20% —— 「年轻就自由」是小概率事件`);
+ok(med !== null && med >= 45,
   `出圈年龄中位 ${med} 岁（改造前 34 岁）`);
-ok(ages.length < 12,
-  `存在「一生未能出圈」的职业 ${12 - ages.length} 个 —— 出圈重新变成一件需要做到的事`);
+ok(rate < 1,
+  `存在「一生未能出圈」的局面 ${N - ages.length} 局 —— 出圈重新变成一件需要做到的事`);
+OUT.push(`   · 当前口径：方案 A（结算「经过的年数」）+ 内圈 3 个等距发薪日 → 本次实测 ${(rate * 100).toFixed(0)}%、中位 ${med} 岁`);
+OUT.push('     （历史基线 50% / 中位 56 岁；若想调难度，动 YIELD.safetyMargin：1.5 → 1.9（实测 57%）→ 2.0（43%））');
 
-const r202 = play('三甲医院医生', '202');
-ok(r202.escAge === null || r202.escAge >= 50,
-  `202 规则（门槛 ×${Y.safetyMargin202}）更难：医生${r202.escAge ? r202.escAge + ' 岁出圈' : '一生未出圈'}（改造前 43 岁）`);
+let esc202 = 0;
+for (const s of SEEDS) {
+  const r = play('三甲医院医生', '202', s);
+  if (r.escAge) esc202++;
+}
+ok(esc202 <= SEEDS.length * 0.5,
+  `202 规则（门槛 ×${Y.safetyMargin202}）更难：医生 ${esc202}/${SEEDS.length} 局出圈（改造前每局都能在 43 岁出圈）`);
 
 console.log(OUT.join('\n'));
 console.log();

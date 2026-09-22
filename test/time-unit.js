@@ -1,4 +1,4 @@
-/* 时间口径验证（Node 版，零依赖）：「一轮 = 一年，一次发薪日 = 一年」
+/* 时间口径验证（Node 版，零依赖）：「一轮 = 一年，一个结算年 = 12 个月」
    守住三件事 ——
      1. 口径只有一个真源（window.TIME），界面与引擎都从它推
      2. 一次发薪日恰好结算 12 个月：领取年度结余、摊还 12 期
@@ -53,7 +53,7 @@ sec('② 期数 → 年');
     '已还年数向下取整（不满一年不算一年）');
 }
 
-/* ---------------- ③ 一次发薪日 = 一年 ---------------- */
+/* ---------------- ③ 一个结算年 = 12 个月 ---------------- */
 sec('③ 一次发薪日恰好结算 12 个月');
 {
   const g = newG();
@@ -125,7 +125,7 @@ sec('⑤ 贷款确实能在 45 轮内还清');
   const g = newG();
   const p = g.players[0];
   const start = E.loanInfo(p, 'home');
-  /* 直接按「一次发薪日 = 一年」连续结算，看需要几年 */
+  /* 直接按「一个结算年 = 12 个月」连续结算，看需要几年 */
   let years = 0;
   while (E.loanInfo(p, 'home').balance > 0 && years < 100) { E.amortize(g, p); years++; }
   const st = E.loanInfo(p, 'home');
@@ -171,7 +171,7 @@ sec('⑦ 长局：剩余年限随游戏推进单调下降');
     if (cur.pausedThisTurn === undefined) { E.nextPlayer(g); continue; }
     /* 只推进「经过发薪日」的那部分，不做卡片决策 —— 这里只验证时间口径 */
     E.movePlayer(g, cur, 3);
-    /* 一次发薪日 = 一年：年限不会因为还本而上升 */
+    /* 一个结算年 = 12 个月：年限不会因为还本而上升 */
     const hy = E.loanInfo(cur, 'home').remainingYears;
     if (prevHomeYears !== null && hy > prevHomeYears) increases++;
     if (prevHomeYears !== null && hy < prevHomeYears && trace.length < 8)
@@ -190,6 +190,6 @@ sec('⑦ 长局：剩余年限随游戏推进单调下降');
 
 OUT.push('', '══════════════════════════════════');
 OUT.push(bad.length ? `❌ 失败 ${bad.length} 项：\n   ` + bad.join('\n   ')
-                    : '✅ 时间口径全部通过（一次发薪日 = 一年 = 12 期）');
+                    : '✅ 时间口径全部通过（一个结算年 = 12 期）');
 console.log(OUT.join('\n'));
 process.exit(bad.length ? 1 : 0);

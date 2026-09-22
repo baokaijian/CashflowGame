@@ -45,9 +45,11 @@ function paydayNotice(n){
 
   /* 第二行放细节：一次结几年、本回合经过几次、是否另有缺口。
      变长的是「说明」而不是「金额」——金额永远固定在第一行，保证一眼可见。 */
+  /* 第二行必须点明「一次结算」+ 覆盖几年 + 算式 ——
+     「结算 2 年」这种写法会被读成「结算了 2 次」。 */
   const sub = [];
-  if(n.years > 1) sub.push(`自 ${n.since} 岁以来 ${n.years} 年一次结清`);
-  else sub.push(`结算 ${n.age} 岁这一年`);
+  const spanTxt = n.years > 1 ? `${n.since + 1}—${n.age} 岁共 ${n.years} 年` : `${n.age} 岁这一年`;
+  sub.push(`一次结算 · 覆盖 ${spanTxt} · 年结余 ${money(n.perYear)} × ${n.years}`);
   if(n.count > 1 && n.skipped > 0)
     sub.push(`本回合经过 ${n.count} 个${nm}日，${n.skipped} 个因本年已结而略过`);
   if(n.deficit > 0) sub.push(`另有 ${money(n.deficit)} 入不敷出，需另行补上`);
@@ -233,7 +235,7 @@ function renderAssets(p){
   return `<div class="rowlist">${blocks.join('')}</div>`;
 }
 /* 负债表：除了余额，一并给出年供与剩余【年数】——
-   ★ 期限一律以「年」呈现：游戏里一轮 = 一年，一次发薪日 = 一年，
+   ★ 期限一律以「年」呈现：游戏里一轮 = 一年，一次结算按「结算年」折算 12 个月，
      用「期（月）」展示会与年龄、轮次对不上（详见 window.TIME）。
      `剩余 0 年`不会出现：还清的那一刻余额即为 0，这一行直接从表里消失。 */
 function renderLiabs(p){

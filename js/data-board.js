@@ -16,25 +16,32 @@ window.RING_POS = ringPositions();
 
 /* ---------- 内圈：老鼠赛跑（掷 1 粒骰子） ---------- */
 window.RAT_RACE = [
+  /* ★ 发薪日 = 3 / 24 格，等距分布（2 / 10 / 18，任意相邻两个的间隔恰好 8 格）。
+     结算步长是方案 A：一次结算 = 结清「自上次结算以来经过的年数」（1—3 年不等）。
+     发薪日的【密度】只决定「多久结一次账」，不改变一生结算的总年数 ——
+     调密度必须同时想清楚结算步长，两者的搭配实验记录见
+     docs/结算步长与发薪日密度.md（7 个发薪日 + 每格 1 年 → 出圈率 50%→71%，已回滚）。
+     ⚠️ 等距的副产品：单粒骰子（≤6 步）永远跨不过第 2 个发薪日，
+        「一回合跨多个发薪日」只在银翅膀（3 粒骰）时才可能发生。 */
   { t:'start',        nm:'起点',     ico:'🏁', sub:'休假 · 恢复精力' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡', sub:'理财 / 置业' },
-  { t:'paycheck',     nm:'发薪日',    ico:'💰', sub:'结算一整年' },
+  { t:'paycheck',     nm:'发薪日',    ico:'💰', sub:'结清经过的年份' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡' },
   { t:'doodad',       nm:'意外支出',  ico:'💳', sub:'抽取意外支出卡' },
   { t:'market',       nm:'市场行情',  ico:'📈', sub:'抽取行情 / 政策卡' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡' },
-  { t:'paycheck',     nm:'发薪日',    ico:'💰' },
   { t:'baby',         nm:'添丁',     ico:'👶', sub:'子女支出增加' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡' },
   { t:'charity',      nm:'公益捐赠',  ico:'🎗️', sub:'税前扣除 · 得银翅膀' },
+  { t:'paycheck',     nm:'发薪日',    ico:'💰' },
   { t:'market',       nm:'市场行情',  ico:'📈' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡' },
   { t:'downsized',    nm:'裁员失业',  ico:'📉', sub:'工资归零 · 需重新求职' },
-  { t:'paycheck',     nm:'发薪日',    ico:'💰' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡' },
   { t:'market',       nm:'市场行情',  ico:'📈' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡' },
   { t:'doodad',       nm:'意外支出',  ico:'💳' },
+  { t:'paycheck',     nm:'发薪日',    ico:'💰' },
   { t:'baby',         nm:'添丁',     ico:'👶' },
   { t:'opportunity',  nm:'投资机会',  ico:'💡' },
   { t:'market',       nm:'市场行情',  ico:'📈' },
@@ -42,33 +49,42 @@ window.RAT_RACE = [
   { t:'doodad',       nm:'意外支出',  ico:'💳' }
 ];
 
+
 /* ---------- 外圈：财务自由圈（掷 2 粒骰子） ---------- */
 window.FAST_TRACK = [
+  /* ★ 分红日 = 4 / 24 格（原 8 个）。结算步长与内圈同为方案 A（结清经过的年数），
+     密度只影响「这一年的分红分几笔到账」，不改变总年数 ——
+     同一年里第 2 次踩到分红日会因「本年已结」而略过。
+     让出的 4 格全部给【企业投资】：顺流层的两个获胜路径都要花钱买，
+     多给它「花钱的入口」而不是「白拿钱的格子」，才不会把顺流层变成提款机。
+     ⚠️ 梦想格必须保持 6 个且 dream:0—5 的顺序 —— 它与 DREAMS 一一对应，
+        玩家的 dreamIdx 靠这个索引找到「自己的梦想格」。 */
   { t:'start',        nm:'自由起点',  ico:'🏁', sub:'Fast Track' },
   { t:'cashflowday',  nm:'分红日',    ico:'💰', sub:'领取年度分红' },
   { t:'business',     nm:'企业投资',  ico:'🏭', sub:'仅限现金购买' },
-  { t:'cashflowday',  nm:'分红日',    ico:'💰' },
   { t:'dream',        nm:'梦想',     ico:'🌸', dream:0 },
-  { t:'cashflowday',  nm:'分红日',    ico:'💰' },
   { t:'business',     nm:'企业投资',  ico:'🏭' },
-  { t:'taxaudit',     nm:'税务稽查',  ico:'🧾', sub:'支付一半现金' },
-  { t:'cashflowday',  nm:'分红日',    ico:'💰' },
+  { t:'business',     nm:'企业投资',  ico:'🏭' },
   { t:'dream',        nm:'梦想',     ico:'🌸', dream:1 },
   { t:'cashflowday',  nm:'分红日',    ico:'💰' },
   { t:'business',     nm:'企业投资',  ico:'🏭' },
-  { t:'divorce',      nm:'离婚析产',  ico:'💔', sub:'支付一半现金' },
-  { t:'cashflowday',  nm:'分红日',    ico:'💰' },
   { t:'dream',        nm:'梦想',     ico:'🌸', dream:2 },
   { t:'business',     nm:'企业投资',  ico:'🏭' },
-  { t:'cashflowday',  nm:'分红日',    ico:'💰' },
-  { t:'lawsuit',      nm:'官司赔偿',  ico:'⚖️', sub:'赔偿 ¥50,000' },
+  { t:'taxaudit',     nm:'税务稽查',  ico:'🧾', sub:'支付一半现金' },
+  { t:'business',     nm:'企业投资',  ico:'🏭' },
   { t:'cashflowday',  nm:'分红日',    ico:'💰' },
   { t:'dream',        nm:'梦想',     ico:'🌸', dream:3 },
   { t:'business',     nm:'企业投资',  ico:'🏭' },
-  { t:'dream',        nm:'梦想',     ico:'🌸', dream:4 },
+  { t:'divorce',      nm:'离婚析产',  ico:'💔', sub:'支付一半现金' },
   { t:'business',     nm:'企业投资',  ico:'🏭' },
-  { t:'dream',        nm:'梦想',     ico:'🌸', dream:5 }
+  { t:'dream',        nm:'梦想',     ico:'🌸', dream:4 },
+  { t:'cashflowday',  nm:'分红日',    ico:'💰' },
+  { t:'business',     nm:'企业投资',  ico:'🏭' },
+  { t:'lawsuit',      nm:'官司赔偿',  ico:'⚖️', sub:'赔偿 ¥50,000' },
+  { t:'dream',        nm:'梦想',     ico:'🌸', dream:5 },
+  { t:'business',     nm:'企业投资',  ico:'🏭' }
 ];
+
 
 /* ---------- 梦想格（棋子上放的“奶酪”） ---------- */
 window.DREAMS = [
