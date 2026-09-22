@@ -53,32 +53,32 @@ function solo(name, seed){
 sec('① 市场周期：确定性、相位错开、存款不参与');
 {
   const { g, p } = solo('软件工程师');
-  /* 确定性：同一轮次反复求值必须一致（否则存档 / 复盘 / 回归都不可复现） */
-  g.round = 17;
+  /* 确定性：同一年份反复求值必须一致（否则存档 / 复盘 / 回归都不可复现） */
+  p.age = 36;
   const a1 = E.marketIndex(g, 'realEstate'), a2 = E.marketIndex(g, 'realEstate');
-  ok(a1 === a2, `同轮次反复求值一致（${a1.toFixed(4)}）—— 未引入随机数`);
+  ok(a1 === a2, `同年龄反复求值一致（${a1.toFixed(4)}）—— 未引入随机数`);
 
   /* 周期确实在变，且在振幅范围内 */
   const vals = [];
-  for (let r = 1; r <= 33; r++) { g.round = r; vals.push(E.marketCycleOf(g, 'realEstate')); }
+  for (let r = 1; r <= 33; r++) { p.age = 19 + r; vals.push(E.marketCycleOf(g, 'realEstate')); }
   const amp = M.cycle.amp;
   ok(Math.min(...vals) >= 1 - amp - 1e-9 && Math.max(...vals) <= 1 + amp + 1e-9,
      `房产指数落在 [${(1-amp).toFixed(2)}, ${(1+amp).toFixed(2)}] 内（实测 ${Math.min(...vals).toFixed(3)} — ${Math.max(...vals).toFixed(3)}）`);
   ok(Math.max(...vals) - Math.min(...vals) > amp,
      `周期确实在波动（极差 ${(Math.max(...vals)-Math.min(...vals)).toFixed(3)}）`);
 
-  /* 相位错开：房产与土地不应同步（同轮次两个指数不同） */
+  /* 相位错开：房产与土地不应同步（同年龄两个指数不同） */
   let sameCount = 0;
   for (let r = 1; r <= 16; r++) {
-    g.round = r;
+    p.age = 19 + r;
     if (Math.abs(E.marketCycleOf(g, 'realEstate') - E.marketCycleOf(g, 'lands')) < 1e-9) sameCount++;
   }
-  ok(sameCount === 0, '房产与土地的相位错开（16 个轮次里没有一次同步）');
+  ok(sameCount === 0, '房产与土地的相位错开（16 个年份里没有一次同步）');
 
   /* 存款 / 理财不参与周期。
-     ⚠️ 取轮次要避开周期的过零点：8 年周期下第 9 / 17 / … 轮房产指数恰好 = 1，
+     ⚠️ 取年份要避开周期的过零点：8 年周期下第 9 / 17 / … 轮房产指数恰好 = 1，
         用它做「是否波动」的断言会得到假失败。 */
-  g.round = 11;
+  p.age = 30;
   ok(E.marketCycleOf(g, 'savings') === 1 && E.marketCycleOf(g, 'funds') === 1,
      '存款 / 理财的本金不随行情波动（flat 生效）');
   ok(E.marketCycleOf(g, 'realEstate') !== 1, '但房产 / 企业仍随行情波动');
@@ -110,7 +110,7 @@ sec('③ 折旧按持有年数计提');
   g.round = 1;
   const b1 = E.appraiseAsset(g, 'business', p.assets.business[0]);
   ok(b1.years === 0 && Math.abs(b1.decay - 1) < 1e-9, `买入当年不折旧（持有 0 年，折旧因子 ${b1.decay.toFixed(3)}）`);
-  g.round = 11;                                   // 持有 10 年
+  for(let i=0;i<10;i++){ p.pos=1; E.movePlayer(g,p,1); } // 实际经过 10 次发薪日
   const b2 = E.appraiseAsset(g, 'business', p.assets.business[0]);
   const want = Math.pow(1 - M.decay.business, 10);
   ok(b2.years === 10 && Math.abs(b2.decay - want) < 1e-9,
@@ -282,75 +282,63 @@ sec('⑩ 多头借贷只压征信分，不改变「抵押通道与就业状态�
 
 /* ───────────────────────── ③ 退休突变与终局结算 ───────────────────────── */
 
-sec('⑪ 退休突变点结算：按在职口径结清、只触发一次');
+sec('⑪ 退休切换：最后一个在职年结清后改领养老金，不补结');
 {
   const { g, p } = solo('软件工程师');
-  /* 顺序必须与真实路径一致（nextPlayer：先 retireBreakOf，再 refreshAllLife） */
-  g.round = 42;                       /* 61 岁 */
-  p.settledAge = 56;                  /* 上次结算停在 55 岁末 */
-  const cash0 = p.cash;
-  const brk = E.retireBreakOf(g);
-  /* settledAge 是「已经结到哪一年」，所以 56 → 61 覆盖 5 年 */
-  ok(!!brk && brk.years === 5, `触发结算：覆盖 ${brk ? brk.years : '—'} 年（结到 56 岁 → 61 岁）`);
-  ok(p.retireSettled === true, 'retireSettled 标记已置位');
-  ok(p.retireRound === 42, `记录了退休发生时的轮次（第 ${p.retireRound} 轮）`);
-  ok(p.cash !== cash0, `现金已按在职口径结清（${money(cash0)} → ${money(p.cash)}）`);
-  ok(p.settledAge === E.ageOf(g), `结算后记账位推到退休年龄（${p.settledAge}）`);
-  ok(E.retireBreakOf(g) === null, '再次调用不重复触发');
-
-  /* 关键：结算用的是【在职】口径，而不是养老金口径 */
-  E.refreshAllLife(g);
-  ok(p.retired === true, '刷新后已进入退休状态');
-  ok(p.salary < p.baseSalary, `收入切换为养老金：${money(p.salary)}（基础 ${money(p.baseSalary)}，替代率 ${Math.round(window.SOLO.pensionRatio*100)}%）`);
-  ok(brk.monthly > E.finance(p).cashflow,
-     `结算用的月结余（在职 ${money(brk.monthly)}）高于当前的养老金口径（${money(E.finance(p).cashflow)}）—— 口径没搞反`);
-  ok(E.finance(p).exp.taxes === 0, '养老金免征个税（税负归零）');
+  p.age = 60; E.refreshLife(g,p);
+  const before = E.annual(E.settleCashflow(p));
+  const cash0=p.cash; p.pos=1;
+  const ld=E.movePlayer(g,p,1);
+  ok(ld.settled.yearsPaid === 1 && ld.settled.years[0].amount === before, '60→61 岁按在职账本结一年');
+  ok(p.retireSettled && p.retireRound === g.round, '记录退休轮次');
+  ok(p.cash-cash0 === Math.max(0,before), '没有退休补发');
+  ok(p.age === 61 && p.settledAge === 61, '年龄与年度结算同步');
+  ok(E.retireBreakOf(g) === null, '退休提示只触发一次');
+  ok(p.retired && p.salary < p.baseSalary, '下一年改领养老金');
+  ok(E.finance(p).exp.taxes === 0, '养老金免征个税');
 }
 
 sec('⑫ 退休突变：多人模式完全不受影响');
 {
   const gm = E.newGame({ rule:'101', mode:'age', count:2, names:['甲','乙'], seed:3 });
-  gm.round = 42;
+  gm.players.forEach(p=>p.age=61);
   ok(E.retireBreakOf(gm) === null, '多人模式不触发退休突变结算');
   E.refreshAllLife(gm);
-  ok(gm.players[0].retired === false, '多人模式的玩家 61 岁不会「退休」（65 岁同步结算）');
+  ok(gm.players[0].retired === false, '多人模式的玩家 61 岁不会「退休」（各自 65 岁结束）');
   ok(gm.players[0].taxesCur > 0, '税负也未被清零（不受单人断崖影响）');
 }
 
 sec('⑬ 退休时不再求职（否则会出现「65 岁还在投简历」）');
 {
   const { g, p } = solo('软件工程师');
-  g.round = 40; E.refreshAllLife(g);      /* 59 岁 */
+  p.age = 59; E.refreshAllLife(g);      /* 59 岁 */
   E.startJobless(g, p, 5000);
   ok(E.isJobless(p) === true, '59 岁失业 → 进入求职期');
-  g.round = 42; E.refreshAllLife(g);      /* 61 岁 */
+  p.age = 61; E.refreshAllLife(g);      /* 61 岁 */
   ok(p.retired === true && p.joblessNeed === 0,
      `到退休年龄后求职状态被清除（joblessNeed = ${p.joblessNeed}）`);
   ok(E.isJobless(p) === false, '不再处于求职期，可以正常领养老金');
   ok(p.salary > 0, `养老金正常发放（${money(p.salary)}）`);
 }
 
-sec('⑭ 终局结清：残差归零、走真实 endSolo 链路');
+sec('⑭ 终局只评档，不额外补发或摊还');
 {
-  const { g, p } = solo('软件工程师');
-  g.round = 42; E.retireBreakOf(g); E.refreshAllLife(g);
-  p.settledAge = 61;                       /* 假设退休那次已结清到 61 岁 */
-  const cash0 = p.cash;
-  g.round = 46; E.refreshAllLife(g);       /* 65 岁 → 结束 */
-  const residualBefore = E.ageOf(g) - p.settledAge;
-  ok(residualBefore === 4, `结束前残差 ${residualBefore} 年（退休期的养老金尚未入账）`);
-  E.endSolo(g);
-  ok(p.settledAge === E.ageOf(g),
-     `endSolo 后记账位推到 65 岁（残差 ${E.ageOf(g) - p.settledAge}）—— 一生结算总量 = 年龄跨度`);
-  ok(p.cash > cash0, `最后一段养老金已入账（${money(cash0)} → ${money(p.cash)}）`);
-  ok(!!g.soloResult, `评级基于完整一生：${g.soloResult && g.soloResult.grade}（${g.soloResult && g.soloResult.label}）`);
-  ok(g.finalSettled && g.finalSettled.length === 1, '结算记录已产出（供复盘 / 界面读取）');
+  const {g,p}=solo('软件工程师');
+  p.age=64; p.cash=10000000; p.pos=1;
+  const ld=E.movePlayer(g,p,1);
+  if(ld.deficit) E.payDeficit(g,p,ld.deficit);
+  const cash=p.cash, debt=JSON.stringify(p.liabs);
+  E.endTurn(g);
+  ok(g.over && p.age === 65, '经过最后一个发薪日后结束');
+  ok(p.cash === cash && JSON.stringify(p.liabs) === debt, '终局不重复收支或还贷');
+  ok(!!g.soloResult, '产出人生评级');
+  ok(g.finalSettled.length === 0, '不再有终局补结记录');
 }
 
 sec('⑮ 终局结清不会把现金打成负数');
 {
   const { g, p } = solo('小区保安');         /* 最弱职业，最容易出现缺口 */
-  g.round = 46; E.refreshAllLife(g);
+  p.age = 65; E.refreshAllLife(g);
   p.settledAge = 61;
   p.cash = 0;
   E.finalSettle(g);

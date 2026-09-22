@@ -71,7 +71,7 @@ function handleCard(g, p, P, seen) {
       E.clearPending(g);
       return true;
     }
-    case 'baby': A.addBaby(g); return true;
+    case 'baby': A.addBaby(g); E.clearPending(g); return true;
     case 'market': {
       seen.market++;
       E.clearPending(g); return true;               /* 行情卡：不做复杂交易决策 */
@@ -174,7 +174,7 @@ sec('年龄推进：收入与精力上限的完整曲线');
   const p = g.players[0];
   const rows = [];
   for (let age = 20; age <= 65; age += 5) {
-    g.round = age - g.startAge + 1;
+    p.age = age;
     E.refreshLife(g, p);
     const f = E.finance(p);
     rows.push(`${age}岁 ${p.salaryPhase}/${p.lifeStage} 工资${money(p.salary)} 支出${money(f.totalExpenses)} 现金流${money(f.cashflow)} 上限${E.energyMax(g, p)}`);
@@ -183,7 +183,7 @@ sec('年龄推进：收入与精力上限的完整曲线');
   /* 断言：一生现金流不应在【没有额外负债】的前提下系统性为负 —— 那意味着游戏注定破产 */
   const negAges = [];
   for (let age = 20; age <= 65; age++) {
-    g.round = age - g.startAge + 1;
+    p.age = age;
     E.refreshLife(g, p);
     if (E.finance(p).cashflow < 0) negAges.push(age);
   }

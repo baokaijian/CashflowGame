@@ -19,7 +19,7 @@ for (let i = 0; i < 120 && seen.size < CAREERS.length; i++) {
     seen.add(p.job.id);
     let minCf = Infinity, minAge = null, negAges = [];
     for (let age = 20; age <= 65; age++) {
-      g.round = age - g.startAge + 1;
+      p.age = age;
       E.refreshLife(g, p);
       const cf = E.finance(p).cashflow;
       if (cf < minCf) { minCf = cf; minAge = age; }

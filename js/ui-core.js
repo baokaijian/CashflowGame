@@ -26,7 +26,7 @@ function toggleTheme(){
 
 /* ------------------------------ Toast ------------------------------ */
 /* 发薪 / 分红的即时提示 —— 只在【经过结算格但未停留】时出现。
-   为什么用 Toast 而不是弹层：经过是常态（内圈每轮约 0.44 次，一生约 20 次），
+   为什么用 Toast 而不是弹层：经过是常态（内圈每轮约 0.44 次），
    每次都要求点一次「确定」会变成纯粹的点击负担；而停在结算格时已经有确认弹层。
    数据全部来自 Engine.paydayNoticeOf —— 界面不自己判断「该不该提示」，
    也不自己算金额（否则迟早出现「提示写 ¥674、到账 ¥8,088」这类账实不符）。 */
@@ -34,25 +34,9 @@ function paydayNotice(n){
   if(!n) return false;
   const nm = n.inFT ? '分红' : '发薪';
 
-  /* 踩到了结算格，可这一年的账之前已经结过 —— 必须明说，
-     否则玩家看到「什么都没发生」会以为系统漏发了。 */
-  if(n.kind === 'already'){
-    /* 与「已发薪」保持同一套两行结构：第一行是「发生了什么」，第二行是「为什么没有钱」。
-       若只写一行整句，两种提示在同一位置会呈现成完全不同的版式。 */
-    toast(`💰 经过${nm}日<span class="toast__sub">${n.age} 岁这一年的账已结过，本次不再重复${nm}</span>`, null);
-    return true;
-  }
-
-  /* 第二行放细节：结了几年（= 经过的结算格数）、还剩几年积欠、是否另有缺口。
-     变长的是「说明」而不是「金额」——金额永远固定在第一行，保证一眼可见。 */
   const sub = [];
-  const paidList = (n.yearsList && n.yearsList.length) ? n.yearsList : [n.since + 1];
-  sub.push(n.years === 1
-    ? `结算 1 年（第 ${paidList[0]} 岁） · 年结余 ${money(n.perYear)} × 1`
-    : `结算 ${n.years} 年（第 ${paidList.join('、')} 岁） · 每个${nm}日各结 1 年`);
-  if(n.count > 1 && n.skipped > 0)
-    sub.push(`本回合经过 ${n.count} 个${nm}日，${n.skipped} 个因本年已结而略过`);
-  if(n.arrears > 0) sub.push(`另有 ${n.arrears} 年待结，将在后续${nm}日逐个结清`);
+  sub.push(`结算 ${n.years} 年（${n.since}→${n.through} 岁）`
+    + (n.years === 1 ? ` · 年结余 ${money(n.perYear)} × 1` : ` · 每个${nm}日各结 1 年`));
   if(n.deficit > 0) sub.push(`另有 ${money(n.deficit)} 入不敷出，需另行补上`);
 
   const tone = n.deficit > 0 ? 'err' : 'ok';
@@ -236,8 +220,8 @@ function renderAssets(p){
   return `<div class="rowlist">${blocks.join('')}</div>`;
 }
 /* 负债表：除了余额，一并给出年供与剩余【年数】——
-   ★ 期限一律以「年」呈现：游戏里一轮 = 一年，一次结算按「结算年」折算 12 个月，
-     用「期（月）」展示会与年龄、轮次对不上（详见 window.TIME）。
+   ★ 期限一律以「年」呈现：游戏里每个结算日 = 一年，一次结算按「结算年」折算 12 个月，
+     用「期（月）」展示会与年龄对不上（详见 window.TIME）。
      `剩余 0 年`不会出现：还清的那一刻余额即为 0，这一行直接从表里消失。 */
 function renderLiabs(p){
   E.ensureLoans(p);
@@ -377,7 +361,7 @@ function renderSetupRules(){
     <div class="rules-out">
       <h4>🎯 单人模式 · 与自己的人生赛跑</h4>
       <ul>
-        <li>只有你一位玩家，从 <b>20 岁走到 65 岁</b>，共 45 轮 —— 完整经历六个人生阶段
+        <li>只有你一位玩家，从 <b>20 岁走到 65 岁</b>，共 45 次年度结算 —— 完整经历六个人生阶段
           （起步期 → 成长期 → 巅峰期 → 平台期 → 冲刺期 → 退休期）</li>
         <li><b>${window.SOLO.retireAge} 岁起工资停发</b>，改领养老金（基础工资的
           ${Math.round(window.SOLO.pensionRatio * 100)}%），且养老金免征个税 ——
@@ -398,7 +382,7 @@ function renderSetupRules(){
 
 const Setup = { rule:'101', mode:'age', count:4, names:[], showAll:true, fast:true };
 function initSetup(){
-  /* 游戏模式：年龄模式（20→65 岁，共 45 轮） / 无限模式 */
+  /* 游戏模式：年龄模式（20→65 岁，共 45 次年度结算） / 无限模式 */
   const segMode = $('#segMode');
   $$('.segmented__item', segMode).forEach(b=>{
     b.onclick = ()=>{

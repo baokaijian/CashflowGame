@@ -80,20 +80,17 @@ sec('③ 一次发薪日恰好结算 12 个月');
     `剩余年限同步下降（${homeBefore.remainingYears} 年 → ${homeAfter.remainingYears} 年）`);
   ok(homeAfter.paidYears === 1, `已还年数 = ${homeAfter.paidYears}`);
 
-  /* ★ 一处容易误解的地方：一次移动经过 N 个发薪日，并不摊还 N 年。
-     结算覆盖的是「自上次结算以来经过的年数」—— 同一年只结一次账，
-     所以同一次移动里的第 2、第 3 个发薪日会因「本年已结」而略过，摊还也只按实际结算的年数。
-     这样「领了几年就还几年」才成立；旧口径（每个发薪日都各还 1 年）会让负债还得比收入快。 */
+  /* 一次绕圈经过 N 个发薪日，长 N 岁、结 N 年、摊还 N 年。 */
   const g2 = newG();
   const p2 = g2.players[0];
   const perBefore = E.loanInfo(p2, 'home').periods;
   const ld2 = E.movePlayer(g2, p2, window.RAT_RACE.length);   /* 整整绕一圈，经过全部发薪日 */
   const perAfter = E.loanInfo(p2, 'home').periods;
   const payCount = window.RAT_RACE.filter(s => s.t === 'paycheck').length;
-  ok(ld2.settled.count === payCount && ld2.settled.skipped === payCount - 1,
-    `绕一圈经过 ${payCount} 个发薪日，只有第 1 个真正结算（略过 ${ld2.settled.skipped} 个）`);
+  ok(ld2.settled.count === payCount && ld2.settled.skipped === 0 && ld2.settled.yearsPaid === payCount && E.ageOf(g2) === g2.startAge + payCount,
+    `绕一圈经过 ${payCount} 个发薪日，每个都结算一年（略过 ${ld2.settled.skipped} 个）`);
   ok(perAfter - perBefore === ld2.settled.yearsPaid * M,
-    `摊还期数 = 结算年数 × ${M}（${ld2.settled.yearsPaid} 年 → ${perAfter - perBefore} 期），不是「经过几个就还几年」`);
+    `摊还期数 = 结算年数 × ${M}（${ld2.settled.yearsPaid} 年 → ${perAfter - perBefore} 期）`);
 }
 
 /* ---------------- ④ 还清的边界 ---------------- */
@@ -120,7 +117,7 @@ sec('④ 边界：剩余期限归 0');
 }
 
 /* ---------------- ⑤ 贷款会在游戏内还清 ---------------- */
-sec('⑤ 贷款确实能在 45 轮内还清');
+sec('⑤ 贷款确实能在 45 次年度结算内还清');
 {
   const g = newG();
   const p = g.players[0];
@@ -134,12 +131,12 @@ sec('⑤ 贷款确实能在 45 轮内还清');
     `与「剩余 ${start.remainingYears} 年」一致（实际 ${years} 年）`);
   OUT.push(`   · 期初剩余 ${start.remaining} 期 = ${start.remainingYears} 年 · 年供 ${money(start.dueYear)}`);
 
-  /* 45 轮里大约经过 20 次发薪日 —— 长周期贷款能否还清取决于这个次数 */
+  /* 45 次年度结算里大约经过 20 次发薪日 —— 长周期贷款能否还清取决于这个次数 */
   const payCount = window.RAT_RACE.filter(s => s.t === 'paycheck').length;
   const perRound = payCount / (window.RAT_RACE.length / 3.5);
-  const paydaysInGame = Math.round(perRound * 45);
+  const paydaysInGame = 45;
   OUT.push(`   · 内圈 ${window.RAT_RACE.length} 格 / ${payCount} 个发薪日 → 平均每轮 ${perRound.toFixed(2)} 次`);
-  OUT.push(`   · 45 轮合计约 ${paydaysInGame} 次发薪日 = ${paydaysInGame} 年（⚠️ 小于 45 年，见文档）`);
+  OUT.push(`   · 45 次年度结算合计约 ${paydaysInGame} 次发薪日 = ${paydaysInGame} 年`);
   ok(years <= paydaysInGame + 2,
     `房贷能在整局里还清（需 ${years} 年 ≤ 约 ${paydaysInGame} 次发薪日）`);
 }

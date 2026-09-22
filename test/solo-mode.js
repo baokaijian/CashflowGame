@@ -3,7 +3,7 @@
      2. 退休断崖（61 岁收入切换、养老金替代率、免征个税，且不影响多人模式）
      3. 机构替代：投资卡接盘折现、与机构合伙的分账与精力
      4. 五种结局与人生评级的逐一构造
-     5. 单人 45 轮长局回归（无死锁 / 负现金 / NaN），并核对退休结算产出
+     5. 单人 45 年长局回归（无死锁 / 负现金 / NaN），并核对退休结算产出
 
    运行：node test/solo-mode.js     退出码 0 = 全通过
    改动 SOLO / SOLO_STAGES / SALARY_CURVE / LIFE_STAGES / ENERGY 后必须重跑。 */
@@ -35,7 +35,7 @@ sec('① 人生阶段的划分与边界');
   const p = g.players[0];
   const seen = [];
   for (let age = 20; age <= 65; age++) {
-    g.round = age - g.startAge + 1;
+    p.age = age;
     seen.push(E.soloStageOf(g));
   }
   ok(STG.length === 6, `共 ${STG.length} 个人生阶段（预期 6）`);
@@ -45,7 +45,7 @@ sec('① 人生阶段的划分与边界');
   const expect = [[20, 0], [27, 0], [28, 1], [35, 1], [36, 2], [45, 2], [46, 3], [55, 3], [56, 4], [60, 4], [61, 5], [65, 5]];
   let edgeOk = true, firstBad = '';
   for (const [age, idx] of expect) {
-    g.round = age - g.startAge + 1;
+    p.age = age;
     const got = E.soloStageOf(g);
     if (got !== idx) { edgeOk = false; firstBad = firstBad || `${age} 岁应为第 ${idx + 1} 段，实为第 ${got + 1} 段`; }
   }
@@ -61,8 +61,8 @@ sec('① 人生阶段的划分与边界');
 
   /* 阶段切换必须被 checkSoloStage 捕捉到 */
   const g2 = soloGame();
-  g2.round = 1; g2.soloStage = E.soloStageOf(g2);
-  g2.round = 9;                                        /* 28 岁 → 成长期 */
+  g2.players[0].age = 20; g2.soloStage = E.soloStageOf(g2);
+  g2.players[0].age = 28;                                        /* 28 岁 → 成长期 */
   const ch = E.checkSoloStage(g2);
   ok(ch && ch.index === 1 && ch.stage.nm === '成长期', `跨过边界时播报阶段切换（${ch ? ch.stage.nm : '未触发'}）`);
   ok(E.checkSoloStage(g2) === null, '同一年内重复调用不会重复播报');
@@ -73,7 +73,7 @@ sec('② 退休断崖（61 岁起收入切换）');
 {
   const g = soloGame();
   const p = g.players[0];
-  const jump = (age) => { g.round = age - g.startAge + 1; E.refreshLife(g, p); return { s: p.salary, t: p.taxesCur, r: p.retired, cf: E.finance(p).cashflow }; };
+  const jump = (age) => { p.age = age; E.refreshLife(g, p); return { s: p.salary, t: p.taxesCur, r: p.retired, cf: E.finance(p).cashflow }; };
 
   const a60 = jump(SOLO.retireAge - 1);
   const a61 = jump(SOLO.retireAge);
@@ -90,14 +90,14 @@ sec('② 退休断崖（61 岁起收入切换）');
   /* ★ 关键：退休断崖只作用于单人模式 —— 多人年龄模式在 65 岁同步结算，不该被改动 */
   const gm = E.newGame({ rule: '101', mode: 'age', count: 2, names: ['甲', '乙'] });
   const pm = gm.players[0];
-  gm.round = 65 - gm.startAge + 1; E.refreshLife(gm, pm);
+  pm.age = 65; E.refreshLife(gm, pm);
   ok(pm.retired === false, '多人年龄模式在 65 岁不会进入退休状态（未污染既有模式）');
   ok(pm.taxesCur > 0, `多人模式的税负未被清零（${money(pm.taxesCur)}）`);
 
   /* 退休后不再进入求职期 */
   const g3 = soloGame();
   const p3 = g3.players[0];
-  g3.round = 63 - g3.startAge + 1; E.refreshLife(g3, p3);
+  p3.age = 63; E.refreshLife(g3, p3);
   const r = E.startJobless(g3, p3, 0);
   ok(r.retired === true && E.isJobless(p3) === false, '退休后遇到裁员不再进入求职期（改为退休金调整）');
   ok(r.severance === 0, '退休返聘结束不发放离职补偿');
@@ -217,7 +217,7 @@ sec('⑤ 五种结局与人生评级');
   const ge = soloGame();
   const pe = ge.players[0];
   pe.achievements = [{ age: 49, round: 30, kind: 'dream', reason: 'r' }];
-  pe.escaped = true; pe.inFT = true; pe.escapeRound = 26;
+  pe.escaped = true; pe.inFT = true; pe.escapeRound = 26; pe.escapeAge = 45;
   E.endSolo(ge);
   ok(ge.over === true, 'endSolo 把对局置为结束');
   ok(ge.soloResult && ge.soloResult.grade === 'S' && ge.soloResult.key === 'winner',
@@ -233,7 +233,7 @@ sec('⑤ 五种结局与人生评级');
 }
 
 /* ---------------- ⑥ 单人长局回归 ---------------- */
-sec('⑥ 单人 45 轮长局回归');
+sec('⑥ 单人 45 年长局回归');
 {
   function handleCard(g, p, P, seen) {
     switch (P.type) {
@@ -287,7 +287,7 @@ sec('⑥ 单人 45 轮长局回归');
         if (!r.ok) { seen.bankrupt++; E.declareBankruptcy(g, p); }
         E.clearPending(g); return true;
       }
-      case 'baby': A.addBaby(g); return true;
+      case 'baby': A.addBaby(g); E.clearPending(g); return true;
       case 'market': seen.market++; E.clearPending(g); return true;
       default: E.clearPending(g); return true;
     }

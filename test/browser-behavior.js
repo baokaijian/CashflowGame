@@ -1,4 +1,4 @@
-/* 浏览器行为验证探针（8 组：精力/拦阻/失业求职/入不敷出/休假/银翅膀/节税/健康危机/年龄曲线）
+/* 浏览器行为验证探针（含年度结算与存档恢复：精力/拦阻/失业求职/入不敷出/休假/银翅膀/节税/健康危机/年龄曲线）
    运行方式见 test/README.md。它由外层脚本包进 index.html 的副本里，
    结果写入 <pre id="DIAG">，再从 --dump-dom 里抽取。 */
 /* 人生模拟机制的行为验证：精力消耗 / 失业求职 / 入不敷出 / 休假 / 银翅膀 / 健康危机 */
@@ -221,7 +221,7 @@ window.addEventListener('load', function(){
     OUT.push(''); OUT.push('=== H. 年龄推进 → 收入与精力上限变化 ===');
     var caps = [], sals = [];
     [20, 30, 40, 50, 60].forEach(function(age){
-      C.g8.round = age - 20 + 1;
+      C.p8.age = age;
       window.Engine.refreshAllLife(C.g8);
       caps.push(window.Engine.energyMax(C.g8, C.p8));
       sals.push(C.p8.salary);
@@ -231,6 +231,52 @@ window.addEventListener('load', function(){
     ok(caps[0] > caps[4], '精力上限随年龄衰减');
     ok(sals[2] > sals[4], '收入在巅峰期后回落（' + sals[2] + ' → ' + sals[4] + '）');
     ok(sals[0] < sals[1], '起步期收入低于成长期（' + sals[0] + ' → ' + sals[1] + '）');
+  });
+
+  step('I 发薪同步长岁', function(){ return true; }, function(){
+    var a=fresh(), g=a.g, p=a.p;
+    C.yearGame=g; C.yearPlayer=p; p.pos=1;
+    window.UiGame.finishRoll([4,5]);
+    ok(p.age===22 && g.players[1].age===20, '跨两个发薪日：本人 20→22 岁，另一位仍 20 岁');
+    ok(title().indexOf('发薪日')>=0, '落在发薪日显示结算面板');
+    ok(q('#modal').textContent.indexOf('20→22 岁')>=0, '面板显示本次结算的年龄区间');
+    mb('确定').click();
+    ok(!q('#btnEndTurn').hidden && q('#btnRoll').disabled, '确认后可结束回合，不可重复掷骰');
+    var cash=p.cash;
+    window.UiGame.saveState();
+    window.UiGame.tryRestore();
+    g=window.Game.g; p=g.players[0];
+    ok(p.age===22 && p.cash===cash && window.Game.rolled, '保存恢复保留个人年龄、现金与已移动状态，不重复结算');
+    window.UiGame.endTurn();
+    C.lastEnd=Date.now();
+    ok(window.Engine.current(g).id===1 && g.players[0].age===22, '换人不长岁，按下一位自己的年龄显示');
+    ok(q('#turnChip').textContent.indexOf('20 岁')>=0, '操作栏显示当前玩家 20 岁');
+    window.UiGame.showPlayerDetail(0);
+    ok(q('#modal').textContent.indexOf('22 岁')>=0, '查看另一位玩家显示其独立年龄');
+    window.UI.closeModal();
+    window.UiSummary.openSummary(0);
+    ok(q('#modal').textContent.indexOf('22 岁')>=0, '复盘也显示被查看玩家的年龄');
+    window.UI.closeModal();
+  });
+
+  step('J 最后一年缺口', function(){ return Date.now()-C.lastEnd>350; }, function(){
+    window.startGame({rule:'101',mode:'solo',count:1,names:['我'],seed:42});
+    var g=window.Game.g, p=g.players[0];
+    C.finalGame=g; C.finalPlayer=p;
+    p.age=64; p.pos=1; p.cash=10000000; p.liabs.bank=5000000;
+    window.UiGame.finishRoll([6]);
+    ok(p.age===65 && p.pos===2, '达到 65 岁时停在最后一个发薪日，不继续走剩余步数');
+    ok(title().indexOf('入不敷出')>=0 && !g.over, '先处理最后一年亏损，未提前结束游戏');
+    ok(q('#modal').textContent.indexOf('年度结算缺口')>=0, '缺口面板使用年度文案');
+    mb('动用储蓄').click();
+    ok(title().indexOf('发薪日')>=0, '支付缺口后回到结算确认');
+    mb('确定').click();
+    C.finalCash=p.cash;
+    window.UiGame.endTurn();
+    ok(g.over && g.soloResult.endAgeNow===65 && p.cash===C.finalCash, '结束回合产出 65 岁人生结果，不再次补发或扣钱');
+    ok(title().indexOf('人生结算')>=0, '显示人生结算页');
+    ok(q('#modal').textContent.indexOf('45 次年度结算')>=0, '结果页使用年度结算次数，不宣称 45 轮');
+    window.UI.closeModal();
   });
 
   /* ---------------- 状态机驱动 ---------------- */

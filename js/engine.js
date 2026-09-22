@@ -54,9 +54,9 @@ function dueOf(balance, rate, n){
   return Math.ceil(b * rate * f / (f - 1));
 }
 /* ------------------------------ 时间口径 ------------------------------ */
-/* ★ 一轮 = 一年；一个结算格 = 结算 1 年，每个结算年折算 12 个月。
-   没踩到结算格的年份由 settledAge 记账积欠，突变点 / 终局一次结清。
-   见 data-careers.js 的 window.TIME —— 这里只做读取，绝不在别处写死 12。 */
+/* 每经过一个发薪日 / 分红日结算 1 年，并让该玩家长 1 岁。
+   回合只表示行动顺序，不推进年龄；没有积欠或额外补结。 */
+
 function monthsPerPayday(){
   return (window.TIME && window.TIME.monthsPerPayday) || 12;
 }
@@ -271,21 +271,21 @@ function curveAt(curve, age, key){
   for(let i=0;i<curve.length;i++) if(age <= curve[i].age) return curve[i][key];
   return curve[curve.length-1][key];
 }
-function salaryStageOf(g){
-  const age = ageOf(g), C = window.SALARY_CURVE;
+function salaryStageOf(g, p){
+  const age = ageOf(g, p), C = window.SALARY_CURVE;
   for(let i=0;i<C.length;i++) if(age <= C[i].to) return C[i];
   return C[C.length-1];
 }
-function lifeStageOf(g){
-  const age = ageOf(g), L = window.LIFE_STAGES;
+function lifeStageOf(g, p){
+  const age = ageOf(g, p), L = window.LIFE_STAGES;
   for(let i=0;i<L.length;i++) if(age <= L[i].to) return L[i];
   return L[L.length-1];
 }
 /* 精力上限：随年龄衰减（40 岁后体力与恢复力明显下降） */
-function energyMax(g, p){ return curveAt(window.ENERGY.maxCurve, ageOf(g), 'max'); }
+function energyMax(g, p){ return curveAt(window.ENERGY.maxCurve, ageOf(g, p), 'max'); }
 /* 每回合自然恢复；健康危机期间打对折 —— 身体处在恢复期，休息效率本身就低 */
 function energyRecover(g, p){
-  let v = curveAt(window.ENERGY.recoverCurve, ageOf(g), 'v');
+  let v = curveAt(window.ENERGY.recoverCurve, ageOf(g, p), 'v');
   if(numOr(p.crisisTurns) > 0) v = Math.round(v / 2);
   return v;
 }
@@ -307,7 +307,7 @@ function isJobless(p){ return numOr(p.joblessNeed) > 0 && numOr(p.joblessProgres
      否则几十处调用点都要改成 finance(g,p)，风险远大于收益。 */
 function refreshLife(g, p){
   if(!p || !g) return p;
-  const sc = salaryStageOf(g), ls = lifeStageOf(g);
+  const sc = salaryStageOf(g, p), ls = lifeStageOf(g, p);
   if(typeof p.baseSalary !== 'number') p.baseSalary = numOrDef(p.job && p.job.salary, 0);
   p.salaryMult  = sc.mult;
   p.salaryPhase = sc.phase;
@@ -320,9 +320,9 @@ function refreshLife(g, p){
   /* 退休断崖（仅单人模式）：到了退休年龄，工资停发，改领养老金。
      现实依据：我国城镇职工养老金替代率约 40%—50%，即退休后收入只有在职时的
      一半上下 —— 这正是「只靠劳动收入」的人生在 61 岁会遇到的那道台阶。
-     多人模式不做这段：所有玩家在 65 岁同步结算，这个断崖不产生任何相对压力。 */
+     多人模式保留原工资规则，各自到 65 岁后结束行动。 */
   const S = window.SOLO;
-  p.retired = isSolo(g) && ageOf(g) >= S.retireAge;
+  p.retired = isSolo(g) && ageOf(g, p) >= S.retireAge;
   /* ★ 到了退休年龄就不再「求职」了：被裁后没能在退休前找到工作，
      结果就是直接退休领养老金 —— 而不是永远停在求职期。
      不清理会出现荒谬状态：65 岁还在「投递简历」，且因为求职期工资归零，
@@ -388,96 +388,29 @@ function healthCrisis(g, p){
 /* 失业：不再是「付一笔钱就结束」，而是进入求职期 —— 工资归零、支出照付。
    求职所需回合数随年龄上升（40 岁 / 50 岁两道门槛），
    这正是现实中「年龄越大越难再就业」的建模。 */
-/* 收入状态突变（失业）时，先把账结到当下。
-   ★ 为什么必须有这一步：结算金额是「当前月度结余 × 经过的年数」，
-     而 due 年内的收入状态可能已经变过 —— 失业后下一次结算会把
-     「失业前那几年」也按失业后的缺口来算。实测（护士 · 种子 20260920）：
-     真实缺口约 1.5 万，被算成 4.6 万，超过手头现金，直接把人逼到破产。
-     在突变点先结清，「未结算周期」就不会跨越突变点。 */
-function settleAtBreak(g, p){
-  const since = numOrDef(p.settledAge, g.startAge - 1);
-  const due = ageOf(g) - since;
-  if(due <= 0) return null;
-  const monthly = finance(p).cashflow;        /* 用突变【前】的口径 */
-  const amount  = annual(monthly) * due;
-  p.settledAge = ageOf(g);
-  amortize(g, p, due);                        /* 领几年就摊还几年，与常规结算一致 */
-  const out = { years:due, monthly, amount, deficit:0 };
-  /* 与 movePlayer 的结算文案同口径：点明「一次结清」、给出覆盖区间与算式 ——
-     只说「结算 N 年」会被读成「结算了 N 次」（本次审计的起因）。 */
-  const ageNow = ageOf(g);
-  const spanTxt = due > 1 ? `${since + 1}—${ageNow} 岁共 ${due} 年` : `${ageNow} 岁这一年`;
-  const perYear = annual(monthly);
-  if(amount >= 0){
-    p.cash += amount;
-    log(g, `${p.name} 收入变更前一次结清（覆盖 ${spanTxt}），入账 ${money(amount)} = 年结余 ${money(perYear)} × ${due}`, 'good', p.name);
-  } else {
-    out.deficit = -amount;
-    log(g, `${p.name} 收入变更前一次结清（覆盖 ${spanTxt}），合计入不敷出 ${money(out.deficit)}`, 'bad', p.name);
-  }
-  return out;
-}
+/* 保留旧接口供存档 / 调用方兼容。收入变化不补发、也不扣除未经过的年份。 */
+function settleAtBreak(g, p){ return null; }
 
-/* 退休突变点的结算（仅单人模式 —— 只有单人存在退休断崖）。
-   与失业同理：退休也是一次收入突变（工资 → 养老金，收入腰斩），
-   必须先把「上次结算 → 退休这一刻」按【在职】口径结清，再切换到养老金口径。
-
-   ★ 顺序不能反：若先切换再结算，退休后的第一次发薪会用养老金的低口径
-     去结算在职那几年 —— 凭空造出一个缺口，把「退休」变成一次错误的破产。
-   ★ 用一个显式标记 p.retireSettled 而不是靠 p.retired 判断：
-     后者是 refreshLife 的推导结果，调用顺序一变就会误判。 */
+/* 退休只切换下一年的收入口径，刚结束的一年已在发薪日结清。 */
 function retireBreakOf(g){
   if(!isSolo(g)) return null;
   const p = g.players[0];
-  if(!p || p.out || p.retireSettled) return null;
-  if(ageOf(g) < numOrDef(window.SOLO.retireAge, 61)) return null;
-  p.retireSettled = true;                      /* 只触发一次 */
+  if(!p || p.out || p.retireSettled || ageOf(g, p) < window.SOLO.retireAge) return null;
+  p.retireSettled = true;
   p.retireRound = g.round;
-  const brk = settleAtBreak(g, p);             /* 此时 p.retired 仍为 false → 在职口径 */
-  const ratio = Math.round(numOrDef(window.SOLO.pensionRatio, 0.45) * 100);
-  if(brk){
-    milestone(g, p, `第 ${g.round} 轮到达退休年龄（${ageOf(g)} 岁）：先把此前 ${brk.years} 年按在职口径结清`
-      + `${brk.deficit > 0 ? `（缺口 ${money(brk.deficit)}）` : `（入账 ${money(brk.amount)}）`}，`
-      + `此后收入改为养老金（替代率 ${ratio}%）`, brk.deficit > 0 ? 'bad' : 'info');
-  } else {
-    milestone(g, p, `第 ${g.round} 轮到达退休年龄（${ageOf(g)} 岁）：工资停发，改领养老金（替代率 ${ratio}%）`, 'info');
-  }
-  return brk;
+  const age = ageOf(g, p);
+  milestone(g, p, `${age} 岁退休：此后工资改为养老金（基础工资的 ${Math.round(window.SOLO.pensionRatio * 100)}%），不额外补结`, 'info');
+  return { by:p.id, age, years:0, amount:0, deficit:0 };
 }
 
-/* 终局结清：把「上次结算 → 对局结束」这一段补上。
-   不做这一步，退休期（61→65 岁）的养老金永远不会入账 ——
-   这也是「突变未结算」的一种形态：不是结错，而是根本没结。
-   结完再评档，评级才是基于完整的一生。 */
+/* 终局只评档 / 排名，不产生第二笔收入或贷款摊还。 */
 function finalSettle(g){
-  const rows = [];
-  g.players.forEach(p=>{
-    if(!p || p.out) return;
-    const since = numOrDef(p.settledAge, g.startAge - 1);
-    const due = ageOf(g) - since;
-    if(due <= 0) return;
-    const monthly = settleCashflow(p);         /* 圈层唯一真源（工资口径 / 分红口径） */
-    const amount  = annual(monthly) * due;
-    p.settledAge = ageOf(g);
-    amortize(g, p, due);                       /* 领几年就还几年，与常规结算一致 */
-    const ageNow = ageOf(g);
-    const spanTxt = due > 1 ? `${since + 1}—${ageNow} 岁共 ${due} 年` : `${ageNow} 岁这一年`;
-    if(amount >= 0){
-      p.cash += amount;
-      log(g, `${p.name} 终局一次结清（覆盖 ${spanTxt}），入账 ${money(amount)} = 年结余 ${money(annual(monthly))} × ${due}`, 'good', p.name);
-    } else {
-      log(g, `${p.name} 终局一次结清（覆盖 ${spanTxt}），入不敷出 ${money(-amount)}`, 'bad', p.name);
-      payCash(p, -amount);                     /* 尽力支付 */
-      settleNegativeCash(g, p);                /* 不足部分兜底变现，保证现金非负 */
-    }
-    rows.push({ id:p.id, years:due, monthly, amount });
-  });
-  g.finalSettled = rows;
-  return rows;
+  g.finalSettled = [];
+  return g.finalSettled;
 }
 
 function startJobless(g, p, severance){
-  const U = window.UNEMPLOYMENT, age = ageOf(g);
+  const U = window.UNEMPLOYMENT, age = ageOf(g, p);
   /* 退休之后不该再有「求职期」—— 这个年龄已经不会有人来招了。
      语义改成「退休返聘结束」：一次性少发一个月养老金，然后照常领。
      否则会出现「61 岁被裁 → 投简历 → 63 岁重新就业」这种明显不真实的流程。 */
@@ -493,9 +426,7 @@ function startJobless(g, p, severance){
     return { ok:true, retired:true, hit:paid, shortfall:r.ok ? 0 : r.shortfall, need:0, severance:0 };
   }
   const need = U.effortBase + (age > 40 ? U.over40Extra : 0) + (age > 50 ? U.over50Extra : 0);
-  /* ① 先按【在职】口径把这段未结算周期结清（见 settleAtBreak 的注释） */
-  const brk = settleAtBreak(g, p);
-  /* ② 再切到失业状态 */
+  /* 就业变化只影响下一个发薪日；离职补偿仍按事件即时支付。 */
   p.joblessProgress = 0;
   p.joblessNeed = need;
   if(severance) p.cash += severance;
@@ -503,7 +434,7 @@ function startJobless(g, p, severance){
   bump(p, 'downsized');
   milestone(g, p, `第 ${g.round} 轮被裁员失业，进入求职期（预计 ${need} 个回合），期间工资归零`, 'bad');
   log(g, `${p.name} 被裁员失业：工资归零，需要投入时间求职（预计 ${need} 个回合）${severance ? `，领取离职补偿 ${money(severance)}` : ''}`, 'bad', p.name);
-  return { ok:true, need, severance:severance||0, brk };
+  return { ok:true, need, severance:severance||0, brk:null };
 }
 /* 求职：消耗精力推进进度。精力不足时只能先休息，求职期相应拉长 ——
    越疲惫越难找到工作，这在现实中完全成立。 */
@@ -733,7 +664,8 @@ function marketCycleOf(g, kind){
   /* ⚠️ phase 里找不到该类资产时默认 0 —— 那会让它与房产同相、同步涨跌。
      所以相位表的键名必须与 ASSET_KINDS 对齐（见 MARKET 注释与回归断言）。 */
   const ph    = numOrDef((cy.phase || {})[kind], 0);
-  const t = (numOr(g && g.round) - 1) / years * Math.PI * 2 + ph;
+  const elapsed = g ? Math.max(0, ...(g.players || []).map(p=>ageOf(g, p) - g.startAge)) : 0;
+  const t = elapsed / years * Math.PI * 2 + ph;
   return 1 + amp * Math.sin(t);
 }
 function marketIndex(g, kind){ return marketCycleOf(g, kind) * marketShockOf(g, kind); }
@@ -762,15 +694,16 @@ function appraiseAsset(g, kind, item){
   const D = (window.MARKET && window.MARKET.decay) || {};
   const book  = assetBookOf(kind, item);
   const index = marketIndex(g, kind);
-  const held  = Math.max(0, numOr(g && g.round) - numOrDef(item && item.buyRound, 1));
+  const held  = Math.max(0, numOr(item && item.heldYears));
   const decay = Math.pow(1 - numOrDef(D[kind], 0), held);
   return { book, index, years: held, decay,
            value: Math.max(0, Math.round(book * index * decay)) };
 }
-/* 给资产打上「买入轮次」—— 折旧依赖持有年数，没有这个标记就只能假设从开局持有。
+/* 给资产记录买入轮次和持有年数；持有年数只在持有者经过结算日时增加。
    ★ 统一在这里打标（而不是在各个 push 点手写），避免漏掉某条买入路径。 */
 function stampAsset(g, item){
   if(item && item.buyRound == null) item.buyRound = numOr(g && g.round) || 1;
+  if(item && item.heldYears == null) item.heldYears = 0;
   return item;
 }
 /* 玩家全部资产的重估汇总 */
@@ -995,9 +928,9 @@ function newPlayer(i, name, job, color, icon){
     pos: 0, ftPos: 0, inFT: false,
     ftBase: 0, ftGain: 0,
     charityTurns: 0, skipTurns: 0, pausedThisTurn: false, pausedNotified: false,
-    /* 上次结算时的年龄 —— 「发薪日结算自上次结算以来经过的年数」的记账位。
-       年龄 20 起步，所以初值是 startAge − 1（= 19），首次结算恰好覆盖 1 年。 */
-    settledAge: 0,
+    /* 每个玩家独立计龄；settledAge 仅为旧存档兼容镜像，不再决定发薪。 */
+    age: AGE_START, settledAge: AGE_START, settledYears: 0, finished: false,
+
     /* 人生模拟：精力 / 就业 / 医疗，以及由年龄推导出的收入支出参数 */
     energy: 100, baseSalary: job.salary, salaryMult: 1, salaryPhase: '', taxesCur: null,
     lifeStage: '', lifeCoef: 1, elderCare: 0,
@@ -1045,7 +978,7 @@ function newGame(cfg){
   const g = {
     rule: cfg.rule || '101',
     mode,
-    startAge: AGE_START, endAge: AGE_END,
+    startAge: AGE_START, endAge: AGE_END, timeVersion: 2,
     players: [], cur: 0, round: 1, turnNo: 0,
     phase: 'ratrace',
     over: false, winner: null, winReason: '',
@@ -1084,15 +1017,15 @@ function newGame(cfg){
     }
     refreshLife(g, p);                    /* 按年龄推导工资 / 税负 / 支出系数 / 赡养支出 */
     p.energy = energyMax(g, p);           /* 开局精力满格 */
-    p.settledAge = g.startAge - 1;        /* 尚未结过账：首次结算覆盖「20 岁这一年」 */
+    p.age = p.settledAge = g.startAge;   /* 首次发薪结算 20→21 岁这一年 */
     const f = finance(p);
     /* 第 7 步：起始现金 = 月现金流 + 储蓄（202 规则另加初始投资组合中的现金） */
     p.cash = f.cashflow + p.job.savings + (p.pfCash || 0);
     p.startCash = p.cash;
     g.players.push(p);
   }
-  const modeNm = g.mode === 'solo'    ? `单人模式（${g.startAge}→${g.endAge} 岁，共 ${maxRounds(g)} 轮）`
-               : g.mode === 'age'     ? `年龄模式（${g.startAge}→${g.endAge} 岁，共 ${maxRounds(g)} 轮）`
+  const modeNm = g.mode === 'solo'    ? `单人模式（${g.startAge}→${g.endAge} 岁，共 ${maxYears(g)} 次年度结算）`
+               : g.mode === 'age'     ? `年龄模式（${g.startAge}→${g.endAge} 岁，共 ${maxYears(g)} 次年度结算）`
                : '无限模式';
   log(g, `游戏开始 · ${g.rule} 规则 · ${n} 位玩家 · ${modeNm}`, 'sys');
   syncPhase(g);
@@ -1152,14 +1085,36 @@ function log(g, text, type, who){
 }
 
 /* ------------------------------ 年龄 / 轮次 ------------------------------ */
-/* 年龄模式：开局 20 岁，所有玩家各行动一次算一轮，每完成一整轮长 1 岁。
-   round 表示「当前正在进行的第几轮」（从 1 开始），因此：
-     年龄 = startAge + (round - 1)
-   已完成的轮数 = round - 1
-   总轮数上限 = endAge - startAge（20 → 65 共 45 轮） */
-function ageOf(g){ return g.startAge + (g.round - 1); }
-function yearsLeft(g){ return Math.max(0, g.endAge - ageOf(g)); }
-function maxRounds(g){ return g.endAge - g.startAge; }
+/* 年龄属于玩家。只在发薪 / 分红日推进，round 仅用于轮转与回合制效果。 */
+function ageOf(g, p){
+  p = p || current(g);
+  return numOrDef(p && p.age, g.startAge);
+}
+function yearsLeft(g, p){ return Math.max(0, g.endAge - ageOf(g, p)); }
+function maxYears(g){ return g.endAge - g.startAge; }
+function maxRounds(g){ return Infinity; }  /* 兼容旧调用；年龄模式也没有固定轮数上限 */
+function lifeComplete(g, p){ return isAgeMode(g) && ageOf(g, p) >= g.endAge; }
+
+/* 旧档保留已经发生的现金和年龄，从恢复点开始按发薪日推进，绝不重发历史收入。 */
+function migrateTime(g){
+  if(g.timeVersion === 2) return g;
+  const legacyAge = g.startAge + Math.max(0, numOr(g.round) - 1);
+  g.players.forEach(p=>{
+    p.age = isAgeMode(g) ? Math.min(g.endAge, legacyAge) : legacyAge;
+    ASSET_KINDS.forEach(k=>(p.assets[k] || []).forEach(it=>{
+      if(it.heldYears == null) it.heldYears = Math.max(0, g.round - numOrDef(it.buyRound, 1));
+    }));
+    p.settledAge = p.age;
+    p.settledYears = Math.max(0, p.age - g.startAge);
+    p.finished = !!g.over && !p.out && lifeComplete(g, p);
+    if(p.escapeRound != null && p.escapeAge == null) p.escapeAge = g.startAge + p.escapeRound - 1;
+    (p.track || []).forEach(t=>{ if(t.age == null) t.age = g.startAge + t.round - 1; });
+  });
+  g.lastRetire = null;
+  g.timeVersion = 2;
+  return g;
+}
+
 /* 单人模式同样按年龄推进（20→65 岁），所以也属于「年龄制」；
    凡是只关心「有没有年龄与退休」的地方用 isAgeMode，
    凡是只该在单人下生效的规则用 isSolo。 */
@@ -1214,7 +1169,7 @@ function bump(p, key, n){
 /* 关键节点：只记「值得回看」的决策，报告的决策时间线直接用它 */
 function milestone(g, p, text, kind){
   initTrack(p);
-  p.milestones.push({ round:g.round, text, kind:kind || 'info' });
+  p.milestones.push({ round:g.round, age:ageOf(g, p), text, kind:kind || 'info' });
   if(p.milestones.length > 60) p.milestones.shift();
 }
 /* 每完成一整轮给所有玩家拍一张快照：现金 / 被动收入 / 月现金流 / 净资产 */
@@ -1222,7 +1177,7 @@ function trackRound(g){
   g.players.forEach(p=>{
     initTrack(p);
     const f = finance(p), nw = netWorth(p);
-    p.track.push({ round:g.round, cash:p.cash, passive:f.passive, cf:f.cashflow, net:nw });
+    p.track.push({ round:g.round, age:ageOf(g, p), cash:p.cash, passive:f.passive, cf:f.cashflow, net:nw });
     if(p.track.length > 60) p.track.shift();
     const st = p.stats;
     if(st.peakPassive === null || f.passive > st.peakPassive) st.peakPassive = f.passive;
@@ -1244,7 +1199,7 @@ function syncPhase(g){ g.phase = phaseOf(g); return g.phase; }
 function beginTurn(g){
   const p = current(g);
   if(g.over) return null;
-  if(p.out){ nextPlayer(g); return beginTurn(g); }
+  if(p.out || p.finished){ nextPlayer(g); return g.over ? null : beginTurn(g); }
   p.turnStart = { cash:p.cash, cf:settleCashflow(p) };
   /* 慈善加成回合递减 */
   if(p.charityTurns>0) { /* 在实际掷骰后消耗 */ }
@@ -1272,27 +1227,23 @@ function markTurnPause(g){
 }
 
 function nextPlayer(g){
-  if(g.over) return;
+  if(g.over) return null;
+  if(isAgeMode(g) && alivePlayers(g).every(p=>p.finished)){
+    isSolo(g) ? endSolo(g) : endByAge(g);
+    return null;
+  }
   let guard = 0;
   do{
-    g.cur = (g.cur+1) % g.players.length;
+    g.cur = (g.cur + 1) % g.players.length;
     if(g.cur === 0){
       trackRound(g);
-      g.round++;                 /* 全局长 1 岁 → 所有人的收入与支出结构随之变化 */
-      /* ★ 退休是一次收入突变：先把「上次结算 → 退休这一刻」按【在职】口径结清，
-         再 refreshAllLife 切换到养老金口径。顺序反了就会用养老金去结算在职那几年。 */
-      g.lastRetire = retireBreakOf(g);
-      refreshAllLife(g);
-      refreshAllEnergy(g);
+      g.round++;
       expireOptions(g);
     }
     guard++;
-  } while(g.players[g.cur].out && guard < g.players.length*2);
-  /* 年龄模式：完成一整轮（所有玩家各行动一次，即 round 递增）即长 1 岁，满 65 岁退休结算 */
-  if(isAgeMode(g) && g.round > maxRounds(g)){ isSolo(g) ? endSolo(g) : endByAge(g); return null; }
-  checkSoloStage(g);             /* 年龄跨过阶段边界 → 播报人生阶段切换 */
+  } while((g.players[g.cur].out || g.players[g.cur].finished) && guard < g.players.length * 2);
   markTurnPause(g);
-  refreshLife(g, current(g));    /* 精力可能在上一回合变化 → 主动收入与税负跟着刷新 */
+  refreshLife(g, current(g));
   syncPhase(g);
   return current(g);
 }
@@ -1301,7 +1252,7 @@ function nextPlayer(g){
 function endByAge(g){
   if(g.over) return;
   g.over = true;
-  finalSettle(g);              /* 先结清最后一段，再排名 —— 否则名次建立在漏账之上 */
+  finalSettle(g);              /* 收支已逐年结清，此处只排名 */
   const alive = alivePlayers(g).slice().sort((a,b)=>netWorth(b)-netWorth(a));
   if(alive.length){
     g.winner = alive[0].id;
@@ -1325,12 +1276,12 @@ function soloOutcome(g, p){
   };
   const dreamAge  = firstAge('dream');
   const empireAge = firstAge('empire');
-  const escapeAge = (p.escapeRound != null) ? (g.startAge + p.escapeRound - 1) : null;
+  const escapeAge = p.escapeAge != null ? p.escapeAge : null;
   const base = { dreamAge, empireAge, escapeAge, winAge:S.winAge };
   if(p.out){
     return Object.assign(base, { key:'bankrupt', win:false,
       label: p.outReason === '主动认输' ? '中途退出' : '中途出局',
-      reason: `${ageOf(g)} 岁时${p.outReason || '出局'} —— 现金流断裂是财富积累中唯一不可逆的失败，` +
+      reason: `${ageOf(g, p)} 岁时${p.outReason || '出局'} —— 现金流断裂是财富积累中唯一不可逆的失败，` +
               '它不会给你「下次再说」的机会' });
   }
   if(dreamAge != null && dreamAge <= S.winAge){
@@ -1378,7 +1329,7 @@ function buildSoloResult(g){
     key:oc.key, label:oc.label, grade, win:oc.win, reason:oc.reason,
     lv:cls.lv, levelName:cls.level.name, cover:cls.cover, passive:cls.passive, target:cls.target,
     dreamAge:oc.dreamAge, escapeAge:oc.escapeAge, winAge:oc.winAge,
-    netWorth: netWorth(p), endAge: g.endAge, endRound: g.round, endAgeNow: ageOf(g),
+    netWorth: netWorth(p), endAge: g.endAge, endRound: g.round, endAgeNow: ageOf(g, p),
     over: g.over
   };
   g.winner = oc.win ? p.id : null;
@@ -1389,9 +1340,8 @@ function buildSoloResult(g){
 function endSolo(g){
   if(g.over) return;
   g.over = true;
-  /* 先补上最后一段（退休期的养老金），再评档 —— 否则评级建立在漏账之上。
-     ⚠️ 破产出局走的是另一条路（checkLastStanding），刻意不做终局结清：
-        破产是「现金流断裂」的即时判定，补结收入会把断裂的时点往后推。 */
+  /* 最后一年已经在发薪日结清，终局不补结。 */
+
   finalSettle(g);
   const r = buildSoloResult(g);
   log(g, `🏁 ${g.endAge} 岁退休结算 · 人生评级 ${r.grade}（${r.label}）—— ${r.reason}`, r.win ? 'good' : 'bad', g.players[0].name);
@@ -1400,7 +1350,7 @@ function endSolo(g){
 /* 期权 3 回合限制 */
 function expireOptions(g){
   g.players.forEach(p=>{
-    if(p.out) return;
+    if(p.out || p.finished) return;
     const alive = [];
     p.options.forEach(o=>{
       if(o.expiresAt <= g.turnNo){
@@ -1428,108 +1378,53 @@ function rollDice(g, n){
 function spacesOf(g, p){ return p.inFT ? FAST_TRACK : RAT_RACE; }
 const RING_LEN = 24;
 
-function pathBetween(from, to){
-  const out = []; let i = from;
-  let guard = 0;
-  do{ i = (i+1) % RING_LEN; out.push(i); guard++; } while(i !== to && guard < 60);
-  return out;
-}
-
-/* 执行移动 + 结算经过的格子 + 返回落点待处理事件 */
+/* 执行真实路径：包含落点，不包含起点；零步不绕圈，多圈不漏格。 */
 function movePlayer(g, p, steps){
   const spaces = spacesOf(g, p);
   const from = p.inFT ? p.ftPos : p.pos;
-  const to = (from + steps) % RING_LEN;
-  const path = pathBetween(from, to);
+  const path = [], rows = [];
+  let to = from, collected = 0, deficit = 0;
+  const count = Math.max(0, Math.floor(numOr(steps)));
+  for(let i = 0; i < count; i++){
+    if(g.over || p.out || p.finished || lifeComplete(g, p)) break;
+    to = (to + 1) % spaces.length;
+    path.push(to);
+    const sp = spaces[to];
+    if(sp.t !== (p.inFT ? 'cashflowday' : 'paycheck')) continue;
+
+    /* 用长岁前的账本结算这一年，再摊还和长岁。
+       多个发薪日逐笔计算：还清贷款 / 退休 / 工资阶段变化会影响下一笔。 */
+    refreshLife(g, p);
+    const since = ageOf(g, p), monthly = settleCashflow(p), amount = annual(monthly);
+    if(amount >= 0){ p.cash += amount; collected += amount; }
+    else deficit += -amount;
+    amortize(g, p, 1);
+    ASSET_KINDS.forEach(k=>(p.assets[k] || []).forEach(it=>{ it.heldYears = numOr(it.heldYears) + 1; }));
+    p.age = since + 1;
+    p.settledAge = p.age;
+    p.settledYears = numOr(p.settledYears) + 1;
+    bump(p, 'paychecks');
+    rows.push({ ix:to, years:1, monthly, amount, since, through:p.age });
+    const retirement = retireBreakOf(g);
+    if(retirement) g.lastRetire = retirement;
+    p.energy = Math.min(numOr(p.energy), energyMax(g, p));
+    refreshLife(g, p);
+    checkSoloStage(g);
+    log(g, `${p.name} 经过${p.inFT ? '分红日' : '发薪日'}：结算 1 年（${since}→${p.age} 岁）`
+      + (amount >= 0 ? `，入账 ${money(amount)} = 年结余 ${money(amount)} × 1`
+                     : `，入不敷出 ${money(-amount)}`), amount >= 0 ? 'good' : 'bad', p.name);
+  }
   g.lastPath = path;
   if(p.inFT) p.ftPos = to; else p.pos = to;
-
-  /* 经过 / 停留 结算日格子 → 每个结算格【恰好结算 1 年】
-     ★ 月度结余可能为负（失业期没有工资而支出照付，或贷款月供超过了收入）——
-       负值【不能直接加到现金上】，否则会破坏「现金永不为负」这条不变式。
-       这里把它记成一笔「当期入不敷出」，交给界面走统一的资金不足处理流程。
-
-     ★★ 记账规则（每个发薪日 = 一年）：
-     每个被经过的结算格结算【最旧的 1 个未结年份】（settledAge + 1），
-     按当前的月度结余折算。跨 2 个发薪日就结 2 年 —— 与「经过几个、结几年」严格对应。
-     年龄仍由「整圈」推进（45 轮 = 45 年），而内圈每轮只经过约 0.44 个发薪日，
-     于是「没踩到发薪日的年份」会积欠下来（settledAge 落后于当前年龄），
-     在后续的发薪日逐个结清，或在收入突变 / 终局时一次结清。
-     ⚠️ settledAge >= 当前年龄时记「本年已结」略过 —— 不给还没活过的年份发薪。
-        （内圈积欠是常态、略过罕见；外圈 4 个分红日密度 > 1，略过反而是常态。）
-     ⚠️ 不能反向修（让发薪日推进年龄）：一生只有约 20 次发薪，
-        那样角色 45 轮下来只活到 39 岁，65 岁退休判定立刻失效。 */
-  const ageNow = ageOf(g);
-  let collected = 0, deficit = 0;
-  /* 每个结算点各记一笔 —— 有三个用处：
-     ① 弹层能如实汇报「本回合经过几个、各结了哪一年、进了多少钱」；
-     ② 同一回合内两次结算的金额可能【不同】：前一次 amortize 若恰好还清某笔贷款，
-        月供会立刻从支出里消失；
-     ③ 每笔只有 1 年，弹层能把「经过 N 个 = 结 N 年」的对应关系摆到明面上。 */
-  const settledYears = [];
-  path.forEach(ix=>{
-    const sp = spaces[ix];
-    const isPay = !p.inFT && sp.t === 'paycheck';
-    const isDiv = p.inFT && sp.t === 'cashflowday';
-    if(!isPay && !isDiv) return;
-
-    const since = numOrDef(p.settledAge, g.startAge - 1);
-    const due = ageNow - since;
-    if(due <= 0){
-      /* 本年的账已经结过（同一次移动经过两个发薪日且积欠为 0，或突变点刚结清后又踩到）。
-         仍记一笔，好让弹层讲清楚「踩到了，但本年已结」—— 而不是静默无反应。 */
-      settledYears.push({ ix, years:0, monthly:0, amount:0, already:true, since });
-      return;
-    }
-    /* ★ 每个结算格恰好结算 1 年（最旧的未结年份 = since + 1 岁）。
-       先取这一年的结余，再摊还 —— 顺序不可换（摊还会改变月供）。
-       简化口径：按【当前】的月度结余折算，不逐年回溯年龄曲线；
-       误差只来自积欠期间跨越涨薪/降薪节点的那几年，量级很小。 */
-    /* ★ 自由圈同样要有账本：分红（毛被动收入）要减去自由圈的生活支出与仍在还的贷款。
-       旧版直接拿 ftMonthly(p) 当收入，支出侧完全空缺 —— 出圈后现金无上限增长，
-       顺流层变成绝对安全区。现实里财务自由之后生活档次会升级，
-       这些同样是固定支出，也一样可能压垮现金流。 */
-    const monthly = isPay ? finance(p).cashflow : ftFinance(p).cashflow;
-    const amount  = annual(monthly);                 /* × 1 年 */
-    if(amount >= 0) collected += amount; else deficit += -amount;
-    settledYears.push({ ix, years:1, monthly, amount, since });
-    p.settledAge = since + 1;                        /* 只推进 1 年，积欠保留给后续结算 */
-    amortize(g, p, 1);                               /* ★ 领几年就摊还几年 —— 两者必须同步。
-                                                         财务自由圈的「分红日」同样摊还：
-                                                         旧版只有内圈发薪日摊还，出圈后负债会冻结。 */
-  });
-  /* settled 会一路带给 resolveSpace（含「入不敷出」处理完后重入的那一次），
-     所以弹层显示的金额与实际入账永远是同一个数。 */
-  const yearsPaid = settledYears.reduce((a, y)=> a + y.years, 0);
-  /* since = 本次结算的起点年龄。必须在这里记下来 ——
-     movePlayer 结束时 p.settledAge 已经被推进，弹层若去读 p.settledAge 会拿到推后的值。 */
-  const settled = settledYears.length
-    ? { count: settledYears.length, yearsPaid, skipped: settledYears.filter(y=>y.already).length,
-        since: settledYears[0].since, amount: collected, deficit, years: settledYears,
-        through: p.settledAge, arrears: Math.max(0, ageNow - p.settledAge) }
-    : null;
-  /* ★ 文案必须讲清「经过几个、各结哪一年」，并给出算式 —— 玩家可以自己核账。
-     多年积欠的结清只发生在突变点 / 终局（那里的文案自带「一次结清」说明）。 */
-  const paidCells = settledYears.filter(y => y.years > 0);
-  if(collected !== 0){
-    p.cash += collected;
-    const yearList = paidCells.map(y => y.since + 1);
-    if(paidCells.length === 1){
-      const perYear = annual(paidCells[0].monthly);
-      log(g, `${p.name} 经过${p.inFT ? '分红日' : '发薪日'}：结算 1 年（第 ${yearList[0]} 岁）`
-        + `，入账 ${money(collected)} = 年结余 ${money(perYear)} × 1`,
-        'good', p.name);
-    } else {
-      log(g, `${p.name} 经过 ${settledYears.length} 个${p.inFT ? '分红日' : '发薪日'}：`
-        + `各结算 1 年（第 ${yearList.join('、')} 岁），合计入账 ${money(collected)}`,
-        'good', p.name);
-    }
-  }
-  if(deficit > 0){
-    log(g, `${p.name} 这 ${yearsPaid} 年合计入不敷出 ${money(deficit)}`, 'bad', p.name);
-  }
-  return { from, to, path, collected, deficit, settled, space: spaces[to] };
+  const settled = rows.length ? {
+    count:rows.length, yearsPaid:rows.length, skipped:0, since:rows[0].since,
+    through:ageOf(g, p), arrears:0, amount:collected, deficit, years:rows
+  } : null;
+  return { from, to, path, collected, deficit, settled, space:spaces[to],
+           lifeComplete:lifeComplete(g, p) };
 }
+
+
 
 /* ------------------------------ 格子结算 ------------------------------ */
 /* 「经过结算格（发薪日 / 分红日）但未停留」时的提示数据。
@@ -1538,7 +1433,7 @@ function movePlayer(g, p, steps){
      玩家看到现金涨了却不知道是发薪，也不知道涨的是哪几年的钱。
 
    ★ 两个「不提示」的分支，都是为了不重复播报同一件事：
-     ① 停在结算格 —— resolveSpace 会弹出一个完整的确认面板（结算年数 / 金额 / 略过次数）；
+     ① 停在结算格 —— resolveSpace 会弹出一个完整的确认面板（结算年数 / 金额 / 年龄变化）；
      ② 纯入不敷出 —— resolveSpace 会优先弹出入不敷出面板处理缺口。
      两者都比一条 Toast 说得更清楚，再叠一条就是同一件事说两遍。
 
@@ -1551,11 +1446,10 @@ function paydayNoticeOf(g, landed, inFT){
   if(sp && sp.t === settleType) return null;          /* ① 停在结算格 → 交给确认面板 */
   if(st.deficit > 0 && st.amount <= 0) return null;    /* ② 纯入不敷出 → 交给入不敷出面板 */
   return {
-    /* 'paid' = 确实发了钱（amount 可能为 0：收支恰好打平，但账确实结了）
-       'already' = 踩到了结算格，可这一年的账之前已经结过，本次不再发钱 */
-    kind: st.yearsPaid === 0 ? 'already' : 'paid',
+    /* 收支打平也算实际完成了一年的结算。 */
+    kind: 'paid',
     inFT: !!inFT,
-    years: st.yearsPaid,        /* 本次实际结算的年数（经过几个结算格、积欠足够时就结几年） */
+    years: st.yearsPaid,        /* 本次实际结算的年数（经过几个结算格就结几年） */
     /* 每年均额 = 该结算格的月结余 × 12。界面要显示「年结余 × N」这个算式，
        算式里的年结余必须由引擎给 —— 界面自己除会有取整误差，也违反单一真源。 */
     perYear: (function(){
@@ -1565,12 +1459,12 @@ function paydayNoticeOf(g, landed, inFT){
     amount: st.amount,          /* 实发金额（与入账同源，界面不再自己算） */
     deficit: st.deficit,        /* 同一次移动里另有入不敷出的部分 */
     count: st.count,            /* 本回合经过几个结算格 */
-    skipped: st.skipped,        /* 其中几个因「本年已结」而略过 */
+    skipped: st.skipped,        /* 兼容字段，始终为 0 */
     since: st.since,            /* 本次结算的起点年龄 */
     yearsList: (st.years || []).filter(y => y.years > 0).map(y => y.since + 1),  /* 各笔结的年份 */
     through: st.through,        /* 结算后已结到几岁 */
-    arrears: st.arrears,        /* 还剩几年积欠（将在后续发薪日 / 突变点 / 终局结清） */
-    age: g ? ageOf(g) : null,   /* 当前年龄 */
+    arrears: st.arrears,        /* 兼容字段，始终为 0 */
+    age: st.through,   /* 当前年龄 */
     landedType: sp ? sp.t : null
   };
 }
@@ -1597,31 +1491,14 @@ function resolveSpace(g, p, landed){
          现在读 movePlayer（或补偿结算）落下的记录，显示与实扣同源。 */
       const st = landed && landed.settled;
       const nm = isFT ? '分红日' : '发薪日';
-      const fallback = annual(settleCashflow(p));
-      const settled9 = st && st.since != null ? st.since : numOrDef(p.settledAge, g.startAge - 1);
-      let msg;
-      if(st && st.yearsPaid === 0){
-        /* 踩到了结算格，但本年的账已经结过 —— 明说，别让玩家以为系统漏发 */
-        msg = `本年（${ageOf(g)} 岁）的账已经结过了，这里不再重复发薪。`
-            + `下一个${nm}会结算再下一年。`;
-      } else if(st && st.amount === 0 && st.deficit > 0){
-        msg = `结算 ${st.yearsPaid} 年，合计入不敷出 ${money(st.deficit)}（已在上一面板补上）。`;
-      } else {
-        /* 措辞要点（与日志一致）：经过几个、各结哪一年、算式 ——
-           「经过 N 个 = 结 N 年」的对应关系摆到明面上，玩家可以自己核账。 */
-        const yrs = st ? st.yearsPaid : 1;
-        const paid = st && st.years ? st.years.filter(y => y.years > 0) : null;
-        const yearList = paid && paid.length ? paid.map(y => y.since + 1) : [settled9 + 1];
-        const perYear = paid && paid[0] ? annual(paid[0].monthly) : fallback;
-        msg = (yrs === 1 ? `结算 1 年（第 ${yearList[0]} 岁）` : `结算 ${yrs} 年（第 ${yearList.join('、')} 岁）`)
-            + `：入账 ${money(st ? st.amount : fallback)}`
-            + (yrs === 1 ? ` = 年结余 ${money(perYear)} × 1` : `（每个${nm}各结 1 年）`)
-            + `。`
-            + (st && st.count > yrs ? `本回合经过 ${st.count} 个${nm}，其中 ${st.count - yrs} 个因本年已结而略过。` : '')
-            + (st && st.arrears > 0 ? `另有 ${st.arrears} 年待结，将在后续${nm}逐个结清。` : '');
-        if(st && st.deficit > 0)
-          msg += `另有 ${money(st.deficit)} 为入不敷出，已在上一面板补上。`;
-      }
+      const yrs = st ? st.yearsPaid : 0;
+      let msg = st
+        ? `结算 ${yrs} 年（${st.since}→${st.through} 岁）：入账 ${money(st.amount)}`
+          + (yrs === 1 && st.deficit === 0 ? ` = 年结余 ${money(st.amount)} × 1` : `（每个${nm}各结 1 年）`)
+          + (st.deficit > 0 ? `；入不敷出 ${money(st.deficit)}，已在上一面板补上` : '') + '。'
+        : '本次没有新的移动结算。';
+      if(landed.lifeComplete) msg += `已到达 ${g.endAge} 岁，结束回合后完成人生结算。`;
+
       setPending(g, { type:'info', ico:'💰', title:nm, msg });
       break;
     }
@@ -1726,8 +1603,8 @@ function drawMarket(g){
 
 /* ------------------------------ 结束回合 ------------------------------ */
 function endTurn(g){
+  if(g.over || g.pending) return null;
   const p = current(g);
-  clearPending(g);
   if(p.charityTurns > 0){
     p.charityTurns--;
     if(p.charityTurns===0) log(g, `${p.name} 的慈善加成结束`, 'info', p.name);
@@ -1735,9 +1612,15 @@ function endTurn(g){
   p.turnsPlayed++;
   p.diceChoice = 1;
   g.turnNo++;
-  g.lastCrisis = tickEnergy(g, p);          /* 自然恢复 − 持有维护；归零则触发健康危机 */
-  checkBankruptcy(g, p);
+  g.lastCrisis = lifeComplete(g, p) ? null : tickEnergy(g, p);          /* 自然恢复 − 持有维护；归零则触发健康危机 */
+  if(!lifeComplete(g, p)) checkBankruptcy(g, p);
   if(g.over) return null;
+  if(!p.out && lifeComplete(g, p)){
+    p.finished = true;
+    p.finishRound = g.round;
+    milestone(g, p, `${p.age} 岁完成人生结算，等待其他玩家结束`, 'info');
+    trackRound(g);
+  }
   nextPlayer(g);
   return current(g);
 }
@@ -1809,7 +1692,7 @@ function payDeficit(g, p, amount){
   const r = payCash(p, amount);
   if(!r.ok) return { ok:false, shortfall:r.shortfall };
   bump(p, 'deficitMonths'); bump(p, 'deficitTotal', r.paid);
-  log(g, `${p.name} 动用储蓄补上本月收支缺口 ${money(r.paid)}`, 'bad', p.name);
+  log(g, `${p.name} 动用储蓄补上年度收支缺口 ${money(r.paid)}`, 'bad', p.name);
   return { ok:true, paid:r.paid };
 }
 
@@ -1860,7 +1743,7 @@ function settleNegativeCash(g, p){
 
 /* 破产：月现金流为负，且出售所有可变现资产后仍无法扭转 → 退出游戏 */
 function checkBankruptcy(g, p){
-  if(p.out) return false;
+  if(p.out || p.finished) return false;
   settleNegativeCash(g, p);                    /* 现金为负时先被迫变现资产 */
   /* ★ 两圈各用各的账本：老鼠赛跑看「工资 + 被动 − 支出」，
      财务自由圈看「分红 − 自由圈生活支出 − 仍在还的贷款」。
@@ -1938,10 +1821,10 @@ function win(g, p, reason, kind){
   if(isSolo(g)){
     p.achievements = p.achievements || [];
     if(!p.achievements.some(a=>a.reason === reason)){
-      p.achievements.push({ age:ageOf(g), round:g.round, reason, kind:kind || 'other' });
+      p.achievements.push({ age:ageOf(g, p), round:g.round, reason, kind:kind || 'other' });
     }
     bump(p, 'soloWins');
-    milestone(g, p, `第 ${g.round} 轮（${ageOf(g)} 岁）达成：${reason}`, 'good');
+    milestone(g, p, `第 ${g.round} 轮（${ageOf(g, p)} 岁）达成：${reason}`, 'good');
     log(g, `🎉 ${p.name} 达成「${reason}」——单人模式对局继续，直到 ${g.endAge} 岁退休结算`, 'good', p.name);
     return;
   }
@@ -2066,7 +1949,7 @@ window.Engine = {
   /* 现金不变式：现金永不为负 */
   SELL_RATE, BANK_RATE, assetLabel, payCash, sellableAssets, sellValue, liquidate, declareBankruptcy,
   /* 年龄 / 轮次 */
-  ageOf, yearsLeft, maxRounds, isAgeMode, isSolo, modeLabel, endByAge,
+  ageOf, yearsLeft, maxYears, maxRounds, lifeComplete, migrateTime, isAgeMode, isSolo, modeLabel, endByAge,
   /* 单人模式：人生阶段（叙事层）与退休结算 */
   soloStageOf, soloStage, checkSoloStage, soloOutcome, soloGrade, buildSoloResult, endSolo,
   /* 圈层：状态属于玩家自身，g.phase 仅为镜像 */
@@ -2077,7 +1960,7 @@ window.Engine = {
   surrender, initTrack, bump, milestone, trackRound, STAT_KEYS,
   /* 贷款计划：等额本息 + 全类型提前还款 */
   LOAN_KEYS, loanType, loanDue, loanInfo, ensureLoans, amortize, prepay, prepayPlan, periodsOf, dueOf,
-  /* 时间口径：一轮 = 一年；一个结算年 = monthsPerPayday() 个月（见 window.TIME） */
+  /* 时间口径：发薪日推进一年；一个结算年 = monthsPerPayday() 个月（见 window.TIME） */
   monthsPerPayday, monthsPerYear, toYears, toYearsFloor, annual,
   /* 人生阶段：收入 / 支出 / 赡养 / 医疗，全部由年龄推导 */
   curveAt, salaryStageOf, lifeStageOf, refreshLife, refreshAllLife, refreshAllEnergy,

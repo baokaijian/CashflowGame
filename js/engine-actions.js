@@ -139,7 +139,7 @@ function addCollectible(p, nm, qty, price){
 function sellOpportunity(g, card, buyerId, price){
   const seller = E.current(g);
   const buyer = g.players[buyerId];
-  if(!buyer || buyer.out || buyer.id===seller.id) return { ok:false, msg:'请选择其他玩家。' };
+  if(!buyer || buyer.out || buyer.finished || buyer.id===seller.id) return { ok:false, msg:'请选择其他玩家。' };
   if(!canPay(buyer, price)) return { ok:false, msg:`${buyer.name} 现金不足 ${money(price)}。` };
   pay(buyer, price); pay(seller, -price);
   E.bump(seller, 'dealsSold'); E.bump(seller, 'dealsSoldTotal', price);
@@ -168,6 +168,7 @@ function marketImpact(g, card){
   /* 1) 股票报价 → 做空者强制买回平仓 */
   if(card.kind === 'stock'){
     g.players.forEach(p=>{
+      if(p.out || p.finished) return;
       const pos = p.shorts.filter(s=>s.symbol===card.symbol);
       pos.forEach(s=>{
         const diff = (s.price - card.price) * s.shares;
@@ -188,6 +189,7 @@ function marketImpact(g, card){
     const k = (window.MARKET && window.MARKET.rentToValue) || 0.8;
     E.bumpMarket(g, 'realEstate', 1 + card.pct * k);
     g.players.forEach(p=>{
+      if(p.out || p.finished) return;
       p.assets.realEstate.forEach(re=>{
         re.baseCf = (re.baseCf===undefined? re.cf : re.baseCf);
         re.cf = Math.round(re.baseCf * (1 + card.pct));
@@ -209,7 +211,7 @@ function marketOptions(g, card){
   const list = [];
   if(!card) return list;
   g.players.forEach(p=>{
-    if(p.out) return;
+    if(p.out || p.finished) return;
     switch(card.kind){
       case 'stock':
         p.assets.stocks.filter(s=>s.symbol===card.symbol).forEach(s=>{
@@ -435,10 +437,7 @@ function doDownsized(g, amount){
   const r = E.startJobless(g, p, severance);
   /* 退休后走的是另一条路：不进入求职期，只做一次退休金调整 */
   return { ok:true, retired:!!r.retired, hit:r.hit || 0, shortfall:r.shortfall || 0,
-           /* brk = 失业【之前】那段未结算周期的结算结果。
-              若它带回了缺口，界面必须先把这个缺口处理掉，再进入失业期 ——
-              否则缺口会被带进失业状态，和失业期的缺口滚在一起。 */
-           brk:r.brk || null,
+           brk:null,
            severance:r.severance, need:r.need, cashflow:E.finance(p).cashflow };
 }
 
@@ -601,6 +600,7 @@ function coverShort(g, symbol){
 /* ------------------------------ 跳出老鼠赛跑 ------------------------------ */
 function escapeRatRace(g){
   const p = E.current(g);
+  if(E.lifeComplete(g, p)) return { ok:false, msg:'已到达终龄，请结束回合完成人生结算。' };
   const esc = E.escapeProgress(g, p);
   if(!esc.canEscape) return { ok:false, msg:`被动收入 ${money(esc.passive)} 尚未超过门槛 ${money(esc.target)}。` };
   p.inFT = true;
@@ -609,7 +609,7 @@ function escapeRatRace(g){
   p.ftPos = 0;
   const buyout = p.ftBase * 100;   /* 出圈资金 = 被动收入 × 100 */
   p.cash += buyout;
-  p.escaped = true; p.escapeRound = g.round; p.escapePassive = p.ftBase;
+  p.escaped = true; p.escapeRound = g.round; p.escapeAge = E.ageOf(g, p); p.escapePassive = p.ftBase;
   E.milestone(g, p, `第 ${g.round} 轮被动收入 ${money(p.ftBase)} 超过门槛 ${money(esc.target)}，跳出老鼠赛跑，获得出圈资金 ${money(buyout)}`, 'good');
   log(g, `${p.name} 被动收入 ${money(p.ftBase)} ＞ 门槛 ${money(esc.target)}，跳出老鼠赛跑进入财务自由圈！`, 'good', p.name);
   log(g, `${p.name} 获得出圈资金 ${money(buyout)}（被动收入 × 100）作为财务自由圈起始现金`, 'good', p.name);
@@ -620,7 +620,7 @@ function escapeRatRace(g){
 function buyout(g, targetId){
   const p = E.current(g);
   const t = g.players[targetId];
-  if(!t || t.out || t.id===p.id) return { ok:false, msg:'请选择其他玩家。' };
+  if(!t || t.out || t.finished || t.id===p.id) return { ok:false, msg:'请选择其他玩家。' };
   if(!p.inFT) return { ok:false, msg:'买断对手资产的规则仅在财务自由圈生效。' };
   const assets = t.assets.ftBusiness.reduce((s,x)=>s+x.cost,0) + t.assets.business.reduce((s,x)=>s+x.cost,0)
                + t.assets.realEstate.reduce((s,x)=>s+x.dp,0);
@@ -719,6 +719,7 @@ function buyDealWithOrg(g, card){
 /* ------------------------------ 交易：现金/资产互易 ------------------------------ */
 function trade(g, aId, bId, cashFromA, priceLabel){
   const a = g.players[aId], b = g.players[bId];
+  if(!a || !b || a.out || b.out || a.finished || b.finished) return { ok:false, msg:'只能与仍在行动的玩家交易。' };
   if(!a||!b||a===b) return { ok:false };
   const amt = Math.min(cashFromA, a.cash);
   a.cash -= amt; b.cash += amt;

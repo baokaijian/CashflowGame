@@ -249,7 +249,7 @@ function showDealCard(g, p, card, P){
   const eCost = A.dealEnergy(card);                 /* 与 engine 共用同一份映射，界面上显示的即为实扣 */
   const energyOK = Math.round(p.energy) >= eCost;
   const minCost = A.dealCost(g, card, card.min||1);
-  const others = g.players.filter(x=>x.id!==p.id && !x.out);
+  const others = g.players.filter(x=>x.id!==p.id && !x.out && !x.finished);
   const solo = E.isSolo(g);
   /* 机构合伙的分账读自引擎的纯函数 —— 界面上写的数字必须与实扣一致 */
   const orgPlan = A.orgPartnerPlan(g, card);
@@ -580,19 +580,19 @@ function showRest(g, p, P){
 }
 
 /* ------------------------------ 入不敷出 ------------------------------ */
-/* 月现金流为负（失业没工资、或月供超过收入），每月要动用储蓄补缺口。
+/* 月现金流为负（失业没工资、或月供超过收入），经过结算日时按一年动用储蓄补缺口。
    这是「收入中断」最直接的体现，所以优先于落格事件处理 —— 钱的问题不解决，
    后面的格子事件没有意义。缺口补上之后会自动回到原来落的那一格继续结算。 */
 function showDeficit(g, p, P){
   const amount = P.amount;
   const enough = p.cash >= amount;
-  const f = E.finance(p);
+  const f = p.inFT ? E.ftFinance(p) : E.finance(p);
   U.openModal(`
     <div class="modal__head"><h3>📉 入不敷出</h3></div>
     <div class="modal__body">
-      <p class="hint">本月的收入已经盖不住支出 —— 这通常发生在<b>失业没有工资</b>、
+      <p class="hint">本次年度结算的收入已经盖不住支出 —— 这通常发生在<b>失业没有工资</b>、
         或<b>贷款月供超过了收入</b>的时候。</p>
-      <div class="sec__total"><span>本月缺口</span><span class="money neg">${money(amount)}</span></div>
+      <div class="sec__total"><span>年度结算缺口</span><span class="money neg">${money(amount)}</span></div>
       <div class="sec__total"><span>月现金流</span><span class="money neg">${money(f.cashflow)}</span></div>
       <div class="sec__total"><span>手头现金</span><span class="money ${enough?'':'neg'}">${money(p.cash)}</span></div>
       ${E.isJobless(p) ? `<p class="hint" style="margin-top:8px">📉 你当前处于<b>失业状态</b>，工资为 0。
@@ -748,17 +748,6 @@ function showDownsized(g, p, P){
         const r = A.doDownsized(g, P.amount);
         if(!r.ok) return U.toast(r.msg, 'err');
         window.UiGame.renderAll();
-        /* ★ 失业是一次收入突变：引擎在切换状态之前先把「这段未结算周期」按在职口径结清了。
-           若它带回缺口，必须先补上再进入失业期 —— 否则这段缺口会和失业期的缺口
-           滚在一起，越滚越大（旧版就是因此把「失业前的正常年份」也按失业后的缺口算）。 */
-        if(r.brk && r.brk.deficit > 0){
-          U.closeModal();
-          E.setPending(g, { type:'deficit', amount:r.brk.deficit,
-                            title:'失业前结算', ico:'📉' });
-          showPending();
-          U.toast(`失业前还有 ${r.brk.years} 年未结算，缺口 ${money(r.brk.deficit)} 需要先补上`, 'err');
-          return;
-        }
         finishTurnAction();
         U.toast(`已领取离职补偿 ${money(r.severance)}；工资归零，预计需要 ${r.need} 个回合求职`, 'err');
       };

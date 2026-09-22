@@ -89,7 +89,7 @@ function collect(g, p){
   const deals = buys + num(st.ftBusinesses);
   return {
     f, escp, st, track, nw,
-    rounds: g.round, age: E.ageOf(g),
+    rounds: p.finishRound || g.round, age: E.ageOf(g, p),
     target: num(escp.target),
     peakPassive: peak('peakPassive', 'passive', f.passive),
     peakCash,
@@ -478,9 +478,9 @@ function adviceOf(g, p, m, sc){
 
   /* 9. 时间账：年龄模式下最重要的是剩余轮数 */
   if(E.isAgeMode(g) && !m.escaped && !m.out && sc.total < 72){
-    const left = E.yearsLeft(g);
+    const left = E.yearsLeft(g, p);
     add('时间是最稀缺的资源',
-      `你目前 ${E.ageOf(g)} 岁，距离 ${g.endAge} 岁退休只剩 ${left} 年（${left} 轮）。` +
+      `你目前 ${E.ageOf(g, p)} 岁，距离 ${g.endAge} 岁退休只剩 ${left} 年（${left} 次年度结算）。` +
       '越往后复利空间越小，建议把「每 2 轮至少完成 1 笔正现金流资产」当作硬性节奏，而不是有合适机会才出手。');
   }
 
@@ -587,7 +587,7 @@ function metaOf(g){
     rule: g.rule,
     mode: E.modeLabel(g),
     round: g.round,
-    age: E.isAgeMode(g) ? E.ageOf(g) : null,
+    age: E.isSolo(g) ? E.ageOf(g) : null,
     endAge: g.endAge,
     players: g.players.length,
     over: !!g.over,
@@ -764,8 +764,8 @@ function exportJSON(g){
         })),
         advice: adviceOf(g, p, m, sc).map(x=>({ title: stripTags(x.t), detail: stripTags(x.d) })),
         nextGamePlan: planOf(g, p, m).map(stripTags),
-        milestones: p.milestones.map(x=>({ round: x.round, kind: x.kind, text: x.text })),
-        wealthTrack: m.track.map(t=>({ round: t.round, cash: t.cash, passive: t.passive, cashflow: t.cf, netWorth: t.net }))
+        milestones: p.milestones.map(x=>({ round: x.round, age:x.age, kind: x.kind, text: x.text })),
+        wealthTrack: m.track.map(t=>({ round: t.round, age:t.age, cash: t.cash, passive: t.passive, cashflow: t.cf, netWorth: t.net }))
       };
     })
   }, null, 2);
@@ -877,7 +877,7 @@ function reportHTML(g, pid){
               <span class="chip" style="color:${toneColor};border-color:${toneColor}">${out.ico} ${esc(out.title)}</span>
               <span class="chip">${g.rule} 规则</span>
               <span class="chip">${E.modeLabel(g)}</span>
-              <span class="chip">第 ${g.round} 轮${E.isAgeMode(g) ? ' · ' + E.ageOf(g) + ' 岁' : ''}</span>
+              <span class="chip">第 ${g.round} 轮${E.isAgeMode(g) ? ' · ' + E.ageOf(g, p) + ' 岁' : ''}</span>
               <span class="chip">净资产第 ${rank} / ${g.players.length} 名</span>
             </div>
             <p class="sum-hero__desc">${esc(out.desc)}</p>

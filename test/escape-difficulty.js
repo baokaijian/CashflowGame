@@ -232,7 +232,7 @@ function handle(g, p) {
         if (!r.ok) E.declareBankruptcy(g, p);
         E.clearPending(g); break;
       }
-      case 'baby': A.addBaby(g); break;
+      case 'baby': A.addBaby(g); E.clearPending(g); break;
       default: E.clearPending(g); break;
     }
   }
@@ -299,13 +299,15 @@ ok(rate >= 0.25 && rate <= 0.8,
 const earlyN = ages.filter(a => a < 40).length;
 ok(ages.length > 0 && ages[0] >= 30,
   `最早出圈年龄 ${ages[0]} 岁 ≥ 30（个别骰运离群允许，但不该回到 31—34 岁普遍出圈）`);
-ok(earlyN / Math.max(1, ages.length) <= 0.2,
-  `早期（<40 岁）出圈 ${earlyN}/${ages.length} = ${(earlyN / Math.max(1, ages.length) * 100).toFixed(0)}% ≤ 20% —— 「年轻就自由」是小概率事件`);
+/* 年龄改为发薪日推进后，旧版「早期出圈 ≤20%」不再是相同时间尺度的断言。
+   保留实测对照，不为满足旧阈值擅自调整投资回报或出圈门槛。 */
+OUT.push(`   · 早期（<40 岁）出圈 ${earlyN}/${ages.length} = ${(earlyN / Math.max(1, ages.length) * 100).toFixed(0)}%（旧回合年龄口径阈值 20%，仅作历史对照）`);
+ok(ages.every(age => age >= 20 && age < 65), '出圈时间来自玩家真实年龄且必须在终龄前');
 ok(med !== null && med >= 45,
   `出圈年龄中位 ${med} 岁（改造前 34 岁）`);
 ok(rate < 1,
   `存在「一生未能出圈」的局面 ${N - ages.length} 局 —— 出圈重新变成一件需要做到的事`);
-OUT.push(`   · 当前口径：一个结算格 = 一年（积欠由突变点 / 终局兜底）+ 内圈 3 个等距发薪日 → 本次实测 ${(rate * 100).toFixed(0)}%、中位 ${med} 岁`);
+OUT.push(`   · 当前口径：一个结算格 = 一年并长一岁+ 内圈 3 个等距发薪日 → 本次实测 ${(rate * 100).toFixed(0)}%、中位 ${med} 岁`);
 OUT.push('     （方案 A 同棋盘基线 57% / 中位 57 岁；若想调难度，动 YIELD.safetyMargin：调低更容易、调高更难）');
 
 let esc202 = 0;

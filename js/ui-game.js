@@ -95,7 +95,7 @@ function tryRestore(){
   }
   if(!data) return false;
 
-  Game.g = data.g;
+  Game.g = E.migrateTime(data.g);
   Game.g.rng = null;
   Game.rolled = !!data.rolled;
   Game.animating = false;
@@ -278,9 +278,9 @@ function renderPlayers(){
         <span class="token" style="background:${p.color}">${p.icon}</span>
         <span class="pcard__name">${esc(p.name)}</span>
         <span class="pcard__tag ${p.inFT?'pcard__tag--ft':''} ${p.out?'pcard__tag--out':''}">
-          ${p.out?'出局':(p.inFT?'财务自由圈':'老鼠赛跑')}</span>
+          ${p.out?'出局':p.finished?'已完成人生':(p.inFT?'财务自由圈':'老鼠赛跑')}</span>
       </div>
-      <div class="pcard__job">${p.job.ico} ${esc(p.job.name)} · 孩子 ${p.children}${
+      <div class="pcard__job">${p.job.ico} ${esc(p.job.name)} · ${E.ageOf(g, p)} 岁 · 孩子 ${p.children}${
         p.joblessNeed > 0 && p.joblessProgress < p.joblessNeed ? ' · <b class="warn">失业求职中</b>' : ''}</div>
       <div class="pcard__grid">
         <div>现金 <b>${money(p.cash)}</b></div>
@@ -301,7 +301,7 @@ function showPlayerDetail(pid){
   U.openModal(`
     <div class="modal__head">
       <span class="token token--big" style="background:${p.color}">${p.icon}</span>
-      <div><h3>${esc(p.name)}</h3><p class="muted">${p.job.ico} ${esc(p.job.name)} · ${p.out?'已出局（'+esc(p.outReason)+'）':(p.inFT?'财务自由圈':'老鼠赛跑')}</p></div>
+      <div><h3>${esc(p.name)}</h3><p class="muted">${p.job.ico} ${esc(p.job.name)} · ${E.ageOf(g, p)} 岁 · ${p.out?'已出局（'+esc(p.outReason)+'）':p.finished?'已完成人生':(p.inFT?'财务自由圈':'老鼠赛跑')}</p></div>
     </div>
     <div class="modal__body">
       <div class="sec__total"><span>现金</span><span class="money">${money(p.cash)}</span></div>
@@ -401,7 +401,7 @@ function renderFinance(){
     </div>
 
     <div class="sec">
-      <div class="sec__title"><span>精力与人生状态</span><span>${E.isAgeMode(g) ? E.ageOf(g)+' 岁 · 距退休 '+E.yearsLeft(g)+' 年' : '无限模式'}</span></div>
+      <div class="sec__title"><span>精力与人生状态</span><span>${E.isAgeMode(g) ? E.ageOf(g, p)+' 岁 · 距退休 '+E.yearsLeft(g, p)+' 年' : '无限模式'}</span></div>
       ${(function(){
         /* 人生阶段卡片：只呈现叙事 + 当前实时的曲线值。
            数值全部读自引擎（salary / lifeCoef / elderCare / energyMax），
@@ -488,7 +488,7 @@ function renderRules(){
     <div class="rulelist">
       <div class="rulelist__row rulelist__row--head"><div>维度</div><div>当前设置</div></div>
       <div class="rulelist__row"><div>游戏模式</div><div>${ageMode
-        ? `年龄模式 · ${g.startAge} 岁起步，每完成一整轮长 1 岁，<b>${g.endAge} 岁退休结算</b>；现 ${E.ageOf(g)} 岁（第 ${g.round}/${E.maxRounds(g)} 轮，距退休 ${E.yearsLeft(g)} 年）`
+        ? `年龄模式 · ${g.startAge} 岁起步，每经过一个发薪日或分红日长 1 岁，<b>${g.endAge} 岁退休结算</b>；现 ${E.ageOf(g)} 岁（第 ${g.round} 轮，距退休 ${E.yearsLeft(g)} 年）`
         : `无限模式 · 不设年龄与轮数上限；现第 ${g.round} 轮`}</div></div>
       <div class="rulelist__row"><div>规则版本</div><div>${g.rule} 规则</div></div>
       <div class="rulelist__row"><div>出圈条件</div><div>被动收入 ＞ 总支出 × ${E.escapeMargin(g)}<span class="muted">（安全边际）</span></div></div>
@@ -506,7 +506,7 @@ function renderRules(){
     <h4>轮数与年龄</h4>
     <ul>
       <li><b>一轮</b> = 所有存活玩家各行动一次。</li>
-      <li><b>年龄模式</b>：开局 ${g.startAge} 岁，每完成一整轮所有玩家长 1 岁，到 <b>${g.endAge} 岁</b>退休结算，共 ${E.maxRounds(g)} 轮。</li>
+      <li><b>年龄模式</b>：开局 ${g.startAge} 岁，每经过一个发薪日或分红日，该玩家结算一年并长 1 岁，到 <b>${g.endAge} 岁</b>退休结算，共 ${E.maxYears(g)} 次年度结算，轮数不限。</li>
       <li><b>无限模式</b>：不设年龄与轮数上限，一直玩到有人达成获胜条件。</li>
       <li>年龄模式下，若中途有人买下梦想或企业累计达标，仍会提前结束对局。</li>
     </ul>
@@ -515,7 +515,7 @@ function renderRules(){
       <li>「圈」是<b>每个玩家自己的状态</b>：内圈位置与财务自由圈位置分别记录、互不覆盖，骰子数也按各自所在的圈计算。</li>
       <li>屏幕一次只显示一条跑道，默认<b>永远跟随当前行动玩家</b> —— 轮到谁，就显示谁的圈和他自己的棋子位置。</li>
       <li>想看别人时点<b>「👀 查看……」</b>，副标题会写明当前行动玩家在哪条跑道第几格；他一旦掷骰或回合切换，视图自动回到他的跑道。</li>
-      <li>回合交替始终按座位顺序进行，与玩家身处哪个圈无关（只有<b>出局玩家</b>才会被跳过）。</li>
+      <li>回合交替始终按座位顺序进行，与玩家身处哪个圈无关（<b>出局或已到终龄的玩家</b>会被跳过）。</li>
       <li><b>暂停回合</b>（裁员失业）：回合<b>照常轮到你</b>，只是这几个回合不能掷骰 / 交易 / 借贷 ——
           轮转不会被跳过，也不会让对手连续行动。</li>
     </ul>
@@ -525,8 +525,8 @@ function renderRules(){
       <li>经过或停在<b>发薪日</b>：<b>每个发薪日结算 1 年</b> ——
         入账 = <b>年度结余 × 1</b>（年收入 − 年支出），并偿还 1 年的贷款本金（12 期）。
         同一回合经过 2 个发薪日就结算 2 年（各结 1 年，逐年入账）；
-        没踩到发薪日的年份会<b>积欠</b>，在后续发薪日逐个结清，
-        收入突变（失业 / 退休）与终局时则一次结清（日志均有算式可核账）。</li>
+        未经过结算日就不结算、不长岁；没有积欠或额外补结。每位玩家年龄独立，
+        到达终龄后结束行动，等其他玩家结束后统一排名。</li>
       <li><b>投资机会格</b>：抽投资卡，决定是否买入；多人模式下资金不足可把投资卡转让给其他玩家（<b>单人模式没有转让，只能买入或放弃</b>）。</li>
       <li><b>市场行情格</b>：抽行情卡，所有玩家可卖出相关资产；202 规则下租金随行情波动。</li>
       <li><b>意外支出格</b>：支付卡片金额。<b>添丁格</b>：子女 +1（上限 3 个），养育支出增加。</li>
@@ -540,7 +540,7 @@ function renderRules(){
       <li>第一个在财务自由圈买下自己梦想的玩家。</li>
       <li>第一个在财务自由圈通过购买企业使<b>企业月现金流之和</b>增加 ≥ ${money(E.empireTarget())} 的玩家
         （这是「资产规模」的度量，与年度结算无关）。</li>
-      <li>${ageMode ? `<b>年龄模式</b>：全部玩家到 ${g.endAge} 岁退休时按<b>净资产</b>排名，最高者获胜。` : '无限模式下没有轮数上限，直到有人达成上述条件为止。'}</li>
+      <li>${ageMode ? `<b>年龄模式</b>：所有仍在场的玩家各自到达 ${g.endAge} 岁后按<b>净资产</b>排名，最高者获胜。` : '无限模式下没有轮数上限，直到有人达成上述条件为止。'}</li>
       <li>${g.rule==='202'?'202：买断对手资产使其出局，最终存活者获胜。':'101：破产者退出游戏，其余玩家继续。'}</li>
     </ul>
     <h4>本局复盘</h4>
@@ -596,8 +596,8 @@ function renderRules(){
       <li><b>抵押物按当前市价估值</b>：银行不按你的买入价放贷 —— 房价随 <b>8 年周期 ±15%</b> 波动（各类资产相位错开），
         企业按 <b>4%/年</b> 折旧、土地长期微涨，存款 / 理财的本金不随行情变动。
         <b>市价下行时你的可贷额度会一起缩水。</b></li>
-      <li><b>退休与终局都会结清</b>：61 岁退休时先把此前未结算的年份按<b>在职口径</b>结清，再切换为养老金；
-        65 岁结束时再补结最后一段 —— 所以「一生结算的总年数 = 你的实际年龄跨度」，不会有年头凭空漏账。</li>
+      <li><b>单人退休与终局</b>：60→61 岁结清一年在职收支后切换养老金；
+        65 岁处理完最后一年的收支即结束，不额外补结。20→65 岁共 45 次年度结算。</li>
       <li>进入财务自由圈的启动资金 = <b>月被动收入 × 100</b>（≈ 8.3 年的被动收入，
         这是原版的游戏化数字，不是按年结算的金额）。</li>
       <li>融券做空不需支付现金，出现该标的价格时<b>强制买回平仓</b>，可随时操作。</li>
@@ -614,7 +614,7 @@ function renderSettings(){
         <div class="rowlist__row"><span>游戏模式</span><b>${E.modeLabel(g)}${E.isSolo(g) ? ` · ${E.soloStage(g).nm}` : ''}</b></div>
         <div class="rowlist__row"><span>规则版本</span><b>${g.rule} 规则</b></div>
         <div class="rowlist__row"><span>玩家人数</span><b>${g.players.length} 人</b></div>
-        <div class="rowlist__row"><span>当前轮次</span><b>第 ${g.round} 轮${E.isAgeMode(g) ? ` / 共 ${E.maxRounds(g)} 轮` : ''}</b></div>
+        <div class="rowlist__row"><span>当前轮次</span><b>第 ${g.round} 轮${E.isAgeMode(g) ? ` / 共 ${E.maxYears(g)} 次年度结算，轮数不限` : ''}</b></div>
         ${E.isAgeMode(g) ? `<div class="rowlist__row"><span>当前年龄</span><b>${E.ageOf(g)} 岁 · 距退休 ${E.yearsLeft(g)} 年</b></div>` : ''}
         <div class="rowlist__row"><span>人生阶段</span><b>${esc(p.lifeStage||'')} · ${esc(p.salaryPhase||'')}</b></div>
         <div class="rowlist__row"><span>收入系数</span><b>×${(p.salaryMult||1).toFixed(2)} → 实发 ${money(p.salary)}</b></div>
@@ -641,7 +641,7 @@ function renderSettings(){
 function nextAliveName(g, fromId){
   if(g.players.length < 2) return '';
   let i = fromId, guard = 0;
-  do{ i = (i+1) % g.players.length; guard++; } while(g.players[i].out && guard <= g.players.length*2);
+  do{ i = (i+1) % g.players.length; guard++; } while((g.players[i].out || g.players[i].finished) && guard <= g.players.length*2);
   return g.players[i].name;
 }
 /* 回合节拍：重放一次 CSS 动画，让状态变化看得见 */
@@ -691,14 +691,14 @@ function updateActions(){
   const n = E.diceCount(g, p);
   const pendingBusy = !!g.pending;
   const paused = !!p.pausedThisTurn && !g.over;      /* 本回合暂停：回合仍是他的，但不能行动 */
-  const canEnd = (Game.rolled || paused) && !pendingBusy && !g.over;
+  const canEnd = (Game.rolled || paused || E.lifeComplete(g, p)) && !pendingBusy && !g.over;
 
   /* 当前玩家已出局（例如刚宣告破产）→ 自动交棒，不必让他自己点「结束回合」 */
-  if(p.out && !g.over && !Game.animating && !pendingBusy){
+  if((p.out || p.finished) && !g.over && !Game.animating && !pendingBusy){
     if(!handoffTimer){
       handoffTimer = setTimeout(()=>{
         handoffTimer = null;
-        if(Game.g === g && !g.over && E.current(g).out) endTurn();
+        if(Game.g === g && !g.over && (E.current(g).out || E.current(g).finished)) endTurn();
       }, 300);
     }
   } else if(handoffTimer){ clearTimeout(handoffTimer); handoffTimer = null; }
@@ -729,7 +729,7 @@ function updateActions(){
       endBtn.className = 'btn btn--tonal';
       endBtn.textContent = '结束回合';
     }
-    btnRoll.disabled = pendingBusy || Game.rolled || Game.animating || paused;
+    btnRoll.disabled = pendingBusy || Game.rolled || Game.animating || paused || E.lifeComplete(g, p);
     label.textContent = paused ? `本回合暂停（此后还剩 ${p.skipTurns} 轮）`
       : pendingBusy ? '处理卡片中…'
       : Game.animating ? '掷骰中…'
@@ -752,7 +752,7 @@ function updateActions(){
   /* 失业期间主操作之外多一条「求职」——不做就只能干等，游戏会变成纯运气 */
   const huntBtn = $('#btnJobHunt');
   if(huntBtn){
-    const huntable = E.isJobless(p) && !g.over && !pendingBusy && !paused;
+    const huntable = E.isJobless(p) && !E.lifeComplete(g, p) && !g.over && !pendingBusy && !paused;
     huntBtn.hidden = !huntable;
     if(huntable) huntBtn.textContent = `投递简历 · 求职（${p.joblessProgress}/${p.joblessNeed}，耗 ${window.UNEMPLOYMENT.huntEnergy} 精力）`;
   }
@@ -782,7 +782,7 @@ function updateActions(){
 
   const esc_ = E.escapeProgress(g, p);
   let b = $('#btnEscape');
-  if(esc_.canEscape && !p.inFT && !g.over && !p.pausedThisTurn){
+  if(esc_.canEscape && !p.inFT && !g.over && !p.pausedThisTurn && !E.lifeComplete(g, p)){
     if(!b){
       b = document.createElement('button');
       b.id = 'btnEscape'; b.className = 'btn btn--tonal';
@@ -804,7 +804,7 @@ function updateActions(){
 /* ------------------------------ 回合流程 ------------------------------ */
 function roll(){
   const g = Game.g, p = E.current(g);
-  if(g.over || g.pending || Game.rolled || Game.animating) return;
+  if(g.over || g.pending || Game.rolled || Game.animating || E.lifeComplete(g, p)) return;
   if(p.pausedThisTurn) return U.toast(`<b>${esc(p.name)}</b> 本回合暂停，不能行动`, 'err');
   /* 掷骰前把视图拉回当前玩家自己的圈：否则「查看另一条跑道」时掷骰，
      他的棋子在屏幕上根本不动，看起来就像回合没有轮到他。 */
@@ -894,6 +894,8 @@ function onMenu(act){
     if(act==='help') openHelp();
     return;
   }
+  if(E.lifeComplete(g, E.current(g)) && ['trade','short','surrender'].includes(act))
+    return U.toast('已到达终龄，请结束回合完成人生结算。', 'info');
   switch(act){
     case 'finance': openFinanceOverview(); break;
     case 'players': U.openModal(`
@@ -902,7 +904,7 @@ function onMenu(act){
           <div class="pcard" style="margin-bottom:8px;border-left-color:${p.color}" data-pid="${p.id}">
             <div class="pcard__top"><span class="token" style="background:${p.color}">${p.icon}</span>
             <span class="pcard__name">${esc(p.name)}</span>
-            <span class="pcard__tag">${p.out?'出局':(p.inFT?'财务自由圈':'老鼠赛跑')}</span></div>
+            <span class="pcard__tag">${p.out?'出局':p.finished?'已完成人生':(p.inFT?'财务自由圈':'老鼠赛跑')}</span></div>
             <div class="pcard__job">${p.job.ico} ${esc(p.job.name)} · 现金 ${money(p.cash)} · 年结余 ${money(E.annual(E.settleCashflow(p)))}</div>
           </div>`).join('')}</div>
         <div class="modal__foot"><button class="btn btn--text" data-close>关闭</button></div>`,
@@ -939,7 +941,7 @@ function openHelp(){
     <div class="modal__body">
       <div class="rulelist">
         <div class="rulelist__row rulelist__row--head"><div>维度</div><div>${view.rule==='202'?'202 规则':'101 规则'}</div></div>
-        <div class="rulelist__row"><div>游戏模式</div><div>${view.mode==='endless' ? '无限模式（不设年龄与轮数上限）' : `年龄模式（20 岁起步，每完成一整轮长 1 岁，65 岁退休结算，共 45 轮）`}</div></div>
+        <div class="rulelist__row"><div>游戏模式</div><div>${view.mode==='endless' ? '无限模式（不设年龄与轮数上限）' : `年龄模式（20 岁起步，每经过一个发薪日或分红日长 1 岁，65 岁退休结算，共 45 次年度结算，轮数不限）`}</div></div>
         <div class="rulelist__row"><div>出圈条件</div><div>被动收入 &gt; 总支出 × ${(window.YIELD && (view.rule==='202' ? window.YIELD.safetyMargin202 : window.YIELD.safetyMargin)) || '—'}</div></div>
         <div class="rulelist__row"><div>骰子</div><div>按<b>各玩家自己所在的圈</b>：内圈 1 粒 / 财务自由圈 2 粒</div></div>
         <div class="rulelist__row"><div>投资方向</div><div>${view.rule==='202'?'仅做多 + 做空 + 期权':'仅做多（上涨市）'}</div></div>
@@ -970,7 +972,7 @@ function openFinanceOverview(){
         <div class="rowlist__row rowlist__row--head"><span>玩家</span><span>职业 · 状态</span></div>
         ${g.players.map(p=>`<div class="rowlist__row" data-pid="${p.id}" style="cursor:pointer">
           <span><span class="token" style="background:${p.color};display:inline-grid;vertical-align:middle">${p.icon}</span> ${esc(p.name)}</span>
-          <span>${esc(p.job.name)} · ${p.out?'出局':(p.inFT?'财务自由圈':'老鼠赛跑')}</span></div>`).join('')}
+          <span>${esc(p.job.name)} · ${p.out?'出局':p.finished?'已完成人生':(p.inFT?'财务自由圈':'老鼠赛跑')}</span></div>`).join('')}
       </div>
       ${g.players.map(p=>{
         const f = E.finance(p);
@@ -1244,7 +1246,7 @@ function openLoan(preset){ LoanUI.key = null; LoanUI.mode = 'shorten'; openLoanC
 
 function openTrade(){
   const g = Game.g, p = E.current(g);
-  const others = g.players.filter(x=>x.id!==p.id && !x.out);
+  const others = g.players.filter(x=>x.id!==p.id && !x.out && !x.finished);
   U.openModal(`
     <div class="modal__head"><h3>玩家间交易</h3></div>
     <div class="modal__body">
@@ -1288,7 +1290,7 @@ function openTrade(){
 }
 function sellAssetDialog(p, kind, i){
   const g = Game.g;
-  const others = g.players.filter(x=>x.id!==p.id && !x.out);
+  const others = g.players.filter(x=>x.id!==p.id && !x.out && !x.finished);
   if(!others.length) return U.toast('没有其他玩家可以购买','err');
   let item, value;
   if(kind==='stock'){ item = p.assets.stocks[i]; value = item.shares*item.cost; }
@@ -1330,7 +1332,7 @@ function sellAssetDialog(p, kind, i){
 }
 function cashTransferDialog(){
   const g = Game.g, p = E.current(g);
-  const others = g.players.filter(x=>x.id!==p.id && !x.out);
+  const others = g.players.filter(x=>x.id!==p.id && !x.out && !x.finished);
   if(!others.length) return U.toast('没有其他玩家','err');
   U.openModal(`
     <div class="modal__head"><h3>现金转账</h3></div>
@@ -1471,7 +1473,7 @@ function soloResultModal(g){
         <div class="solo-hero__grade">${esc(S.grade)}</div>
         <div class="solo-hero__t">
           <b style="color:${tone}">${esc(S.label)}</b>
-          <small>${reached ? `走完 ${g.startAge}—${g.endAge} 岁，共 ${E.maxRounds(g)} 轮` : `人生在 ${S.endAgeNow} 岁提前结束`}</small>
+          <small>${reached ? `走完 ${g.startAge}—${g.endAge} 岁，共 ${E.maxYears(g)} 次年度结算（${g.round} 轮）` : `人生在 ${S.endAgeNow} 岁提前结束`}</small>
         </div>
       </div>
       <p class="hint" style="margin-top:10px">${esc(S.reason)}</p>
@@ -1528,21 +1530,18 @@ function retireNotice(g){
   const r = g.lastRetire;
   if(!r || r.shown) return false;
   r.shown = true;
-  const p = g.players[0];
+  const p = g.players[r.by];
   if(!p) return false;
   const ratio = Math.round((window.SOLO.pensionRatio || 0.45) * 100);
   U.openModal(`
-    <div class="modal__head"><h3>🏖️ ${E.ageOf(g)} 岁 · 退休结算</h3></div>
+    <div class="modal__head"><h3>🏖️ ${r.age} 岁 · 开始领取养老金</h3></div>
     <div class="modal__body">
       <p class="hint">工资停发，从这一刻起你靠<b>养老金</b>与<b>被动收入</b>生活 ——
         这是「只靠劳动收入」的人生必然遇到的那道台阶。</p>
-      <div class="sec__total"><span>退休前补结（${r.years} 年 · 在职口径）</span>
-        <span class="money ${r.deficit > 0 ? 'neg' : 'pos'}">${r.amount >= 0 ? '+' : ''}${money(r.amount)}</span></div>
+      <p class="hint">刚经过的结算日已结清一年收支。下一个结算日起按养老金口径计算，不额外补结。</p>
       <div class="sec__total"><span>此后每月主动收入</span><span>${money(p.salary)}（养老金 · 替代率 ${ratio}%）</span></div>
       <div class="sec__total"><span>每月缺口 / 结余</span>
         <span class="money ${E.finance(p).cashflow < 0 ? 'neg' : 'pos'}">${money(E.finance(p).cashflow)}</span></div>
-      ${r.deficit > 0 ? `<p class="hint" style="margin-top:8px">⚠️ 退休前还有 <b>${money(r.deficit)}</b> 的缺口需要先补上 ——
-        这笔账属于退休前的最后几年，按<b>在职</b>时的收支口径结算。</p>` : ''}
       <p class="hint" style="margin-top:8px"><b>退休后不再有求职这条路。</b>
         此后是资产在养活你，而不是你在养活资产。</p>
     </div>

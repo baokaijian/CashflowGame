@@ -114,7 +114,7 @@ ok(window.EXP_LABEL.housingGap, `支出科目里有「${window.EXP_LABEL.housing
      换一个年龄看基线是否跟着 lifeCoef 一起变 */
   const r1 = mk(9);
   const base20 = E.lifeBaseHousing(r1.p);
-  r1.g.round = 40;                             // 60 岁左右
+  r1.p.age = 59;                             // 60 岁左右
   E.refreshLife(r1.g, r1.p);
   const base60 = E.lifeBaseHousing(r1.p);
   ok(base60 !== base20 || r1.p.lifeCoef === 1,
@@ -307,8 +307,8 @@ ok(CR && CR.maxDTI > 0 && CR.incomeMult > 0,
 
   /* 退休 → 额度折半 */
   const r = mk(idxOf('货运司机'));
-  r.g.round = 45; E.refreshLife(r.g, r.p);
-  ok(r.p.retired, `45 轮后进入退休（年龄 ${E.ageOf(r.g)}）`);
+  r.p.age = 64; E.refreshLife(r.g, r.p);
+  ok(r.p.retired, `64 岁进入退休（年龄 ${E.ageOf(r.g)}）`);
   const cr = E.creditProfile(r.g, r.p);
   ok(cr.retired && cr.incomeScore < cr.score,
     `退休后的收入侧系数被折半：${cr.score.toFixed(2)} → ${cr.incomeScore.toFixed(2)}`);
@@ -398,7 +398,7 @@ sec('④ 长局回归（单人与多人）');
           if (!r.ok) E.declareBankruptcy(g, p);
           E.clearPending(g); break;
         }
-        case 'baby': A.addBaby(g); break;
+        case 'baby': A.addBaby(g); E.clearPending(g); break;
         default: E.clearPending(g); break;
       }
     }
