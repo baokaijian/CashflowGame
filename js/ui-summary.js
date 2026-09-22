@@ -247,10 +247,10 @@ function nextReqOf(g, p, cls){
   if(lv === 5) return { name:L[6].name, req:`被动收入超过门槛（${money(cls.target + 1)}）`,
     need:`还差 ${money(Math.max(0, cls.target + 1 - cls.passive))}，达标当轮就出圈拿资金`,
     prog: seg(0.80, 1.00, cls.cover) };
-  return { name:L[7].name, req:'达成获胜条件（梦想格付清 / 企业月现金流累计 ≥ ¥50,000）',
-    need: p.inFT ? `企业现金流累计 ${money(num(p.ftGain))} / ¥50,000`
+  return { name:L[7].name, req:`达成获胜条件（梦想格付清 / 企业月现金流累计 ≥ ${money(E.empireTarget())}）`,
+    need: p.inFT ? `企业现金流累计 ${money(num(p.ftGain))} / ${money(E.empireTarget())}`
                  : '进入财务自由圈后，在梦想格付清费用即获胜',
-    prog: clamp(num(p.ftGain) / 50000, 0, 1) };
+    prog: clamp(num(p.ftGain) / E.empireTarget(), 0, 1) };
 }
 /* 判定依据：把「凭什么给这个等级」摊开，玩家可以自己核对 */
 function classEvidence(g, p, m, cls){
@@ -340,12 +340,12 @@ function classLevers(g, p, m, cls){
     add('最后一笔不要靠高息贷凑',
       '月息 1% 的信用贷会立刻吃掉你刚建立起来的现金流 —— 宁可用小额标的补足，也不要用消费型负债冲线。');
     add('提前想清楚出圈后要做什么',
-      '出圈后目标从「被动收入 ＞ 支出」切换为「企业月现金流累计 ≥ ¥50,000」。' +
+      `出圈后目标从「被动收入 ＞ 支出 × 安全边际」切换为「企业月现金流累计 ≥ ${money(E.empireTarget())}」。` +
       '先把财务自由圈企业名单看一遍，出圈资金到手就直接下手，不要让现金闲置。');
   }
   if(lv === 6){
     add('把重心从内圈切到企业现金流',
-      `你已经出圈，目标变成「企业月现金流累计 ≥ ¥50,000」，当前累计 ${money(num(p.ftGain))}。` +
+      `你已经出圈，目标变成「企业月现金流累计 ≥ ${money(E.empireTarget())}」，当前累计 ${money(num(p.ftGain))}。` +
       '继续在内圈买小资产已经不再得分，出圈资金应优先配置到企业上。');
     add('性价比最高的动作是特许经营',
       '首付只需要企业成本的 20%，却能拿到原现金流 50% 的额外现金流 —— 这是财务自由圈里回报率最高的一步。');
@@ -465,8 +465,8 @@ function adviceOf(g, p, m, sc){
   /* 7. 出圈之后的新目标 */
   if(m.escaped && !m.out && num(m.st.ftBusinesses) === 0){
     add('已经出圈，但财务自由圈的得分完全没拿到',
-      `你在第 ${num(p.escapeRound) || '—'} 轮出圈，但还没有购买任何财务自由圈企业。出圈后目标已经从「被动收入 ＞ 支出」切换为` +
-      '「企业月现金流累计增加 ≥ ¥50,000」—— 请把出圈资金优先配置到企业上，而不是继续在内圈买小资产。');
+      `你在第 ${num(p.escapeRound) || '—'} 轮出圈，但还没有购买任何财务自由圈企业。出圈后目标已经从「被动收入 ＞ 支出 × 安全边际」切换为` +
+      `「企业月现金流累计增加 ≥ ${money(E.empireTarget())}」—— 请把出圈资金优先配置到企业上，而不是继续在内圈买小资产。`);
   }
 
   /* 8. 意外支出的侵蚀 */
@@ -516,7 +516,7 @@ function planOf(g, p, m){
     list.push('维持低负债：只在大标的出现、且月现金流能覆盖利息时使用信用贷。');
   }
   if(m.escaped){
-    list.push('出圈后立刻把重心从「买小资产」切到 <b>企业现金流 ≥ ¥50,000</b>，并优先开设特许经营。');
+    list.push(`出圈后立刻把重心从「买小资产」切到 <b>企业现金流 ≥ ${money(E.empireTarget())}</b>，并优先开设特许经营。`);
   } else if(num(m.f.passive) >= m.target){
     list.push(`你已满足出圈条件（被动收入 ${money(m.f.passive)} ≥ 门槛 ${money(m.target)}），下一局的重点是 <b>更早达标</b>：把达标轮数从第 ${num(m.rounds) || num(g.round)} 轮继续往前压。`);
   } else {
@@ -894,10 +894,10 @@ function reportHTML(g, pid){
         </div>
 
         <div class="sec">
-          <div class="sec__title"><span>出圈进度（被动收入 ＞ ${money(m.target)}）</span><span>${money(passive)} / ${money(m.target)}</span></div>
+          <div class="sec__title"><span>出圈进度（被动收入 ＞ ${money(m.target)}<span class="muted"> = 总支出 × ${E.escapeMargin(g)}</span>）</span><span>${money(passive)} / ${money(m.target)}</span></div>
           <div class="progress"><div class="progress__bar" style="width:${pct(prog)}%"></div></div>
           <p class="hint">${m.escaped
-            ? `已成功出圈${num(p.escapeRound) ? '（第 ' + num(p.escapeRound) + ' 轮）' : ''}，进入财务自由圈后已累计企业现金流 ${money(num(p.ftGain))} / ¥50,000。`
+            ? `已成功出圈${num(p.escapeRound) ? '（第 ' + num(p.escapeRound) + ' 轮）' : ''}，进入财务自由圈后已累计企业现金流 ${money(num(p.ftGain))} / ${money(E.empireTarget())}。`
             : (gap > 0 ? `距离出圈还差 <b>${money(gap)}</b> 的月被动收入，相当于完成度 ${pct(prog)}%。` : '已满足出圈条件。')}</p>
         </div>
 

@@ -123,7 +123,8 @@
         <button class="segmented__item segmented__item--active" data-v="101">101 基础版</button>
         <button class="segmented__item" data-v="202">202 进阶版</button>
       </div>
-      <p class="hint" id="ruleHint">跳出条件：被动收入 &gt; 总支出。仅做多，投资机会格只抽投资卡。</p>
+      <!-- 初始文案（JS 启动后由 initSetup 按规则版本与安全边际覆写，见 ui-core.js） -->
+      <p class="hint" id="ruleHint">跳出条件：被动收入 &gt; 总支出 × 1.5（安全边际）。仅做多，投资机会格只抽投资卡。</p>
     </div>
 
     <div class="field" id="fieldCount">

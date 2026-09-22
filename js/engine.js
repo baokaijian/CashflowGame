@@ -615,9 +615,25 @@ function finance(p){
 }
 
 /* 跳出老鼠赛跑的门槛 */
+/* 出圈门槛的安全边际：被动收入 > 总支出 × 边际
+   ★ 不再是「刚好覆盖」—— 真实财务自由留有缓冲（4% 法则隐含 25 倍年支出）。
+     支出会波动（医疗、通胀、家庭变故），零缓冲意味着任何一次意外都会击穿，
+     所以真实规划里没有人会在「被动收入 = 支出」那一刻辞职。 */
+function escapeMargin(g){
+  const Y = window.YIELD || {};
+  return g && g.rule === '202'
+    ? numOrDef(Y.safetyMargin202, 2.5)
+    : numOrDef(Y.safetyMargin, 1.5);
+}
+/* 财务自由圈的企业达标线 —— 单一真源。
+   ⚠️ 原先这个数字在 5 处硬编码（3 处胜利判定 + 2 处里程碑文案 + 1 处界面），
+      改收益口径时必然漏改，所以收敛到这里。 */
+function empireTarget(){
+  return numOrDef((window.YIELD || {}).empireTarget, 20000);
+}
 function escapeTarget(g, p){
   const f = finance(p);
-  return g.rule==='202' ? f.totalExpenses*2 : f.totalExpenses;
+  return Math.round(f.totalExpenses * escapeMargin(g));
 }
 /* 出圈进度：完成度 = 被动收入 / 门槛。finance() 每次调用都重新推导，
    所以任何操作（买资产、还款、添丁）之后进度立即反映 —— 这就是「实时」的来源。
@@ -1072,9 +1088,10 @@ function newGame(cfg){
                : '无限模式';
   log(g, `游戏开始 · ${g.rule} 规则 · ${n} 位玩家 · ${modeNm}`, 'sys');
   syncPhase(g);
+  /* 门槛倍数从 escapeMargin 读 —— 与判定、面板、复盘同源 */
   log(g, g.rule==='202'
-    ? '跳出条件：被动收入 > 总支出 × 2；启用资本利得/大额现金流卡、做空与期权。'
-    : '跳出条件：被动收入 > 总支出；投资机会格仅抽投资卡。', 'info');
+    ? `跳出条件：被动收入 > 总支出 × ${escapeMargin(g)}；启用资本利得/大额现金流卡、做空与期权。`
+    : `跳出条件：被动收入 > 总支出 × ${escapeMargin(g)}；投资机会格仅抽投资卡。`, 'info');
   g.players.forEach(p=>{
     log(g, `${p.name} 抽到【${p.job.name}】工资 ${money(p.salary)}，起始现金 ${money(p.cash)}`, 'info', p.name);
   });
@@ -2002,7 +2019,7 @@ function doodadCost(g, p, card){
 }
 
 window.Engine = {
-  money, moneyK, shuffle, pick, finance, escapeTarget, escapeProgress, ftMonthly, netWorth,
+  money, moneyK, shuffle, pick, finance, escapeMargin, empireTarget, escapeTarget, escapeProgress, ftMonthly, netWorth,
   newGame, current, alivePlayers, beginTurn, nextPlayer, endTurn, diceCount, rollDice,
   movePlayer, resolveSpace, paydayNoticeOf, clearPending, setPending, drawDeal, drawMarket, drawCard,
   log, expireOptions, checkBankruptcy, settleNegativeCash, checkLastStanding, win, ftMonthlyIncome: ftMonthly,

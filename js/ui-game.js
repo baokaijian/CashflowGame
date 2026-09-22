@@ -250,7 +250,7 @@ function renderCenter(){
       <div class="bc-stat"><span class="bc-stat__k">年结余</span><b class="${E.settleCashflow(cur)<0?'neg':''}">${money(E.annual(E.settleCashflow(cur)))}</b></div>
       ${cur.inFT
         ? `<div class="bc-stat"><span class="bc-stat__k">分红收入（年·毛额）</span><b>${money(E.annual(E.ftMonthly(cur)))}</b></div>
-           <div class="bc-stat"><span class="bc-stat__k">企业累计增加</span><b>${money(cur.ftGain||0)}<i> / ¥50,000</i></b></div>`
+           <div class="bc-stat"><span class="bc-stat__k">企业累计增加</span><b>${money(cur.ftGain||0)}<i> / ${money(E.empireTarget())}</i></b></div>`
         : `<div class="bc-stat"><span class="bc-stat__k">被动收入（年）</span><b>${money(E.annual(esc_.passive))}<i> / 门槛 ${money(E.annual(esc_.target))}</i></b></div>`}
     </div>
     ${(bothCircles(g) || Game.peeking) ? `<button class="btn btn--s ${Game.peeking ? 'btn--tonal' : 'btn--outline'}" id="btnSwapBoard">${
@@ -380,14 +380,14 @@ function renderFinance(){
              <div class="esc-block__meta"><span>已进入财务自由圈 —— 出圈这件事对你已经完成</span></div>
            </div>
            <div class="esc-block">
-             <div class="esc-block__hd"><span>企业达标进度（所购企业的<b>月现金流之和</b> ≥ ¥50,000 即获胜）</span><b class="esc-block__pct">${Math.min(100, Math.floor((p.ftGain||0)/500))}%</b></div>
+             <div class="esc-block__hd"><span>企业达标进度（所购企业的<b>月现金流之和</b> ≥ ${money(E.empireTarget())} 即获胜）</span><b class="esc-block__pct">${Math.min(100, Math.floor((p.ftGain||0) / (E.empireTarget() / 100)))}%</b></div>
              <div class="progress"><div class="progress__bar" style="width:${Math.min(100,(p.ftGain||0)/500)}%"></div></div>
-             <div class="esc-block__meta"><span>累计 <b class="money">${money(p.ftGain||0)}</b> / ¥50,000</span></div>
+             <div class="esc-block__meta"><span>累计 <b class="money">${money(p.ftGain||0)}</b> / ${money(E.empireTarget())}</span></div>
            </div>`
         : `<div class="sec__total" style="background:var(--secondary-container);color:var(--secondary)"><span>被动收入（年）</span><span class="money">${money(E.annual(f.passive))}</span></div>
            <div class="esc-block">
              <div class="esc-block__hd">
-               <span>出圈进度（${g.rule==='202'?'被动收入 ＞ 支出×2':'被动收入 ＞ 支出'}）</span>
+               <span>出圈进度（被动收入 ＞ 支出 × ${E.escapeMargin(g)}）</span>
                <b class="esc-block__pct ${pr.canEscape?'pos':''}">${pr.pctText}%</b>
              </div>
              <div class="progress"><div class="progress__bar" style="width:${pr.pctText}%"></div></div>
@@ -491,7 +491,7 @@ function renderRules(){
         ? `年龄模式 · ${g.startAge} 岁起步，每完成一整轮长 1 岁，<b>${g.endAge} 岁退休结算</b>；现 ${E.ageOf(g)} 岁（第 ${g.round}/${E.maxRounds(g)} 轮，距退休 ${E.yearsLeft(g)} 年）`
         : `无限模式 · 不设年龄与轮数上限；现第 ${g.round} 轮`}</div></div>
       <div class="rulelist__row"><div>规则版本</div><div>${g.rule} 规则</div></div>
-      <div class="rulelist__row"><div>出圈条件</div><div>${g.rule==='202'?'被动收入 ＞ 总支出 × 2':'被动收入 ＞ 总支出'}</div></div>
+      <div class="rulelist__row"><div>出圈条件</div><div>被动收入 ＞ 总支出 × ${E.escapeMargin(g)}<span class="muted">（安全边际）</span></div></div>
       <div class="rulelist__row"><div>骰子</div><div>按<b>各玩家自己所在的圈</b>：内圈 1 粒 / 财务自由圈 2 粒</div></div>
       <div class="rulelist__row"><div>投资机会格</div><div>${g.rule==='202'?'同时抽投资卡 + 行情卡':'只抽投资卡（小额理财 / 大额置业）'}</div></div>
       <div class="rulelist__row"><div>行情卡</div><div>${g.rule==='202'?'42 张，抽满 25 张重洗':'16 张，波动温和'}</div></div>
@@ -524,7 +524,7 @@ function renderRules(){
       <li>内圈掷 1 粒骰子（财务自由圈掷 2 粒），移动棋子。</li>
       <li>经过或停在<b>发薪日</b>：结算<b>一整年</b> —— 领取年度结余（年收入 − 年支出），
         并偿还贷款当年的本金（12 期）。<b>一轮 = 一年，一次发薪日 = 一年</b>。</li>
-      <li><b>投资机会格</b>：抽投资卡，决定是否买入；资金不足可把投资卡转让给其他玩家。</li>
+      <li><b>投资机会格</b>：抽投资卡，决定是否买入；多人模式下资金不足可把投资卡转让给其他玩家（<b>单人模式没有转让，只能买入或放弃</b>）。</li>
       <li><b>市场行情格</b>：抽行情卡，所有玩家可卖出相关资产；202 规则下租金随行情波动。</li>
       <li><b>意外支出格</b>：支付卡片金额。<b>添丁格</b>：子女 +1（上限 3 个），养育支出增加。</li>
       <li><b>公益捐赠格</b>：捐出总收入的 10%，未来 2 轮可选掷 1—2 粒骰子。</li>
@@ -535,7 +535,7 @@ function renderRules(){
     <h4>获胜条件</h4>
     <ul>
       <li>第一个在财务自由圈买下自己梦想的玩家。</li>
-      <li>第一个在财务自由圈通过购买企业使<b>企业月现金流之和</b>增加 ≥ ¥50,000 的玩家
+      <li>第一个在财务自由圈通过购买企业使<b>企业月现金流之和</b>增加 ≥ ${money(E.empireTarget())} 的玩家
         （这是「资产规模」的度量，与年度结算无关）。</li>
       <li>${ageMode ? `<b>年龄模式</b>：全部玩家到 ${g.endAge} 岁退休时按<b>净资产</b>排名，最高者获胜。` : '无限模式下没有轮数上限，直到有人达成上述条件为止。'}</li>
       <li>${g.rule==='202'?'202：买断对手资产使其出局，最终存活者获胜。':'101：破产者退出游戏，其余玩家继续。'}</li>
@@ -911,7 +911,7 @@ function onMenu(act){
     case 'trade':
       /* 单人下不是「禁用」，而是明确告知替代路径 —— 玩家看到「按钮不见了」会困惑，
          看到「改用机构转让」才知道该怎么做。 */
-      if(E.isSolo(g)) return U.toast('单人模式没有其他玩家：抽到的投资卡可在卡片弹层里「转让给机构」，无需玩家间交易。', 'info');
+      if(E.isSolo(g)) return U.toast('单人模式没有其他玩家：没有玩家间交易，遇到投资机会只能「买入」或「放弃」。', 'info');
       openTrade(); break;
     case 'short': openShortPanel(); break;
     case 'summary': window.UiSummary.openSummary(); break;
@@ -937,7 +937,7 @@ function openHelp(){
       <div class="rulelist">
         <div class="rulelist__row rulelist__row--head"><div>维度</div><div>${view.rule==='202'?'202 规则':'101 规则'}</div></div>
         <div class="rulelist__row"><div>游戏模式</div><div>${view.mode==='endless' ? '无限模式（不设年龄与轮数上限）' : `年龄模式（20 岁起步，每完成一整轮长 1 岁，65 岁退休结算，共 45 轮）`}</div></div>
-        <div class="rulelist__row"><div>出圈条件</div><div>${view.rule==='202'?'被动收入 &gt; 总支出 × 2':'被动收入 &gt; 总支出'}</div></div>
+        <div class="rulelist__row"><div>出圈条件</div><div>被动收入 &gt; 总支出 × ${(window.YIELD && (view.rule==='202' ? window.YIELD.safetyMargin202 : window.YIELD.safetyMargin)) || '—'}</div></div>
         <div class="rulelist__row"><div>骰子</div><div>按<b>各玩家自己所在的圈</b>：内圈 1 粒 / 财务自由圈 2 粒</div></div>
         <div class="rulelist__row"><div>投资方向</div><div>${view.rule==='202'?'仅做多 + 做空 + 期权':'仅做多（上涨市）'}</div></div>
         <div class="rulelist__row"><div>行情卡</div><div>${view.rule==='202'?'42 张，抽满 25 张重洗':'波动温和，全部使用'}</div></div>
@@ -950,7 +950,7 @@ function openHelp(){
         <div class="rulelist__row"><div>破产惩罚</div><div>${view.rule==='202'?'退出游戏 + 跳回合与借贷限制':'退出游戏'}</div></div>
       </div>
       <h4 style="margin:14px 0 6px;font-size:13px;color:var(--primary)">获胜条件</h4>
-      <p class="muted">① 第一个在财务自由圈买下自己梦想的玩家；② 第一个在财务自由圈通过购买企业使企业月现金流之和增加 ≥ ¥50,000 的玩家；③ ${view.rule==='202'?'买断对手资产使其出局，最终存活者获胜。':'破产者退出游戏。'}</p>
+      <p class="muted">① 第一个在财务自由圈买下自己梦想的玩家；② 第一个在财务自由圈通过购买企业使企业月现金流之和增加 ≥ ${money(E.empireTarget())} 的玩家；③ ${view.rule==='202'?'买断对手资产使其出局，最终存活者获胜。':'破产者退出游戏。'}</p>
       <h4 style="margin:14px 0 6px;font-size:13px;color:var(--primary)">关键数值</h4>
       <p class="muted">信用贷月息 1%（年化约 12%）；主动变卖按账面价 80% 变现，破产时银行半价收购；出圈资金 = 月被动收入 × 100；融券做空强制平仓；期权 3 回合限制。</p>
     </div>

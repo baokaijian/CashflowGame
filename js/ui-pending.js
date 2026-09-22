@@ -71,6 +71,13 @@ function doodadFace(card, cost){
 /* 投资卡：可买标的，字段完整 */
 /* solo 只用于把「可多人联合购买」改成单人下正确的说法 ——
    单人局里没有「多人」，写着可多人联合会让人以为还能拉人。 */
+/* 净回报率 = 月现金流 × 12 ÷ 投入。
+   这是比较不同投资机会时唯一该看的指标 —— 绝对金额会骗人：
+   大额卡的现金流一定更大，但回报率可能更低。 */
+function rateRow(invest, flow){
+  if(!(invest > 0) || typeof flow !== 'number' || !isFinite(flow)) return '';
+  return r('净回报', `${(flow * 12 / invest * 100).toFixed(1)}% / 年`);
+}
 function dealFace(deckName, card, solo){
   let rows = '';
   switch(card.kind){
@@ -91,14 +98,16 @@ function dealFace(deckName, card, solo){
     case 'realestate':
       rows = r('买价', money(card.cost)) + r('首付', money(card.dp))
            + r('月现金流', sign(card.cf)) + (card.rent? r('租金', money(card.rent)+' / 月'):'')
+           + rateRow(card.dp, card.cf)
            + (card.joint? r('202 规则', solo ? '可与机构合伙购买' : '可多人联合购买'):'')
            + (card.capital? r('类型','资本利得型 · 无现金流'):'');
       break;
     case 'business':
-      rows = r('成本', money(card.cost)) + r('月现金流', sign(card.cf)) + (card.risky? r('风险','受行情卡影响，可能枯竭'):'');
+      rows = r('成本', money(card.cost)) + r('月现金流', sign(card.cf)) + rateRow(card.cost, card.cf)
+           + (card.risky? r('风险','受行情卡影响，可能枯竭'):'');
       break;
     case 'savings':
-      rows = r('本金', money(card.cost)) + r('月利息', sign(card.interest));
+      rows = r('本金', money(card.cost)) + r('月利息', sign(card.interest)) + rateRow(card.cost, card.interest);
       break;
     case 'land':
       rows = r('成本', money(card.cost)) + r('月现金流','¥0（等待市场报价）');
@@ -764,9 +773,9 @@ function showBusiness(g, p, P){
   U.openModal(`
     <div class="modal__head"><h3>🏭 企业投资（财务自由圈）</h3></div>
     <div class="modal__body">
-      <p class="hint">财务自由圈投资<b>只能用现金购买，不允许贷款</b>。购买企业可增加月现金流；第一个通过购买企业使月现金流增加 ≥ ¥50,000 的玩家获胜。</p>
+      <p class="hint">财务自由圈投资<b>只能用现金购买，不允许贷款</b>。购买企业可增加月现金流；第一个通过购买企业使月现金流增加 ≥ ${money(E.empireTarget())} 的玩家获胜。</p>
       <div class="sec__total"><span>你的现金</span><span class="money">${money(p.cash)}</span></div>
-      <div class="sec__total"><span>已通过企业累计增加</span><span class="money">${money(p.ftGain||0)} / ¥50,000</span></div>
+      <div class="sec__total"><span>已通过企业累计增加</span><span class="money">${money(p.ftGain||0)} / ${money(E.empireTarget())}</span></div>
       <div class="picklist">
         ${FT_BUSINESSES.map(b=>`
           <button class="pick" data-buy="${b.id}" ${p.cash<b.cost?'disabled style="opacity:.45"':''}>

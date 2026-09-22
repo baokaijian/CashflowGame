@@ -501,9 +501,9 @@ function buyFTBusiness(g, bizId){
   p.assets.ftBusiness.push(E.stampAsset(g, { nm:biz.nm, cost:biz.cost, cf:biz.cf, bizId:biz.id }));
   p.ftGain = (p.ftGain||0) + biz.cf;
   E.bump(p, 'ftBusinesses'); E.bump(p, 'investTotal', biz.cost); E.bump(p, 'cfGained', biz.cf);
-  E.milestone(g, p, `第 ${g.round} 轮在财务自由圈购入企业「${biz.nm}」，月现金流 +${money(biz.cf)}（累计 ${money(p.ftGain)} / ¥50,000）`, 'good');
+  E.milestone(g, p, `第 ${g.round} 轮在财务自由圈购入企业「${biz.nm}」，月现金流 +${money(biz.cf)}（累计 ${money(p.ftGain)} / ${money(E.empireTarget())}）`, 'good');
   log(g, `${p.name} 现金购入企业【${biz.nm}】，月现金流 +${money(biz.cf)}（累计增加 ${money(p.ftGain)}）`, 'good', p.name);
-  if(p.ftGain >= 50000) E.win(g, p, `在财务自由圈上通过购买企业使月现金流增加 ${money(p.ftGain)}（≥ ¥50,000）`, 'empire');
+  if(p.ftGain >= E.empireTarget()) E.win(g, p, `在财务自由圈上通过购买企业使月现金流增加 ${money(p.ftGain)}（≥ ${money(E.empireTarget())}）`, 'empire');
   return { ok:true };
 }
 /* 202：停在已拥有的企业格 → 支付首付开设特许经营 */
@@ -520,9 +520,9 @@ function openFranchise(g, bizId){
   p.assets.ftBusiness.push(E.stampAsset(g, { nm:owned.nm+' · 特许经营', cost:dp, cf:extraCf, bizId, franchise:true }));
   p.ftGain = (p.ftGain||0) + extraCf;
   E.bump(p, 'ftBusinesses'); E.bump(p, 'investTotal', dp); E.bump(p, 'cfGained', extraCf);
-  E.milestone(g, p, `第 ${g.round} 轮为「${owned.nm}」开设特许经营，额外现金流 +${money(extraCf)}（累计 ${money(p.ftGain)} / ¥50,000）`, 'good');
+  E.milestone(g, p, `第 ${g.round} 轮为「${owned.nm}」开设特许经营，额外现金流 +${money(extraCf)}（累计 ${money(p.ftGain)} / ${money(E.empireTarget())}）`, 'good');
   log(g, `${p.name} 为【${owned.nm}】开设特许经营，支付首付 ${money(dp)}，额外现金流 +${money(extraCf)}`, 'good', p.name);
-  if(p.ftGain >= 50000) E.win(g, p, `特许经营使月现金流累计增加 ${money(p.ftGain)}`, 'empire');
+  if(p.ftGain >= E.empireTarget()) E.win(g, p, `特许经营使月现金流累计增加 ${money(p.ftGain)}`, 'empire');
   return { ok:true };
 }
 function buyDream(g){
@@ -638,7 +638,7 @@ function buyout(g, targetId){
   E.milestone(g, t, `第 ${g.round} 轮全部资产被 ${p.name} 以 ${money(price)} 买断，无力维持而出局`, 'bad');
   log(g, `${p.name} 以 ${money(price)} 买断 ${t.name} 的全部资产，${t.name} 因无力维持而出局`, 'bad');
   E.checkLastStanding(g);
-  if(p.ftGain >= 50000) E.win(g, p, `买断资产使月现金流累计增加 ${money(p.ftGain)}`, 'empire');
+  if(p.ftGain >= E.empireTarget()) E.win(g, p, `买断资产使月现金流累计增加 ${money(p.ftGain)}`, 'empire');
   return { ok:true };
 }
 

@@ -96,9 +96,12 @@ ok(window.EXP_LABEL.housingGap, `支出科目里有「${window.EXP_LABEL.housing
     `把住房基线关掉后总支出从 ${money(fa.totalExpenses)} 掉到 ${money(oldWay.totalExpenses)}`
     + `（跌 ${money(drop)}）—— 这一段就是被基线挡住的门槛崩塌`);
 
-  /* 门槛 = 总支出，所以门槛同步骤不崩塌 */
+  /* 门槛 = 总支出 × 安全边际，所以门槛同步骤不崩塌 */
   const tNew = E.escapeTarget(cleared.g, cleared.p);
-  ok(tNew === fa.totalExpenses, `出圈门槛 = 总支出 = ${money(tNew)}（含住房基线）`);
+  const marg = E.escapeMargin(cleared.g);
+  ok(tNew === Math.round(fa.totalExpenses * marg),
+    `出圈门槛 = 总支出 × ${marg} = ${money(tNew)}（含住房基线，且留了 ${Math.round((marg - 1) * 100)}% 安全边际）`);
+  ok(marg > 1, `安全边际 ${marg} > 1 —— 门槛不再是「刚好覆盖」`);
 
   /* 现金流也不会因还清贷款而暴涨：跌幅小于房贷月供 */
   const homesDue = fb.exp.home;

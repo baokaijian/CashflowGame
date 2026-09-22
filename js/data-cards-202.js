@@ -32,36 +32,36 @@ window.DECK_CAPGAIN = [
     note:'金价 ¥258/克，可买 10—100 克。' },
   { id:'cg13',kind:'collectible', nm:'白银积存', unit:true, price:13, min:100, max:2000,
     note:'银价 ¥13/克，可买 100—2,000 克。' },
-  { id:'cg14',kind:'realestate', nm:'法拍房', dp:12900, cost:172000, cf:0, rent:0, capital:true,
-    note:'法拍成交价 ¥172,000，首付 ¥6,000，无租金收入，等待行情回升后出售赚取差价。' },
-  { id:'cg15',kind:'realestate', nm:'郊区小地块', dp:8600, cost:64500, cf:0, rent:0, capital:true,
-    note:'首付 ¥64,500，无现金流，博取土地升值。' },
+  { id:'cg14',kind:'realestate', tier:'res', nm:'法拍房', dp:172000, cost:172000, cf:0, rent:717, capital:true,
+    note:'总价 ¥172,000，首付 ¥172,000（100%），无租金收入。等待行情回升后出售赚取差价。' },
+  { id:'cg15',kind:'realestate', tier:'com', nm:'郊区小地块', dp:29025, cost:64500, cf:0, rent:323, capital:true,
+    note:'总价 ¥64,500，首付 ¥29,025（45%），无租金收入。博取土地升值。' },
   { id:'cg16',kind:'stock', symbol:'600666',  price:4,  range:true, min:100, max:2000, nm:'白酒龙头（恐慌抛售）',
     note:'每股 ¥4，可买 100—2,000 股。市场恐慌，注意仓位。' }
 ];
 
 /* ---------- 大额现金流卡（替换 101 的「大额置业」，大型地产与经营项目） ---------- */
 window.DECK_CASHFLOW = [
-  { id:'cf1', kind:'realestate', nm:'长租公寓整栋', dp:129000, cost:1290000, cf:3600, rent:9000, joint:true,
-    note:'总价 ¥1,290,000，首付 ¥129,000，月租金收入 ¥9,000（净 +¥3,600）。202 规则：可联合购买，按出资比例分配现金流。' },
-  { id:'cf2', kind:'realestate', nm:'写字楼整层', dp:172000, cost:1720000, cf:5000, rent:11000, joint:true,
-    note:'总价 ¥1,720,000，首付 ¥172,000，月租金收入 ¥11,000（净 +¥5,000）。可联合购买。' },
-  { id:'cf3', kind:'realestate', nm:'商业综合体商铺', dp:215000, cost:2580000, cf:8000, rent:18000, joint:true,
-    note:'总价 ¥2,580,000，首付 ¥215,000，月租金收入 ¥18,000（净 +¥8,000）。可联合购买。' },
-  { id:'cf4', kind:'business', nm:'连锁餐饮集团', cost:322500, cf:4000,
-    note:'入股 ¥322,500，月分红 +¥4,000。' },
-  { id:'cf5', kind:'business', nm:'汽车经销店',  cost:258000, cf:3000,
-    note:'入股 ¥258,000，月分红 +¥3,000。' },
-  { id:'cf6', kind:'business', nm:'医疗器械公司股权', cost:430000, cf:5500,
-    note:'入股 ¥430,000，月分红 +¥5,500。' },
-  { id:'cf7', kind:'business', nm:'连锁洗衣品牌',  cost:129000, cf:2200,
-    note:'入股 ¥129,000，月分红 +¥2,200。' },
-  { id:'cf8', kind:'realestate', nm:'仓储物流园',  dp:150500, cost:1505000, cf:4200, rent:9600, joint:true,
-    note:'总价 ¥1,505,000，首付 ¥150,500，月租金收入 ¥9,600（净 +¥4,200）。可联合购买。' },
+  { id:'cf1', kind:'realestate', tier:'res', nm:'长租公寓整栋', dp:387000, cost:1290000, cf:1673, rent:5375, joint:true,
+    note:'总价 ¥1,290,000，首付 ¥387,000（30%），出租月收入 ¥5,375（净现金流 +¥1,673 · 净回报 5.2%/年）。202 规则：可联合购买，按出资比例分配现金流。' },
+  { id:'cf2', kind:'realestate', tier:'com', nm:'写字楼整层', dp:774000, cost:1720000, cf:4721, rent:8600, joint:true,
+    note:'总价 ¥1,720,000，首付 ¥774,000（45%），出租月收入 ¥8,600（净现金流 +¥4,721 · 净回报 7.3%/年）。可联合购买。' },
+  { id:'cf3', kind:'realestate', tier:'com', nm:'商业综合体商铺', dp:1161000, cost:2580000, cf:7082, rent:12900, joint:true,
+    note:'总价 ¥2,580,000，首付 ¥1,161,000（45%），出租月收入 ¥12,900（净现金流 +¥7,082 · 净回报 7.3%/年）。可联合购买。' },
+  { id:'cf4', kind:'business', tier:'brand', nm:'连锁餐饮集团', cost:322500, cf:2419,
+    note:'入股 ¥322,500，月净收入 +¥2,419（净回报 9.0%/年）。' },
+  { id:'cf5', kind:'business', tier:'equity', nm:'汽车经销店',  cost:258000, cf:2150,
+    note:'入股 ¥258,000，月净收入 +¥2,150（净回报 10.0%/年）。' },
+  { id:'cf6', kind:'business', tier:'equity', nm:'医疗器械公司股权', cost:430000, cf:3583,
+    note:'入股 ¥430,000，月净收入 +¥3,583（净回报 10.0%/年）。' },
+  { id:'cf7', kind:'business', tier:'brand', nm:'连锁洗衣品牌',  cost:129000, cf:968,
+    note:'入股 ¥129,000，月净收入 +¥968（净回报 9.0%/年）。' },
+  { id:'cf8', kind:'realestate', tier:'com', nm:'仓储物流园',  dp:677250, cost:1505000, cf:4131, rent:7525, joint:true,
+    note:'总价 ¥1,505,000，首付 ¥677,250（45%），出租月收入 ¥7,525（净现金流 +¥4,131 · 净回报 7.3%/年）。可联合购买。' },
   { id:'cf9', kind:'land', nm:'商业用地', cost:107500, cf:0,
     note:'取得用地 ¥107,500，等待收储或转让。' },
-  { id:'cf10',kind:'savings', nm:'私募债', cost:64500, interest:1200,
-    note:'认购 ¥64,500，月派息 +¥1,200。私募债流动性差、信用风险高。' }
+  { id:'cf10',kind:'savings', tier:'credit', nm:'私募债', cost:64500, interest:312,
+    note:'认购 ¥64,500，月派息 +¥312（年化 5.8%）。私募债流动性差、信用风险高。' }
 ];
 
 /* ---------- 行情 / 政策卡（202：共 42 张，抽满 25 张后重新洗牌） ---------- */

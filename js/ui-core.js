@@ -318,21 +318,27 @@ function applyModeUI(){
   renderNames();
 }
 /* 开局页的「游戏规则」模块：把出圈条件与达成方式讲清楚。
-   内容随规则版本实时切换 —— 101 与 202 的门槛倍数不同（×1 / ×2），
+   内容随规则版本实时切换 —— 101 与 202 的门槛倍数不同（×1.5 / ×2.5）。
+   ★ 倍数取 window.YIELD 的安全边际，不在这里写死：
+     写死就会出现「规则页说 ×1、财务面板算 ×1.5」这种同屏两套口径。
    达成方式的侧重点也不同，所以不能用一段写死的文案。 */
 function renderSetupRules(){
   const host = $('#setupRulesBody');
   if(!host) return;
   const r202 = Setup.rule === '202';
-  const cond = r202 ? '被动收入 ＞ 总支出 × <b>2</b>' : '被动收入 ＞ 总支出';
+  const mg = r202 ? window.YIELD.safetyMargin202 : window.YIELD.safetyMargin;
+  const cond = `被动收入 ＞ 总支出 × <b>${mg}</b>`;
   host.innerHTML = `
     <div class="rules-goal">
       <span class="rules-goal__lbl">出圈条件 · ${Setup.rule} 规则</span>
       <span class="rules-goal__val">${cond}</span>
     </div>
     <p class="rules-sub">
-      式子左边是<b>被动收入</b>，右边是<b>总支出</b> —— 两边同时算数，
-      任何一边变化都会立刻改变你的进度。${r202 ? '202 的门槛是总支出的 <b>2 倍</b>，更难，但出圈资金也更高。' : ''}
+      式子左边是<b>被动收入</b>，右边是<b>总支出 × ${mg}</b> —— 两边同时算数，
+      任何一边变化都会立刻改变你的进度。${r202 ? '202 的门槛更高、更难，但出圈资金也更高。' : ''}
+      ${mg > 1 ? `门槛不是「刚好覆盖支出」，而是留了 <b>${Math.round((mg - 1) * 100)}% 的安全边际</b>：
+      支出会波动（医疗、通胀、家庭变故），零缓冲意味着任何一次意外都会击穿 ——
+      真实规划里没有人会在「被动收入 = 支出」的那一刻辞职。` : ''}
     </p>
 
     <div class="rules-cols">
@@ -409,8 +415,8 @@ function initSetup(){
       $('#ruleBadge').textContent = Setup.rule + ' 规则';
       $('#ruleBadge').className = 'badge ' + (Setup.rule==='202'?'badge--202':'badge--rule');
       $('#ruleHint').innerHTML = Setup.rule==='202'
-        ? '跳出条件：被动收入 &gt; 总支出 × <b>2</b>；启用杠杆交易 / 大额现金流卡、融券做空、期权、联合购买，行情卡 42 张（抽满 25 张重洗）。'
-        : '跳出条件：被动收入 &gt; 总支出。仅做多，投资机会格只抽投资卡，市场波动温和。';
+        ? `跳出条件：被动收入 &gt; 总支出 × <b>${window.YIELD.safetyMargin202}</b>；启用杠杆交易 / 大额现金流卡、融券做空、期权、联合购买，行情卡 42 张（抽满 25 张重洗）。`
+        : `跳出条件：被动收入 &gt; 总支出 × <b>${window.YIELD.safetyMargin}</b>；仅做多，投资机会格只抽投资卡，市场波动温和。`;
       renderSetupRules();       /* 规则模块的门槛倍数与文案随版本同步切换 */
     };
   });
