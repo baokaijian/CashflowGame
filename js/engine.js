@@ -54,9 +54,8 @@ function dueOf(balance, rate, n){
   return Math.ceil(b * rate * f / (f - 1));
 }
 /* ------------------------------ 时间口径 ------------------------------ */
-/* ★ 一轮 = 一年；一次结算 = 结清「经过的年数」，每个结算年折算 12 个月。
-   ⚠️ 「一次发薪日 = 一年」是旧表述，会让人以为每次落格只结一年 ——
-      实际一次结算覆盖 1—4 年（= 自上次结算以来经过的年数）。
+/* ★ 一轮 = 一年；一个结算格 = 结算 1 年，每个结算年折算 12 个月。
+   没踩到结算格的年份由 settledAge 记账积欠，突变点 / 终局一次结清。
    见 data-careers.js 的 window.TIME —— 这里只做读取，绝不在别处写死 12。 */
 function monthsPerPayday(){
   return (window.TIME && window.TIME.monthsPerPayday) || 12;
@@ -1445,25 +1444,28 @@ function movePlayer(g, p, steps){
   g.lastPath = path;
   if(p.inFT) p.ftPos = to; else p.pos = to;
 
-  /* 经过 / 停留 结算日格子 → 结算「自上次结算以来经过的年数」
+  /* 经过 / 停留 结算日格子 → 每个结算格【恰好结算 1 年】
      ★ 月度结余可能为负（失业期没有工资而支出照付，或贷款月供超过了收入）——
        负值【不能直接加到现金上】，否则会破坏「现金永不为负」这条不变式。
        这里把它记成一笔「当期入不敷出」，交给界面走统一的资金不足处理流程。
 
-     ★★ 为什么结的是「经过的年数」而不是固定 1 年：
-     年龄由「整圈」推进（45 轮 = 45 年），而发薪日由「落格」触发（内圈每轮约 0.438 次）。
-     若每次固定只结 1 年，一生 45 年只会结到约 20 年（实测覆盖率 44.4%），
-     两个时钟永远对不上。改为结「经过的年数」后，一生累计结算 = 45 年，
-     金钱时钟与年龄时钟的刻度才真正一致。
-     ⚠️ 不能反向修（让发薪日推进年龄）：一生只有约 19 次发薪，
+     ★★ 记账规则（每个发薪日 = 一年）：
+     每个被经过的结算格结算【最旧的 1 个未结年份】（settledAge + 1），
+     按当前的月度结余折算。跨 2 个发薪日就结 2 年 —— 与「经过几个、结几年」严格对应。
+     年龄仍由「整圈」推进（45 轮 = 45 年），而内圈每轮只经过约 0.44 个发薪日，
+     于是「没踩到发薪日的年份」会积欠下来（settledAge 落后于当前年龄），
+     在后续的发薪日逐个结清，或在收入突变 / 终局时一次结清。
+     ⚠️ settledAge >= 当前年龄时记「本年已结」略过 —— 不给还没活过的年份发薪。
+        （内圈积欠是常态、略过罕见；外圈 4 个分红日密度 > 1，略过反而是常态。）
+     ⚠️ 不能反向修（让发薪日推进年龄）：一生只有约 20 次发薪，
         那样角色 45 轮下来只活到 39 岁，65 岁退休判定立刻失效。 */
   const ageNow = ageOf(g);
   let collected = 0, deficit = 0;
   /* 每个结算点各记一笔 —— 有三个用处：
-     ① 弹层能如实汇报「本回合到底结了几年、进了多少钱」，而不是拿单次的值充数；
+     ① 弹层能如实汇报「本回合经过几个、各结了哪一年、进了多少钱」；
      ② 同一回合内两次结算的金额可能【不同】：前一次 amortize 若恰好还清某笔贷款，
         月供会立刻从支出里消失；
-     ③ 同一回合经过两个发薪日时，第二次会因「这一年已经结过了」而不再发钱。 */
+     ③ 每笔只有 1 年，弹层能把「经过 N 个 = 结 N 年」的对应关系摆到明面上。 */
   const settledYears = [];
   path.forEach(ix=>{
     const sp = spaces[ix];
@@ -1474,56 +1476,54 @@ function movePlayer(g, p, steps){
     const since = numOrDef(p.settledAge, g.startAge - 1);
     const due = ageNow - since;
     if(due <= 0){
-      /* 本年的账已经结过（同一次移动经过两个发薪日，或同一岁内又踩到一次）。
+      /* 本年的账已经结过（同一次移动经过两个发薪日且积欠为 0，或突变点刚结清后又踩到）。
          仍记一笔，好让弹层讲清楚「踩到了，但本年已结」—— 而不是静默无反应。 */
       settledYears.push({ ix, years:0, monthly:0, amount:0, already:true, since });
       return;
     }
-    /* 先取本年的结余，再摊还 —— 顺序不可换（摊还会改变月供）。
-       简化口径：这 due 年统一按【当前】的月度结余折算，不逐年回溯年龄曲线；
-       误差只来自跨越涨薪/降薪节点的那几年，量级很小。 */
+    /* ★ 每个结算格恰好结算 1 年（最旧的未结年份 = since + 1 岁）。
+       先取这一年的结余，再摊还 —— 顺序不可换（摊还会改变月供）。
+       简化口径：按【当前】的月度结余折算，不逐年回溯年龄曲线；
+       误差只来自积欠期间跨越涨薪/降薪节点的那几年，量级很小。 */
     /* ★ 自由圈同样要有账本：分红（毛被动收入）要减去自由圈的生活支出与仍在还的贷款。
        旧版直接拿 ftMonthly(p) 当收入，支出侧完全空缺 —— 出圈后现金无上限增长，
        顺流层变成绝对安全区。现实里财务自由之后生活档次会升级，
        这些同样是固定支出，也一样可能压垮现金流。 */
     const monthly = isPay ? finance(p).cashflow : ftFinance(p).cashflow;
-    const amount  = annual(monthly) * due;
+    const amount  = annual(monthly);                 /* × 1 年 */
     if(amount >= 0) collected += amount; else deficit += -amount;
-    settledYears.push({ ix, years:due, monthly, amount, since });
-    p.settledAge = ageNow;
-    amortize(g, p, due);                     /* ★ 领几年就摊还几年 —— 两者必须同步。
-                                                财务自由圈的「分红日」同样摊还：
-                                                旧版只有内圈发薪日摊还，出圈后负债会冻结。 */
+    settledYears.push({ ix, years:1, monthly, amount, since });
+    p.settledAge = since + 1;                        /* 只推进 1 年，积欠保留给后续结算 */
+    amortize(g, p, 1);                               /* ★ 领几年就摊还几年 —— 两者必须同步。
+                                                         财务自由圈的「分红日」同样摊还：
+                                                         旧版只有内圈发薪日摊还，出圈后负债会冻结。 */
   });
   /* settled 会一路带给 resolveSpace（含「入不敷出」处理完后重入的那一次），
      所以弹层显示的金额与实际入账永远是同一个数。 */
   const yearsPaid = settledYears.reduce((a, y)=> a + y.years, 0);
   /* since = 本次结算的起点年龄。必须在这里记下来 ——
-     movePlayer 结束时 p.settledAge 已经被推到 ageNow，
-     弹层若去读 p.settledAge，就会显示成「自上次结算（今年）以来已过 N 年」。 */
+     movePlayer 结束时 p.settledAge 已经被推进，弹层若去读 p.settledAge 会拿到推后的值。 */
   const settled = settledYears.length
     ? { count: settledYears.length, yearsPaid, skipped: settledYears.filter(y=>y.already).length,
-        since: settledYears[0].since, amount: collected, deficit, years: settledYears }
+        since: settledYears[0].since, amount: collected, deficit, years: settledYears,
+        through: p.settledAge, arrears: Math.max(0, ageNow - p.settledAge) }
     : null;
-  /* ★ 文案必须讲清「1 次结算覆盖 N 年」，并给出「年结余 × N」的算式。
-     只写「结算 2 年」会被读成「结算了 2 次」—— 实测确实有玩家据此怀疑重复结算，
-     而实际是方案 A：一次结算覆盖「自上次结算以来经过的年数」。
-     把算式写出来，玩家可以自己核账，不必猜；也顺带解释了
-     「为什么金额不等于当前年结余」（结余在两次结算之间会随年龄 / 贷款变化）。
-     ⚠️ 每个发薪日格【恰好结算一次】：同一次移动经过多个结算格时，
-        第 2 个起会因「本年已结」而略过（见上面的 due <= 0 分支）。 */
-  const paidCell = settledYears.filter(y => y.years > 0)[0] || null;
+  /* ★ 文案必须讲清「经过几个、各结哪一年」，并给出算式 —— 玩家可以自己核账。
+     多年积欠的结清只发生在突变点 / 终局（那里的文案自带「一次结清」说明）。 */
+  const paidCells = settledYears.filter(y => y.years > 0);
   if(collected !== 0){
     p.cash += collected;
-    const perYear = paidCell ? annual(paidCell.monthly) : 0;
-    /* 用【年龄区间】而不是「自 X 岁以来」：区间能直接回答「这一次结了哪些年」，
-       也让玩家一眼看出「N 年」是覆盖范围、不是结算次数。
-       覆盖的年份 = (上次结算年龄, 当前年龄] = since+1 … age。 */
-    const sinceAge = settled && settled.since != null ? settled.since : g.startAge - 1;
-    const span = yearsPaid > 1 ? `${sinceAge + 1}—${ageNow} 岁共 ${yearsPaid} 年` : `${ageNow} 岁这一年`;
-    log(g, `${p.name} 经过${p.inFT ? '分红日' : '发薪日'}：一次结算（覆盖 ${span}）`
-      + `，入账 ${money(collected)}${paidCell ? ` = 年结余 ${money(perYear)} × ${yearsPaid}` : ''}`,
-      'good', p.name);
+    const yearList = paidCells.map(y => y.since + 1);
+    if(paidCells.length === 1){
+      const perYear = annual(paidCells[0].monthly);
+      log(g, `${p.name} 经过${p.inFT ? '分红日' : '发薪日'}：结算 1 年（第 ${yearList[0]} 岁）`
+        + `，入账 ${money(collected)} = 年结余 ${money(perYear)} × 1`,
+        'good', p.name);
+    } else {
+      log(g, `${p.name} 经过 ${settledYears.length} 个${p.inFT ? '分红日' : '发薪日'}：`
+        + `各结算 1 年（第 ${yearList.join('、')} 岁），合计入账 ${money(collected)}`,
+        'good', p.name);
+    }
   }
   if(deficit > 0){
     log(g, `${p.name} 这 ${yearsPaid} 年合计入不敷出 ${money(deficit)}`, 'bad', p.name);
@@ -1555,7 +1555,7 @@ function paydayNoticeOf(g, landed, inFT){
        'already' = 踩到了结算格，可这一年的账之前已经结过，本次不再发钱 */
     kind: st.yearsPaid === 0 ? 'already' : 'paid',
     inFT: !!inFT,
-    years: st.yearsPaid,        /* 本次实际结算的年数（可能是多年） */
+    years: st.yearsPaid,        /* 本次实际结算的年数（经过几个结算格、积欠足够时就结几年） */
     /* 每年均额 = 该结算格的月结余 × 12。界面要显示「年结余 × N」这个算式，
        算式里的年结余必须由引擎给 —— 界面自己除会有取整误差，也违反单一真源。 */
     perYear: (function(){
@@ -1567,7 +1567,10 @@ function paydayNoticeOf(g, landed, inFT){
     count: st.count,            /* 本回合经过几个结算格 */
     skipped: st.skipped,        /* 其中几个因「本年已结」而略过 */
     since: st.since,            /* 本次结算的起点年龄 */
-    age: g ? ageOf(g) : null,   /* 结到几岁 */
+    yearsList: (st.years || []).filter(y => y.years > 0).map(y => y.since + 1),  /* 各笔结的年份 */
+    through: st.through,        /* 结算后已结到几岁 */
+    arrears: st.arrears,        /* 还剩几年积欠（将在后续发薪日 / 突变点 / 终局结清） */
+    age: g ? ageOf(g) : null,   /* 当前年龄 */
     landedType: sp ? sp.t : null
   };
 }
@@ -1600,21 +1603,22 @@ function resolveSpace(g, p, landed){
       if(st && st.yearsPaid === 0){
         /* 踩到了结算格，但本年的账已经结过 —— 明说，别让玩家以为系统漏发 */
         msg = `本年（${ageOf(g)} 岁）的账已经结过了，这里不再重复发薪。`
-            + `下一次结算会一次覆盖从 ${ageOf(g)} 岁起累积的年份。`;
+            + `下一个${nm}会结算再下一年。`;
       } else if(st && st.amount === 0 && st.deficit > 0){
         msg = `结算 ${st.yearsPaid} 年，合计入不敷出 ${money(st.deficit)}（已在上一面板补上）。`;
       } else {
-        /* 措辞要点（与日志一致）：说清「一次结算」、覆盖几年、以及算式，
-           免得被读成「结算了 N 次」。 */
+        /* 措辞要点（与日志一致）：经过几个、各结哪一年、算式 ——
+           「经过 N 个 = 结 N 年」的对应关系摆到明面上，玩家可以自己核账。 */
         const yrs = st ? st.yearsPaid : 1;
-        const paid = st && st.years ? st.years.filter(y => y.years > 0)[0] : null;
-        const perYear = paid ? annual(paid.monthly) : fallback;
-        msg = '一次结算，覆盖 '
-            + (yrs > 1 ? `${settled9 + 1}—${ageOf(g)} 岁共 ${yrs} 年` : `${ageOf(g)} 岁这一年`)
+        const paid = st && st.years ? st.years.filter(y => y.years > 0) : null;
+        const yearList = paid && paid.length ? paid.map(y => y.since + 1) : [settled9 + 1];
+        const perYear = paid && paid[0] ? annual(paid[0].monthly) : fallback;
+        msg = (yrs === 1 ? `结算 1 年（第 ${yearList[0]} 岁）` : `结算 ${yrs} 年（第 ${yearList.join('、')} 岁）`)
             + `：入账 ${money(st ? st.amount : fallback)}`
-            + ` = 年结余 ${money(perYear)} × ${yrs}。`
-            + (st && st.count > 1 && st.skipped > 0
-                ? `本回合经过 ${st.count} 个${nm}，其中 ${st.skipped} 个因本年已结而略过。` : '');
+            + (yrs === 1 ? ` = 年结余 ${money(perYear)} × 1` : `（每个${nm}各结 1 年）`)
+            + `。`
+            + (st && st.count > yrs ? `本回合经过 ${st.count} 个${nm}，其中 ${st.count - yrs} 个因本年已结而略过。` : '')
+            + (st && st.arrears > 0 ? `另有 ${st.arrears} 年待结，将在后续${nm}逐个结清。` : '');
         if(st && st.deficit > 0)
           msg += `另有 ${money(st.deficit)} 为入不敷出，已在上一面板补上。`;
       }

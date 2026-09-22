@@ -242,9 +242,10 @@ sec('⑥ 边界：一回合经过 ≥2 个发薪日');
   const before = p.cash;
   const ld = E.movePlayer(g, p, steps);
   ok(ld.settled.count === 2, `路径命中了 ${ld.settled.count} 个发薪日（路径 ${JSON.stringify(ld.path)}）`);
-  /* ★ 方案 A：「一年只结一次账」。同一次移动里的第 2 个发薪日不会重复发钱。 */
+  /* ★ 新局第 1 轮：积欠只有 1 年 → 第 1 个发薪日结掉今年，第 2 个因本年已结而略过。
+     （积欠充足时跨 2 个就结 2 年 —— 那是 ⑪ 段的场景；本段验证的是「无积欠不多发」。） */
   ok(ld.settled.yearsPaid === 1 && ld.settled.skipped === 1,
-     `只有第 1 个真正结算（结算 ${ld.settled.yearsPaid} 年，略过 ${ld.settled.skipped} 个）—— 一年只结一次账`);
+     `积欠仅 1 年 → 结 1 年、略过 ${ld.settled.skipped} 个（不给还没活过的年份发薪）`);
   ok(p.cash - before === ld.settled.amount,
      `入账 ${money(ld.settled.amount)} 与现金变化一致`);
   const P = E.resolveSpace(g, p, ld);
@@ -301,7 +302,7 @@ sec('⑦ 边界：单回合最多能经过几个发薪日（枚举全部起止�
 }
 
 /* ---------------- ⑧ 年龄递增时机 ---------------- */
-sec('⑧ 年龄递增时机 + 结算覆盖率（方案 A 落地后：两个时钟的刻度已对齐）');
+sec('⑧ 年龄递增时机 + 结算覆盖率（每格 1 年：积欠由突变点 / 终局兜底）');
 {
   seed = 20260920;
   const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['甲'], seed: 20260920 });
@@ -327,7 +328,7 @@ sec('⑧ 年龄递增时机 + 结算覆盖率（方案 A 落地后：两个时�
       /* 关键断言素材：移动（含发薪结算）过程中年龄必须【完全不变】 */
       if (E.ageOf(g) !== ageBefore) ageDuringMove++;
       /* ⚠️ 累加的是【结算年数】yearsPaid，不是 count —— count 是「路径命中的格数」，
-         含被略过的那些。两者在方案 A 下差别很大（20 次 vs 43 年）。 */
+         含被略过的那些。每格 1 年下两者接近（积欠被略过消耗），但语义不同。 */
       if (ld.settled) { settleCount += ld.settled.yearsPaid; settleTurns++; ageAtSettle.push(E.ageOf(g)); }
       E.resolveSpace(g, cur, ld);
       handlePending(g, cur);
@@ -342,22 +343,22 @@ sec('⑧ 年龄递增时机 + 结算覆盖率（方案 A 落地后：两个时�
   ok(ageDuringMove === 0, `移动与发薪结算过程中年龄从未变化（越界 ${ageDuringMove} 次）—— 发薪日不推进年龄`);
   ok(settleTurns === ageAtSettle.length,
      `结算记账完整：${settleTurns} 个结算回合共 ${settleCount} 年`);
-  /* ★ 方案 A 的核心验收：一生累计结算基本等于局长度（差额只是「最后一次结算之后到退休」的尾巴） */
-  /* ★ 覆盖率要算上「失业突变点的结算年数」：那段年份由 settleAtBreak 处理，
-     不经过 movePlayer，所以不在 settleCount 里 —— 漏掉它会把覆盖率凭空压低。 */
-  const settledAll = settleCount + seenBreakYears;
-  const coverage = settledAll / years;
-  /* ⚠️ 只有【走完全程】才要求高覆盖率：中途破产出局走的是另一条路，
-     刻意不做终局结清（破产是「现金流断裂」的即时判定），所以残差天然更大。 */
+  /* ★ 每格 1 年的核心验收：一生没有任何一年被漏结。
+     发薪日只结约 20 年，其余积欠由失业 / 退休突变点与终局结清 ——
+     走完全程时 settledAge 已被终局结清推到终龄，直接用它核算；
+     中途出局（破产）不做终局结清，只核发薪 + 失业突变点那部分。 */
   const finished = !p.out;
-  const minCoverage = finished ? 0.9 : 0.5;
+  const settledAll = finished
+    ? p.settledAge - (g.startAge - 1)
+    : settleCount + seenBreakYears;
+  const coverage = settledAll / years;
+  const minCoverage = finished ? 0.95 : 0.5;
   ok(coverage >= minCoverage,
-     `结算覆盖率 ${(coverage * 100).toFixed(1)}%（${finished ? '走完全程' : '中途出局'}，`
-     + `一生 ${years} 年结算了 ${settledAll} 年 = 常规 ${settleCount} + 失业突变点 ${seenBreakYears}）`
+     `结算覆盖率 ${(coverage * 100).toFixed(1)}%（${finished ? '走完全程，终局结清后 settledAge=' + p.settledAge : '中途出局'}，`
+     + `一生 ${years} 年共结算 ${settledAll} 年 = 发薪 ${settleCount} + 突变点 / 终局 ${settledAll - settleCount}）`
      + `—— 门槛 ${(minCoverage * 100).toFixed(0)}%`);
-  warn(`两个时钟的残差：${years - settledAll} 年（最后一次结算之后到退休之间的尾巴）；`);
-  warn(`  发薪时刻的年龄：${ageAtSettle.join(', ')}`);
-  warn('  ± 这一段尾巴无法靠「结经过的年数」消掉 —— 它要求每次结算都被触发。');
+  warn(`发薪时刻的年龄：${ageAtSettle.join(', ')}`);
+  warn('  · 没踩到发薪日的年份靠「积欠 → 突变点 / 终局结清」兜底，不丢年（⑯ 段逐区间核验）。');
   warn('  ⚠️ 别再让发薪日推进年龄：一生只有约 19 次发薪，45 轮下来只活到 39 岁，65 岁退休判定立刻失效。');
 }
 
@@ -417,29 +418,35 @@ sec('⑩ 边界：出圈后的年结算（分红日）同口径');
   }
 }
 
-/* ---------------- ⑪ 边界：一次结算覆盖多年 ---------------- */
-sec('⑪ 边界：一次结算覆盖多年（settledAge 落后时的合并结算）');
+/* ---------------- ⑪ 边界：同一回合两笔结算金额可能不同 ---------------- */
+sec('⑪ 边界：积欠充足时跨 2 个发薪日 → 各结 1 年，且两笔金额可能不同');
 {
   const g = E.newGame({ rule: '101', mode: 'solo', count: 1, names: ['测'], seed: 23 });
   const p = g.players[0];
-  p.liabs.home = 500; E.ensureLoans(p);         // 房贷只剩一点点 → 摊还第 1 年就会还清
+  p.liabs.home = 500; E.ensureLoans(p);         // 房贷只剩一点点 → 第 1 笔摊还就会还清
   E.refreshLife(g, p);
   g.round = 8; E.refreshLife(g, p);             // 推到 27 岁
-  p.settledAge = g.startAge - 1;                // 但账还停在 19 岁 → 落后 8 年
-  const due = E.ageOf(g) - p.settledAge;
+  p.settledAge = g.startAge - 1;                // 但账还停在 19 岁 → 积欠 8 年（≥ 2）
   const before = p.cash;
-  p.pos = (payIn[0] - 1 + RING) % RING;
-  const ld = E.movePlayer(g, p, 1);
-  ok(ld.settled.count === 1 && ld.settled.yearsPaid === due,
-     `一次结算覆盖 ${ld.settled.yearsPaid} 年（= 当前 ${E.ageOf(g)} 岁 − 上次结算 ${g.startAge - 1} 岁，期望 ${due}）`);
-  const paid = ld.settled.years.filter(y => y.years > 0)[0];
-  ok(ld.settled.amount === E.annual(paid.monthly) * due,
-     `入账 = 年结余 ${money(E.annual(paid.monthly))} × ${due} = ${money(ld.settled.amount)}（日志给出同一算式）`);
+  /* 从 1 走 10 步：路径 2..11，跨过发薪日 2 和 10，落在 11（非结算格，走提示路径） */
+  p.pos = 1;
+  const ld = E.movePlayer(g, p, 10);
+  ok(ld.settled.count === 2 && ld.settled.yearsPaid === 2 && ld.settled.skipped === 0,
+     `跨 2 个发薪日 → 结 2 年（每格各结 1 年，一个不略过；实际 count=${ld.settled.count} yearsPaid=${ld.settled.yearsPaid}）`);
+  const paid = ld.settled.years.filter(y => y.years > 0);
+  ok(paid.length === 2 && paid.every(y => y.years === 1),
+     `两笔各恰好 1 年，结的是最旧的连续年份：第 ${paid.map(y => y.since + 1).join('、')} 岁`);
+  ok(paid[0].monthly !== paid[1].monthly,
+     `两笔的月结余不同：${money(paid[0].monthly)} → ${money(paid[1].monthly)}（第 1 笔摊还还清了房贷，月供从支出里消失）`);
+  ok(ld.settled.amount === E.annual(paid[0].monthly) + E.annual(paid[1].monthly),
+     `入账 = 两笔之和 ${money(E.annual(paid[0].monthly))} + ${money(E.annual(paid[1].monthly))} = ${money(ld.settled.amount)}（不是「单年 × 2」）`);
   ok(p.cash - before === ld.settled.amount, `现金变化与合计一致`);
-  ok(E.loanInfo(p, 'home').balance === 0, `${due} 年摊还后房贷已结清（剩余 ${E.loanInfo(p, 'home').balance}）`);
-  const P = E.resolveSpace(g, p, ld);
-  ok(P.msg.indexOf(`共 ${due} 年`) >= 0,
-     `弹层点明覆盖年数区间：「${String(P.msg).slice(0, 60)}…」`);
+  ok(E.loanInfo(p, 'home').balance === 0, `第 1 笔摊还后房贷已结清（剩余 ${E.loanInfo(p, 'home').balance}）`);
+  ok(p.settledAge === g.startAge + 1 && ld.settled.arrears === 6,
+     `settledAge 只推进 2 年（19 → ${p.settledAge}），剩 6 年积欠留给后续发薪日`);
+  const n = E.paydayNoticeOf(g, ld, false);
+  ok(n && n.count === 2 && n.years === 2 && n.skipped === 0,
+     `提示数据如实汇报「经过 2 个、结了 2 年」`);
 }
 
 /* ---------------- ⑫ 长局：4 人局各玩家的结算次数 ---------------- */
@@ -652,10 +659,10 @@ sec('⑮ 发薪提示：经过结算格（未停留）时的即时通知');
 }
 
 /* ---------------- ⑯ 结算是否重复：全生命周期区间核对 ---------------- */
-/* 玩家侧的疑问：「为什么经过一个发薪日会触发多次结算？」
-   真因是日志写「结算 2 年」被读成「结算了 2 次」—— 实际是方案 A：
-   一次结算覆盖「自上次结算以来经过的年数」。
-   所以本节不只看单次移动，而是把【一整局】的每一次结算都记下来，
+/* 玩家侧的历史疑问：「为什么跨 2 个发薪日只结 1 笔 / 隔几轮踩 1 个发薪日一次结 3 年？」
+   —— 那是已回滚两版的方案 A（结清积欠），玩家读不懂；
+   现行口径是「一个结算格 = 恰好 1 年」，跨 N 个结 N 年、逐笔入账。
+   本节把【一整局】的每一次 settledAge 写入都记下来，
    断言「没有任何一年被结两次、也没有任何一年被漏掉、没有任何一次静默跳年」。 */
 sec('⑯ 结算是否重复：拦截 settledAge 的每一次写入，核对全生命周期区间');
 {
@@ -682,12 +689,11 @@ sec('⑯ 结算是否重复：拦截 settledAge 的每一次写入，核对全�
     if(r.settled){
       settleCells += r.settled.count;
       skippedCells += r.settled.skipped;
-      /* 方案 A 下同一次移动【至多一个】格真正结算 */
-      const paid = r.settled.years.filter(y => y.years > 0)[0];
-      if(paid){
+      /* 每格 1 年：一次移动里可以有【多笔】真正结算（跨多格、积欠充足时） */
+      r.settled.years.filter(y => y.years > 0).forEach(paid => {
         fromMove++;
         if(paid.amount !== E.annual(paid.monthly) * paid.years) badArith++;
-      }
+      });
     }
     return r;
   };
@@ -735,8 +741,9 @@ sec('⑯ 结算是否重复：拦截 settledAge 的每一次写入，核对全�
      finished
        ? `20—${E.ageOf(g)} 岁共 ${E.ageOf(g) - g.startAge + 1} 年【全覆盖】（一次不漏）`
        : `中途出局（${E.ageOf(g)} 岁）：未覆盖 ${missed.length} 年属预期，不做终局结清`);
-  ok(writes.every(w => w.to === w.age),
-     '每次写入都把账推到当前年龄 —— 不存在「静默跳年」（推走 settledAge 却没结算）');
+  ok(writes.every(w => w.delta >= 1 && w.to <= w.age),
+     '每次写入都至少推进 1 年、且绝不越过当前年龄 —— 不给未活过的年份发薪，' 
+     + '也不存在「推走 settledAge 却没结算」的静默跳年（每笔写入都对应一笔入账）');
   /* ★ 方案 A：命中的结算格 = 真正结算的 + 显式记「本年已结」的，一个都不能静默消失。
      「本年已结」的常见来源：失业 / 退休突变点已把账结到当前年龄，
      同一年里再踩到发薪日 → due = 0 → 记略过（见 movePlayer 的 due <= 0 分支）。 */
@@ -746,12 +753,13 @@ sec('⑯ 结算是否重复：拦截 settledAge 的每一次写入，核对全�
   ok(badArith === 0, '每笔金额都满足「年结余 × 年数」—— 玩家可在日志里自行核对');
 
   /* ③ 文案自证：必须给出「一次结算覆盖 N 年」与算式，而不是只写「结算 N 年」 */
-  /* 语义断言（不钉死措辞）：必须点明「一次结算」、给出覆盖的年龄区间与年数、
-     并带上「年结余 × N」的算式 —— 这三样一起才让玩家能自己核账。 */
-  const anyLog = g.log.filter(l => /一次结算（覆盖 /.test(l.text))[0];
-  ok(!!anyLog, `日志点明「一次结算」并给出覆盖区间：${anyLog ? anyLog.text.slice(0, 62) + '…' : '（未找到）'}`);
-  ok(!!anyLog && /= 年结余 .+ × \d+/.test(anyLog.text),
-     '日志带上「年结余 × N」的算式（玩家可自行核账，不必猜是不是重复结算）');
+  /* 语义断言（不钉死措辞）：必须点明「结算 1 年（第 X 岁）」、
+     并带上「年结余 × 1」的算式 —— 玩家能自己核账，也能一眼看出
+     「经过几个发薪日 = 结几年」的对应关系。 */
+  const anyLog = g.log.filter(l => /结算 1 年（第 \d+ 岁）/.test(l.text))[0];
+  ok(!!anyLog, `日志点明「结算 1 年（第 X 岁）」：${anyLog ? anyLog.text.slice(0, 62) + '…' : '（未找到）'}`);
+  ok(!!anyLog && /= 年结余 .+ × 1/.test(anyLog.text),
+     '日志带上「年结余 × 1」的算式（玩家可自行核账，不必猜是不是重复结算）');
   ok(!g.log.some(l => /结算 \d+ 年：入账/.test(l.text)),
      '不再使用会被读成「N 次」的旧写法「结算 N 年：入账」');
 
@@ -769,8 +777,8 @@ sec('⑯ 结算是否重复：拦截 settledAge 的每一次写入，核对全�
      nn ? `提示带上算式「年结余 ${money(nn.perYear)} × ${nn.years} = ${money(nn.amount)}」`
         : '（无提示数据）');
 
-  warn(`   · 一生结算 ${writes.length} 次，其中 ${writes.length - fromMove} 次来自失业 / 退休 / 终局的突变点结算（不在发薪日触发，日志文案是「收入变更前一次结清」「终局一次结清」）。`);
-  warn('   · 结论：不存在重复结算。日志里的「N 年」是【一次结算覆盖的年数】，不是结算次数。');
+  warn(`   · 一生结算 ${writes.length} 次写入，其中 ${writes.length - fromMove} 次来自失业 / 退休 / 终局的突变点结算（不在发薪日触发，日志文案是「收入变更前一次结清」「终局一次结清」）。`);
+  warn('   · 结论：不存在重复结算、也不丢年。发薪日每格恰好 1 年，积欠由突变点 / 终局兜底。');
 }
 
 /* ---------------- 结论 ---------------- */

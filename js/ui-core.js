@@ -43,15 +43,16 @@ function paydayNotice(n){
     return true;
   }
 
-  /* 第二行放细节：一次结几年、本回合经过几次、是否另有缺口。
+  /* 第二行放细节：结了几年（= 经过的结算格数）、还剩几年积欠、是否另有缺口。
      变长的是「说明」而不是「金额」——金额永远固定在第一行，保证一眼可见。 */
-  /* 第二行必须点明「一次结算」+ 覆盖几年 + 算式 ——
-     「结算 2 年」这种写法会被读成「结算了 2 次」。 */
   const sub = [];
-  const spanTxt = n.years > 1 ? `${n.since + 1}—${n.age} 岁共 ${n.years} 年` : `${n.age} 岁这一年`;
-  sub.push(`一次结算 · 覆盖 ${spanTxt} · 年结余 ${money(n.perYear)} × ${n.years}`);
+  const paidList = (n.yearsList && n.yearsList.length) ? n.yearsList : [n.since + 1];
+  sub.push(n.years === 1
+    ? `结算 1 年（第 ${paidList[0]} 岁） · 年结余 ${money(n.perYear)} × 1`
+    : `结算 ${n.years} 年（第 ${paidList.join('、')} 岁） · 每个${nm}日各结 1 年`);
   if(n.count > 1 && n.skipped > 0)
     sub.push(`本回合经过 ${n.count} 个${nm}日，${n.skipped} 个因本年已结而略过`);
+  if(n.arrears > 0) sub.push(`另有 ${n.arrears} 年待结，将在后续${nm}日逐个结清`);
   if(n.deficit > 0) sub.push(`另有 ${money(n.deficit)} 入不敷出，需另行补上`);
 
   const tone = n.deficit > 0 ? 'err' : 'ok';
