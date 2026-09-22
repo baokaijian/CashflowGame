@@ -396,7 +396,7 @@ function payDoodad(g, card, locked){
 /* 公益捐赠：三重真实效应 ——
    ① 税前扣除：捐赠额在应纳税所得额 30% 以内可据实扣除（《个人所得税法》第六条），
       按边际税率估算节税额，这是国内捐款实实在在的税务优惠；
-   ② 银翅膀：一次「掷 3 粒骰子」的机会（财富流的原创机制），走得快但落点更难控制；
+   ② 银翅膀：一次「掷 2 粒骰子」的机会（财富流的原创机制），走得快但落点更难控制；
    ③ 状态回升：行善带来的心理收益。 */
 function doCharity(g, yes){
   const p = E.current(g);
@@ -412,7 +412,7 @@ function doCharity(g, yes){
   p.energy = Math.min(E.energyMax(g, p), (p.energy||0) + gain);
   E.bump(p, 'donations'); E.bump(p, 'donationTotal', amount);
   E.milestone(g, p, `第 ${g.round} 轮公益捐赠 ${money(amount)}${refund ? `（税前扣除，节税 ${money(refund)}）` : ''}，获得银翅膀 ×${wings}`, 'good');
-  log(g, `${p.name} 公益捐赠 ${money(amount)}${refund ? `，税前扣除节税 ${money(refund)}` : ''}，获得银翅膀（可掷 3 粒骰子 1 次）`, 'good', p.name);
+  log(g, `${p.name} 公益捐赠 ${money(amount)}${refund ? `，税前扣除节税 ${money(refund)}` : ''}，获得银翅膀（可掷 2 粒骰子 1 次）`, 'good', p.name);
   return { ok:true, amount, refund, wings, energyGain:gain };
 }
 function addBaby(g){

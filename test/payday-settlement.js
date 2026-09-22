@@ -190,7 +190,8 @@ sec('② 单个发薪日 → 一次结清 due 年（落格 / 经过同源）');
 /* ============================ ③ 跨多个发薪日 ============================ */
 sec('③ 跨多个发薪日 → 只有第 1 个结算（其余因本年已结而略过）');
 for (const N of [2, 3]){
-  /* 等距 8 格 → 跨 2 个至少 8 步、跨 3 个至少 16 步：都在银翅膀（3 粒骰）范围里 */
+  /* 等距 8 格 → 跨 2 个至少 9 步（银翅膀 2 粒骰可达）；跨 3 个至少 17 步 ——
+     已超出 2 粒骰骰程，N=3 是「引擎在超长步数下仍只结第 1 个」的构造性验证 */
   const cfg = findConfigNotLanding(window.RAT_RACE, 'paycheck', N, 18)
            || findConfig(window.RAT_RACE, 'paycheck', N, 18);
   if (!cfg){ ok(false, `找不到「跨 ${N} 个发薪日」的构型`); continue; }
@@ -214,14 +215,14 @@ for (const N of [2, 3]){
     `提示数据如实汇报「走了 ${N} 个结算格、结了 4 年、略过 ${N - 1} 个」`);
 }
 
-/* 上界：无银翅膀（1 粒骰 ≤6 步）与 3 粒骰（≤18 步）分别最多跨几个 */
+/* 上界：无银翅膀（1 粒骰 ≤6 步）与 2 粒骰（≤12 步）分别最多跨几个 */
 {
   const m1 = maxHits(window.RAT_RACE, 'paycheck', 6);
-  const m3 = maxHits(window.RAT_RACE, 'paycheck', 18);
+  const m3 = maxHits(window.RAT_RACE, 'paycheck', window.WINGS.dice * 6);
   const mf = maxHits(window.FAST_TRACK, 'cashflowday', 12);
-  note(`单回合上界：1 粒骰（≤6 步）最多 ${m1.best} 个、3 粒骰（≤18 步）最多 ${m3.best} 个、外圈 2 粒骰（≤12 步）最多 ${mf.best} 个`);
+  note(`单回合上界：1 粒骰（≤6 步）最多 ${m1.best} 个、银翅膀 2 粒骰（≤12 步）最多 ${m3.best} 个、外圈 2 粒骰（≤12 步）最多 ${mf.best} 个`);
   ok(m1.best === 1, `等距间隔 8 格 > 骰子上限 6 步 → 常态单回合最多 ${m1.best} 个发薪日（跨多个只在银翅膀时发生）`);
-  ok(m3.best === 3, `3 粒骰最多跨 ${m3.best} 个（走得越远，略过的越多 —— 但真正结算的仍只有第 1 个）`);
+  ok(m3.best === 2, `银翅膀 2 粒骰最多跨 ${m3.best} 个（走得越远，略过的越多 —— 但真正结算的仍只有第 1 个；跨 3 个需 ≥17 步，超出骰程）`);
 
   /* 按最多构型实测：结清 due 年、略过 due-1 个之外的全部 */
   const { g, p } = mkGame(undefined, undefined, 2);

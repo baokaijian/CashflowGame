@@ -256,13 +256,13 @@ sec('⑦ 边界：单回合最多能经过几个发薪日（枚举全部起止�
 {
   let maxIn = 0, maxFt = 0, worstIn = null, worstFt = null;
   for (let from = 0; from < RING; from++) {
-    for (let steps = 1; steps <= 18; steps++) {          // 3 粒骰子的数学上界
+    for (let steps = 1; steps <= (window.WINGS.dice * 6); steps++) {   // 银翅膀骰子的数学上界
       const to = (from + steps) % RING;
       const pth = [];
       { let i = from, guard = 0; do { i = (i + 1) % RING; pth.push(i); guard++; } while (i !== to && guard < 60); }
       const a = pth.filter(ix => window.RAT_RACE[ix].t === 'paycheck').length;
-      /* 外圈只掷 2 粒骰子（≤12 步），所以外圈的上界要按 12 步算 ——
-         用 18 步枚举会算出一个实际到不了的上界。 */
+      /* 外圈只掷 2 粒骰子（≤12 步），外圈上界按 12 步算；
+         枚举上界现在也是 12 步（银翅膀 = 2 粒），两者恰好一致。 */
       const b = steps <= 12 ? pth.filter(ix => window.FAST_TRACK[ix].t === 'cashflowday').length : 0;
       if (a > maxIn) { maxIn = a; worstIn = { from, steps, to }; }
       if (b > maxFt) { maxFt = b; worstFt = { from, steps, to }; }
@@ -293,9 +293,9 @@ sec('⑦ 边界：单回合最多能经过几个发薪日（枚举全部起止�
   /* ★ 等距棋盘（发薪日 2/10/18，间隔 8 格）的结构性保证：
      8 > 6 → 单粒骰子（常态）永远跨不过第 2 个发薪日。 */
   ok(max1 === 1, `常态（1 粒骰子，≤6 步）单回合最多经过 ${max1} 个发薪日 —— 间隔 8 格 > 骰子上限 6 步`);
-  ok(maxIn === 3, `3 粒骰子（银翅膀，≤18 步）单回合最多经过 ${maxIn} 个发薪日（最坏：从 ${worstIn && worstIn.from} 出发走 ${worstIn && worstIn.steps} 步）`);
+  ok(maxIn === 2, `2 粒骰子（银翅膀，≤12 步）单回合最多经过 ${maxIn} 个发薪日（最坏：从 ${worstIn && worstIn.from} 出发走 ${worstIn && worstIn.steps} 步；跨 3 个需 ≥17 步，已超出骰程）`);
   ok(maxFt === 2, `外圈（2 粒骰子，≤12 步）最多经过 ${maxFt} 个分红日（从 ${worstFt && worstFt.from} 走 ${worstFt && worstFt.steps} 步）`);
-  ok(18 < RING, `3 粒骰子上限 18 步 < 环长 ${RING} → 一回合不可能绕满一圈，同一格不会被重复经过`);
+  ok(12 < RING, `2 粒骰上限 12 步 < 环长 ${RING} → 一回合不可能绕满一圈，同一格不会被重复经过`);
   warn('但若将来加大骰子上限（如 4 粒 = 24 步），会绕满整圈、同一发薪日被结算两次；');
   warn('   pathBetween 的 guard 是 60、movePlayer 无重复保护，届时必须先改这两处。');
 }

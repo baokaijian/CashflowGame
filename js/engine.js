@@ -533,7 +533,7 @@ function donationRefund(p, amount){
   const deductible = Math.min(numOr(amount), Math.round(taxable * D.limit));
   return Math.round(deductible * D.marginalRate);
 }
-/* 银翅膀：做慈善获得的一次「掷 3 粒骰子」机会 */
+/* 银翅膀：做慈善获得的一次「掷 2 粒骰子」机会 */
 function useWing(p){
   if(numOr(p.wings) > 0){ p.wings--; return true; }
   return false;
@@ -1417,7 +1417,7 @@ function diceCount(g, p){
   /* ★ 只看【这个玩家自己】的圈：g.phase 是全局的、一旦有人出圈就永久为 'fasttrack'，
      用它会泄漏到内圈玩家。圈层状态属于玩家自身（p.inFT），不能由全局量决定。 */
   if(p.inFT) return 2;
-  /* 银翅膀（做慈善获得）：可把这一次掷骰换成 3 粒 —— 走得快，但落点更难控制 */
+  /* 银翅膀（做慈善获得）：可把这一次掷骰换成 2 粒 —— 走得快，但落点更难控制 */
   if(numOr(p.wings) > 0 && (p.diceChoice || 1) === window.WINGS.dice) return window.WINGS.dice;
   return 1;
 }

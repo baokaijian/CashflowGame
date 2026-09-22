@@ -685,10 +685,10 @@ function showCharity(g, p, P){
       <div class="sec__total"><span>捐赠金额</span><span class="money">${money(amount)}</span></div>
       <div class="sec__total"><span>税前扣除可节税</span><span class="money pos">−${money(refund)}</span></div>
       <div class="sec__total"><span>实际净支出</span><span class="money">${money(amount - refund)}</span></div>
-      <div class="sec__total"><span>获得银翅膀</span><span>×${wings}（可掷 3 粒骰子 1 次）</span></div>
+      <div class="sec__total"><span>获得银翅膀</span><span>×${wings}（可掷 2 粒骰子 1 次）</span></div>
       ${enGain ? `<div class="sec__total"><span>状态回升</span><span class="money pos">精力 +${enGain}</span></div>` : ''}
       <div class="sec__total"><span>你的现金</span><span class="money ${enough?'':'neg'}">${money(p.cash)}</span></div>
-      <p class="hint" style="margin-top:8px">🪶 银翅膀是一次性的「掷 3 粒骰子」机会：<b>走得快，但落点更难控制</b>。
+      <p class="hint" style="margin-top:8px">🪶 银翅膀是一次性的「掷 2 粒骰子」机会：<b>走得快，但落点更难控制</b>。
         打算精准落到某个格子时，就不要用它。</p>
     </div>
     ${foot(`

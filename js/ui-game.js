@@ -445,7 +445,7 @@ function renderFinance(){
       </div>
       <div class="fin-chips">${U.lifeChips(p, g)}</div>
       ${E.isJobless(p) ? `<p class="hint" style="margin-top:8px">📉 <b>失业中</b>：工资已归零，支出照付。每回合可点「投递简历 · 求职」（消耗 ${window.UNEMPLOYMENT.huntEnergy} 点精力）推进求职进度 ${p.joblessProgress}/${p.joblessNeed}。</p>` : ''}
-      ${p.wings>0 ? `<p class="hint" style="margin-top:8px">🪶 持有<b>银翅膀 ×${p.wings}</b>：掷骰时可选择改用 3 粒骰子（走得更快，但落点更难控制）。</p>` : ''}
+      ${p.wings>0 ? `<p class="hint" style="margin-top:8px">🪶 持有<b>银翅膀 ×${p.wings}</b>：掷骰时可选择改用 2 粒骰子（走得更快，但落点更难控制）。</p>` : ''}
     </div>
     <div class="fin-cols">
       <div>${U.renderIncome(p)}</div>
@@ -739,14 +739,14 @@ function updateActions(){
 
   $('#die2').hidden = n < 2;
   $('#die3').hidden = n < 3;
-  /* 银翅膀：做慈善换来的「一次掷 3 粒」机会。走得更快，但落点更难控制 ——
+  /* 银翅膀：做慈善换来的「一次掷 2 粒」机会。走得更快，但落点更难控制 ——
      这是财富流里少见的、真实存在取舍的机制，所以保留并做成显式切换。 */
   const canWing = (p.wings||0) > 0 && !p.inFT && !Game.rolled && !g.over && !pendingBusy && !paused;
   $('#btnDiceChoice').hidden = !canWing;
   if(canWing){
     $('#btnDiceChoice').textContent = p.diceChoice === window.WINGS.dice
-      ? `🪶 银翅膀：掷 3 粒（点击改回 1 粒）`
-      : `🪶 银翅膀：掷 1 粒（点击改用 3 粒）`;
+      ? `🪶 银翅膀：掷 2 粒（点击改回 1 粒）`
+      : `🪶 银翅膀：掷 1 粒（点击改用 2 粒）`;
   }
   /* 失业期间主操作之外多一条「求职」——不做就只能干等，游戏会变成纯运气 */
   const huntBtn = $('#btnJobHunt');

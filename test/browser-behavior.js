@@ -165,7 +165,7 @@ window.addEventListener('load', function(){
   /* ============ F. 银翅膀 ============ */
   step('准备 F', function(){ return true; }, function(){
     C.f = fresh(); C.g6 = C.f.g; C.p6 = C.f.p;
-    OUT.push(''); OUT.push('=== F. 银翅膀（掷 3 粒骰子）===');
+    OUT.push(''); OUT.push('=== F. 银翅膀（掷 2 粒骰子）===');
     C.p6.energy = 100;
     var r = window.Act.doCharity(C.g6, true);
     ok(r.ok, '公益捐赠成功：捐赠 ' + r.amount + '，节税 ' + r.refund + '，银翅膀 ×' + r.wings);
@@ -173,7 +173,7 @@ window.addEventListener('load', function(){
     ok(C.p6.wings === 1, '获得银翅膀 ×' + C.p6.wings);
     ok(window.Engine.diceCount(C.g6, C.p6) === 1, '默认仍是 1 粒骰子');
     C.p6.diceChoice = window.WINGS.dice;
-    ok(window.Engine.diceCount(C.g6, C.p6) === 3, '选择后变成 3 粒骰子');
+    ok(window.Engine.diceCount(C.g6, C.p6) === 2, '选择后变成 2 粒骰子');
     window.UiGame.updateActions();
     ok(!document.getElementById('btnDiceChoice').hidden, '操作区出现银翅膀切换按钮：' + document.getElementById('btnDiceChoice').textContent);
     ok(window.Engine.useWing(C.p6) === true && C.p6.wings === 0, '掷出后消耗银翅膀');
