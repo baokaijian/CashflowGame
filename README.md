@@ -40,6 +40,11 @@ python3 -m http.server 8080   # 然后访问 http://localhost:8080
 **浏览器要求**：需支持 `color-mix()` 与 `:has()` 的现代浏览器 —— Chrome / Edge 111+、Safari 16.4+、Firefox 113+。
 **无需 Node / npm / 打包工具**，项目里没有 `package.json`、没有依赖、没有构建产物。
 
+发布前运行 `node tools/version-assets.js` 更新脚本和样式的内容版本，再运行
+`node test/asset-version.js`。运行游戏仍无需 Node；资源 URL 随内容变化，防止 GitHub Pages
+更新后浏览器沿用旧结算代码。旧版引擎混入时页面会停止启动并提供重新载入入口。
+已有存档保留现金与进度，旧版“覆盖多年”的日志标记为历史记录，不重新入账。
+
 ---
 
 ## 玩法速览

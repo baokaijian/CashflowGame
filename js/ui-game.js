@@ -476,7 +476,7 @@ function renderFinance(){
 function renderLog(){
   const host = $('#paneLog');
   host.innerHTML = '<div class="log">' + Game.g.log.map(l=>
-    `<div class="log__item log__item--${l.type}">${l.who?`<span class="log__who">${esc(l.who)}：</span>`:''}${esc(l.text)}</div>`
+    `<div class="log__item log__item--${l.type}">${l.text.includes('一次结算（覆盖') ? '<span class="muted">【旧规则历史记录】</span>' : ''}${l.who?`<span class="log__who">${esc(l.who)}：</span>`:''}${esc(l.text)}</div>`
   ).join('') + '</div>';
 }
 function renderRules(){
@@ -613,6 +613,7 @@ function renderSettings(){
       <div class="rowlist">
         <div class="rowlist__row"><span>游戏模式</span><b>${E.modeLabel(g)}${E.isSolo(g) ? ` · ${E.soloStage(g).nm}` : ''}</b></div>
         <div class="rowlist__row"><span>规则版本</span><b>${g.rule} 规则</b></div>
+        <div class="rowlist__row"><span>发薪规则</span><b>每经过一次，只结一年并长一岁</b></div>
         <div class="rowlist__row"><span>玩家人数</span><b>${g.players.length} 人</b></div>
         <div class="rowlist__row"><span>当前轮次</span><b>第 ${g.round} 轮${E.isAgeMode(g) ? ` / 共 ${E.maxYears(g)} 次年度结算，轮数不限` : ''}</b></div>
         ${E.isAgeMode(g) ? `<div class="rowlist__row"><span>当前年龄</span><b>${E.ageOf(g)} 岁 · 距退休 ${E.yearsLeft(g)} 年</b></div>` : ''}
@@ -830,6 +831,8 @@ function roll(){
   }, 70);
 }
 function finishRoll(dice){
+  /* 同一回合的动画完成通知只能消费一次，重复回调不能再移动或入账。 */
+  if(!Game.g || Game.rolled || Game.g.over) return;
   const g = Game.g, p = E.current(g);
   const sum = dice.reduce((a,b)=>a+b,0);
   const res = E.movePlayer(g, p, sum);

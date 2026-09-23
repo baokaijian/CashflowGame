@@ -174,13 +174,11 @@ function loanInfo(p, key){
      一次还满 12 期之后，期限与年龄才是同一个刻度：140 期 = 11.7 年。
    ★ 逐期取整而不是一次性算 12 期：利息是小数，分 12 次取整能保持
      「剩余本金始终是整数」，且每期的还款额与合同月供完全一致。 */
-/* 一次摊还 `years` 年（默认 1 年 = monthsPerPayday 期）。
-   ★ 参数化的原因：结算覆盖的年数不再固定为 1 年（见 movePlayer），
-     摊还必须跟着结算走 —— 否则会出现「领了 3 年的钱、只还了 1 年的债」。 */
-function amortize(g, p, years){
+/* 每经过一个结算日只摊还一年；多个结算日由移动路径逐格调用。 */
+function amortize(g, p){
   if(!p || p.out) return;
   ensureLoans(p);
-  const M = monthsPerPayday() * Math.max(1, Math.round(numOrDef(years, 1)));
+  const M = monthsPerPayday();
   LOAN_KEYS.forEach(key=>{
     const t = loanType(key);
     if(t.kind === 'revolving') return;               /* 信用贷按余额计息，不做本金摊还 */
@@ -1112,6 +1110,7 @@ function migrateTime(g){
   });
   g.lastRetire = null;
   g.timeVersion = 2;
+  log(g, '已更新结算规则：从现在起，每经过一个发薪日或分红日只结算一年并长一岁。历史现金保留，旧记录不重新入账。', 'info');
   return g;
 }
 
@@ -1398,7 +1397,7 @@ function movePlayer(g, p, steps){
     const since = ageOf(g, p), monthly = settleCashflow(p), amount = annual(monthly);
     if(amount >= 0){ p.cash += amount; collected += amount; }
     else deficit += -amount;
-    amortize(g, p, 1);
+    amortize(g, p);
     ASSET_KINDS.forEach(k=>(p.assets[k] || []).forEach(it=>{ it.heldYears = numOr(it.heldYears) + 1; }));
     p.age = since + 1;
     p.settledAge = p.age;
@@ -1941,6 +1940,7 @@ function doodadCost(g, p, card){
 }
 
 window.Engine = {
+  PAYDAY_RULE: 'one-year-per-crossing',
   money, moneyK, shuffle, pick, finance, escapeMargin, empireTarget, escapeTarget, escapeProgress, ftMonthly, netWorth,
   newGame, current, alivePlayers, beginTurn, nextPlayer, endTurn, diceCount, rollDice,
   movePlayer, resolveSpace, paydayNoticeOf, clearPending, setPending, drawDeal, drawMarket, drawCard,

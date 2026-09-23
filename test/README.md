@@ -261,6 +261,12 @@ rm -f __probe.html        # ⚠️ 验证完务必清理，别把临时文件留
 
 ## 语法自检（改完代码先跑这个）
 
+发布前还需运行 `node tools/version-assets.js` 与 `node test/asset-version.js`，
+确认所有脚本和样式的内容版本已更新，并验证混入旧引擎时不会启动或修改存档。
+`payday-settlement.js` 包含截图金额回归：年结余 ¥25,080，经过一次仅发 ¥25,080；
+`browser-behavior.js` 包含单人旧档恢复、真实掷骰按钮双击、重复动画回调、确认、刷新、
+结束回合与离开发薪日的逐步现金断言。
+
 ```bash
 for f in js/*.js; do node --check "$f" || echo "FAIL $f"; done
 ```

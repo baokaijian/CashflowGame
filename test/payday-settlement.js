@@ -202,6 +202,29 @@ test('资产折旧按实际结算年推进；出圈年龄独立记录，不从�
   assert.equal(E.soloOutcome(g,p).escapeAge,21);
 });
 
+test('截图回归：积压两个回合后经过一次，只入账 ¥25,080 而非 ¥50,160', () => {
+  const {g,p}=game();
+  p.name='Derek';
+  // 固定年结余，隔离职业随机数及贷款到期引起的账本变化。
+  p.job={...p.job,salary:0,taxes:0,retail:0,other:0}; p.baseSalary=0;
+  E.LOAN_KEYS.forEach(k=>p.liabs[k]=0);
+  Object.keys(p.assets).forEach(k=>p.assets[k]=[]);
+  p.assets.savings.push({nm:'测试年结余',cost:100000,interest:2090});
+  g.round=3; p.age=22; p.settledAge=20;
+  E.refreshLife(g,p);
+  assert.equal(E.annual(E.settleCashflow(p)),25080);
+  const before=p.cash;
+  const landed=pay(g,p);
+  assert.equal(p.cash-before,25080);
+  assert.equal(landed.settled.count,1);
+  assert.equal(landed.settled.yearsPaid,1);
+  assert.equal(p.age,23);
+  assert(g.log[0].text.includes('年结余 ¥25,080 × 1'));
+  acknowledge(g,p,landed);
+  E.endTurn(g);
+  assert.equal(p.cash-before,25080);
+});
+
 test('新档恢复不重复结算；旧档保留年龄现金并只迁移一次', () => {
   const {g,p}=game(); pay(g,p,9);
   const restored=JSON.parse(JSON.stringify(g));
@@ -217,7 +240,11 @@ test('新档恢复不重复结算；旧档保留年龄现金并只迁移一次',
   assert.equal(lp.cash,p.cash);
   const before=JSON.stringify(legacy); E.migrateTime(legacy);
   assert.equal(JSON.stringify(legacy),before);
-  pay(legacy,lp);
+  E.refreshLife(legacy,lp);
+  const cash=lp.cash, expected=E.annual(E.settleCashflow(lp));
+  const landed=pay(legacy,lp);
+  assert.equal(lp.cash-cash,Math.max(0,expected));
+  assert.equal(landed.settled.yearsPaid,1);
   assert.equal(lp.age,32);
 });
 console.log(`\n✅ ${passed} 组年度结算测试全部通过`);

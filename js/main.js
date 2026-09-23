@@ -6,6 +6,23 @@
 const U = window.UI, E = window.Engine;
 
 function boot(){
+  /* 页面与旧缓存脚本混用时停止启动，不能继续用旧积欠模型处理存档。 */
+  if(!E || E.PAYDAY_RULE !== 'one-year-per-crossing'){
+    document.getElementById('btnStart').disabled = true;
+    document.getElementById('btnRoll').disabled = true;
+    const hint = document.getElementById('modeHint');
+    hint.textContent = '游戏规则尚未更新完整，请重新载入后继续。已有存档会保留。';
+    const retry = document.createElement('button');
+    retry.className = 'btn btn--primary';
+    retry.textContent = '重新载入最新规则';
+    retry.onclick = ()=>{
+      const url = new URL(window.location.href);
+      url.searchParams.set('update', Date.now());
+      window.location.replace(url.href);
+    };
+    hint.after(retry);
+    return;
+  }
   U.initTheme();
   U.initSetup();
   U.initChrome({ onMenu: act => window.UiGame.onMenu(act) });

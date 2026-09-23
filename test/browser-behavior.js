@@ -279,6 +279,51 @@ window.addEventListener('load', function(){
     window.UI.closeModal();
   });
 
+  step('K 单人旧档恢复后真实掷骰', function(){ return true; }, function(){
+    OUT.push(''); OUT.push('=== K. 旧存档 / 单人真实按钮 / 防重复入账 ===');
+    window.startGame({rule:'101',mode:'solo',count:1,names:['Derek'],seed:42});
+    var g=window.Game.g, p=g.players[0];
+    g.round=3; p.pos=1; p.settledAge=20; p.cash=1000000;
+    delete g.timeVersion; delete p.age;
+    g.log.unshift({text:'Derek 经过发薪日：一次结算（覆盖 21—22 岁共 2 年），入账 ¥50,160 = 年结余 ¥25,080 × 2', type:'good', who:'Derek'});
+    window.UiGame.saveState();
+    window.UiGame.tryRestore();
+    C.solo=window.Game.g; C.sp=C.solo.players[0];
+    ok(C.sp.age===22 && C.sp.cash===1000000, '旧档恢复保留原年龄现金，不补发任何结余');
+    ok(q('#paneLog').textContent.indexOf('旧规则历史记录')>=0, '旧版两年补结日志明确标记为历史记录');
+    window.Engine.refreshLife(C.solo,C.sp);
+    C.payExpected=window.Engine.annual(window.Engine.settleCashflow(C.sp));
+    C.payCash=C.sp.cash;
+    C.payPeriods=window.Engine.loanInfo(C.sp,'home').periods;
+    C.solo.rng=function(){ return 0; }; // 骰子 1 点，1→2 恰好停在发薪日
+    q('#btnRoll').click(); q('#btnRoll').click();
+  });
+  step('K 一次发薪确认', function(){ return !window.Game.animating && title().indexOf('发薪日')>=0; }, function(){
+    ok(C.sp.cash-C.payCash===C.payExpected, '真实按钮经过一个发薪日，现金只增加一份年结余：'+C.payExpected);
+    ok(C.sp.age===23 && C.sp.pos===2, '双击掷骰只移动一次、长一岁');
+    ok(window.Engine.loanInfo(C.sp,'home').periods-C.payPeriods===12, '只摊还 12 期贷款');
+    ok(q('#modal').textContent.indexOf('结算 1 年')>=0, '发薪确认显示结算 1 年');
+    ok(C.solo.log[0].text.indexOf('× 1')>=0, '新增日志显示年结余 × 1');
+    mb('确定').click();
+    window.UiGame.finishRoll([1]); // 模拟动画完成通知重复投递
+    ok(C.sp.pos===2 && C.sp.cash-C.payCash===C.payExpected, '重复动画回调及确认弹层均不再移动或入账');
+    window.UiGame.saveState(); window.UiGame.tryRestore();
+    C.solo=window.Game.g; C.sp=C.solo.players[0];
+    ok(C.sp.age===23 && C.sp.cash-C.payCash===C.payExpected && window.Game.rolled, '发薪后刷新恢复不重发，仍保持本回合已移动');
+    C.lastEnd=Date.now();
+  });
+  step('K 未经过发薪日', function(){ return Date.now()-C.lastEnd>350; }, function(){
+    window.UiGame.endTurn();
+    C.lastEnd=Date.now();
+    ok(C.sp.age===23 && C.sp.cash-C.payCash===C.payExpected, '结束单人回合不长岁、不补发');
+    C.solo.rng=function(){ return 0; }; // 2→3 离开发薪日，只抽卡
+    q('#btnRoll').click();
+  });
+  step('K 非发薪落点', function(){ return !window.Game.animating && window.Game.rolled; }, function(){
+    ok(C.sp.pos===3 && C.sp.age===23 && C.sp.cash-C.payCash===C.payExpected, '离开发薪日且未经过下一个发薪日，不再结算');
+    window.UI.closeModal(); window.Engine.clearPending(C.solo);
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){
