@@ -425,6 +425,27 @@ window.addEventListener('load', function(){
     ok(p.assets.realEstate[0].holdingId!==other.assets.realEstate[0].holdingId,'各共有人的持仓与融资独立');
   });
 
+  step('P 家庭年度账本与旧档', function(){return true;}, function(){
+    OUT.push('');OUT.push('=== P. 家庭年度账本与旧档 ===');
+    window.startGame({rule:'101',mode:'solo',count:1,names:['家庭测试'],seed:42});
+    var E=window.Engine,A=window.Act,g=window.Game.g,p=g.players[0];p.cash=2000000;p.energy=100;
+    A.addBaby(g);p.age=37;E.refreshLife(g,p);window.UiGame.renderAll();
+    ok(q('#paneFinance [data-child-budget]').textContent.indexOf('17 岁')>=0,'财务面板显示子女的独立年龄');
+    var expected=E.annual(E.settleCashflow(p)),cash=p.cash;p.pos=1;
+    var ld=E.movePlayer(g,p,1);window.UiGame.renderAll();
+    ok(p.cash-cash===Math.max(0,expected) && ld.settled.years[0].amount===expected,'子女成年这一年按长岁前账本结算一次');
+    ok(q('#paneFinance [data-child-budget]').textContent.indexOf('成年过渡期')>=0 && E.finance(p).exp.children===Math.round(p.job.perChild*.5),'长岁后面板与引擎均显示减半养育费');
+    p.age=60;p.family.contributionYears=40;E.refreshLife(g,p);p.pos=1;E.movePlayer(g,p,1);window.UiGame.renderAll();
+    ok(q('#paneFinance [data-contribution-years]').textContent.indexOf('41 年')>=0 && p.salary===Math.round(p.baseSalary*.45),'真实结算补上最后一个缴费年，养老金按41年计算');
+    ok(q('#paneFinance [data-medical-base]').textContent.indexOf(E.money(Math.round(p.baseSalary*.02)))>=0,'退休基础医疗在面板单列');
+    var family=JSON.stringify(p.family),salary=p.salary,medical=E.finance(p).exp.medical,cash2=p.cash;
+    window.UiGame.saveState();window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];
+    ok(JSON.stringify(p.family)===family && p.salary===salary && E.finance(p).exp.medical===medical && p.cash===cash2,'刷新恢复不增加缴费、不重复入账，医疗和养老金不漂移');
+    delete p.family;p.children=2;window.UiGame.saveState();window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];
+    ok(E.finance(p).exp.children===2*p.job.perChild && q('#paneFinance [data-family-budget]').textContent.indexOf('历史年龄未知')>=0,'旧档保留原养育费并明确提示年龄未知');
+    ok(q('#paneFinance [data-family-budget]').textContent.indexOf('旧档兼容估计')>=0,'旧档缴费历史的兼容估计明确展示');
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

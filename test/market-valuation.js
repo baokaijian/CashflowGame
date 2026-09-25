@@ -311,7 +311,7 @@ sec('⑫ 退休突变：多人模式完全不受影响');
 sec('⑬ 退休时不再求职（否则会出现「65 岁还在投简历」）');
 {
   const { g, p } = solo('软件工程师');
-  p.age = 59; E.refreshAllLife(g);      /* 59 岁 */
+  p.age = 59; p.family.contributionYears=39; E.refreshAllLife(g); /* 已在职缴费39年，再遇失业 */
   E.startJobless(g, p, 5000);
   ok(E.isJobless(p) === true, '59 岁失业 → 进入求职期');
   p.age = 61; E.refreshAllLife(g);      /* 61 岁 */

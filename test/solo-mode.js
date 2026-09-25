@@ -73,6 +73,7 @@ sec('② 退休断崖（61 岁起收入切换）');
 {
   const g = soloGame();
   const p = g.players[0];
+  p.family.contributionYears = window.FAMILY.pensionFullYears; // 本组只验证已足额缴费者的退休切换
   const jump = (age) => { p.age = age; E.refreshLife(g, p); return { s: p.salary, t: p.taxesCur, r: p.retired, cf: E.finance(p).cashflow }; };
 
   const a60 = jump(SOLO.retireAge - 1);

@@ -153,7 +153,24 @@ function renderIncomeFT(p){
   <p class="hint">出圈后主动收入退出生活：工资不再入账，与工资绑定的个税也一并停征。
     但住房成本与贷款月供照旧 —— <b>顺流层同样会因为开销超过分红而破产</b>。</p>`;
 }
-function renderIncome(p){
+function renderIncome(p){ return renderIncomeBase(p)+renderFamily(p); }
+function renderFamily(p){
+  const f=E.familySummary(p),F=window.FAMILY;
+  return `<div class="sec" data-family-budget>
+    <div class="sec__title">家庭收支随人生变化</div>
+    <p class="hint">以下为月度基础金额${p.inFT?'，支出计入自由圈生活费后再应用生活档次系数':''}。子女 ${F.childAdultAge} 岁起养育支出减半，${F.childIndependentAge} 岁起归零；成年后仍保留子女记录。</p>
+    <div class="rowlist">
+      ${f.children.map((c,i)=>`<div class="rowlist__row" data-child-budget><span>子女 ${i+1} · ${c.ageUnknown?`更新后计龄 ${c.age} 年`:`${c.age} 岁`}<br><span class="muted">${esc(c.stage)}${c.ageUnknown?' · 历史年龄未知，保留原支出后开始计龄':''}</span></span><b>${money(c.expense)}/月</b></div>`).join('')}
+      ${!f.children.length?'<div class="rowlist__row"><span>子女养育</span><b>暂无子女</b></div>':''}
+      <div class="rowlist__row"><span>已记录缴费年数${f.estimatedContributionYears?`<br><span class="muted">含旧档兼容估计 ${f.estimatedContributionYears} 年</span>`:''}</span><b data-contribution-years>${f.contributionYears} 年</b></div>
+      <div class="rowlist__row"><span>${p.retired?'养老金':'按当前缴费记录估算的养老金'}<br><span class="muted">基础工资 × ${(f.pensionRatio*100).toFixed(1)}%；${p.inFT?'自由圈只发分红，养老金不另行入账':'仅单人退休后切换领取'}</span></span><b data-family-pension>${money(f.pension)}/月</b></div>
+      <div class="rowlist__row"><span>退休基础医疗</span><b data-medical-base>${money(f.medicalBase)}/月</b></div>
+      <div class="rowlist__row"><span>临时健康危机医疗${f.crisisMedical?` · 剩 ${p.crisisTurns} 回合`:''}</span><b>${money(f.crisisMedical)}/月</b></div>
+    </div>
+    <p class="hint">每结算一个在职、有工资的年份记 1 年缴费；失业、退休和出圈后不新增。${F.pensionFullYears} 年达到基础工资 ${Math.round(window.SOLO.pensionRatio*100)}% 的养老金上限。游戏只记录缴费年数，不新增一笔缴费扣款。退休医疗按基础工资 ${(F.medicalBaseRate*100).toFixed(1)}% 起，每长一岁增加 ${(F.medicalAnnualStep*100).toFixed(1)} 个百分点，上限 ${(F.medicalMaxRate*100).toFixed(1)}%。</p>
+  </div>`;
+}
+function renderIncomeBase(p){
   if(p.inFT) return renderIncomeFT(p);
   const f = E.finance(p);
   const A = v => E.annual(v);
@@ -162,7 +179,7 @@ function renderIncome(p){
   <div class="sec">
     <div class="sec__title">收入<span class="muted">年度 · 一次发薪日结算一年</span></div>
     <div class="rowlist">
-      ${line(I.salary, A(f.inc.salary))}
+      ${line(p.retired?'养老金':I.salary, A(f.inc.salary))}
       ${f.inc.interest  ? line(I.interest, A(f.inc.interest)) : ''}
       ${f.inc.dividend  ? line(I.dividend, A(f.inc.dividend)) : ''}
       ${f.inc.realEstate? line(I.realEstate, A(f.inc.realEstate)) : ''}
@@ -184,7 +201,7 @@ function renderIncome(p){
       ${line(L.other, A(f.exp.other))}
       ${f.exp.otherLoan ? line(L.otherLoan, A(f.exp.otherLoan)) : ''}
       ${f.exp.extra ? line(L.extra, A(f.exp.extra)) : ''}
-      ${line(`${L.children} × ${p.children}`, A(f.exp.children))}
+      ${line(`${L.children}（需支持 ${E.familySummary(p).dependentCount} / 共 ${p.children} 个）`, A(f.exp.children))}
       ${f.exp.elder   ? line(L.elder, A(f.exp.elder))     : ''}
       ${f.exp.medical ? line(L.medical, A(f.exp.medical), 'neg') : ''}
       ${f.exp.bank ? line(L.bank, A(f.exp.bank)) : ''}
@@ -275,7 +292,10 @@ function escapeBar(p, g){
    这里是玩家判断「我是不是该抓紧了」的唯一依据 —— 收入会随年龄回落，必须能看见。 */
 function lifeChips(p, g){
   const out = [];
-  if(p.joblessNeed > 0 && p.joblessProgress < p.joblessNeed){
+  const family=E.familySummary(p);
+  if(p.retired){
+    out.push(`<span class="life-chip">养老金 ${money(p.salary)}/月 · 缴费 ${family.contributionYears} 年</span>`);
+  } else if(p.joblessNeed > 0 && p.joblessProgress < p.joblessNeed){
     out.push(`<span class="life-chip life-chip--bad">📉 失业求职中 ${p.joblessProgress}/${p.joblessNeed}</span>`);
   } else {
     const mult = typeof p.salaryMult === 'number' ? p.salaryMult : 1;
@@ -284,6 +304,7 @@ function lifeChips(p, g){
   }
   if(p.lifeStage) out.push(`<span class="life-chip">${esc(p.lifeStage)}</span>`);
   if(p.elderCare > 0) out.push(`<span class="life-chip life-chip--warn">赡养 ${money(p.elderCare)}/月</span>`);
+  if(family.medicalBase>0) out.push(`<span class="life-chip life-chip--warn">退休基础医疗 ${money(family.medicalBase)}/月</span>`);
   if(p.medicalExp > 0) out.push(`<span class="life-chip life-chip--bad">医疗 ${money(p.medicalExp)}/月 · 剩 ${p.crisisTurns} 回合</span>`);
   if(p.wings > 0) out.push(`<span class="life-chip">🪶 银翅膀 ×${p.wings}</span>`);
   return out.join('');
@@ -365,9 +386,8 @@ function renderSetupRules(){
       <ul>
         <li>只有你一位玩家，从 <b>20 岁走到 65 岁</b>，共 45 次年度结算 —— 完整经历六个人生阶段
           （起步期 → 成长期 → 巅峰期 → 平台期 → 冲刺期 → 退休期）</li>
-        <li><b>${window.SOLO.retireAge} 岁起工资停发</b>，改领养老金（基础工资的
-          ${Math.round(window.SOLO.pensionRatio * 100)}%），且养老金免征个税 ——
-          此后只能靠资产生活</li>
+        <li><b>${window.SOLO.retireAge} 岁起工资停发</b>，按缴费年数改领养老金；${window.FAMILY.pensionFullYears} 年达到基础工资
+          ${Math.round(window.SOLO.pensionRatio * 100)}% 的上限，养老金免征个税；退休基础医疗随年龄增加</li>
         <li>没有其他玩家：遇到投资机会<b>只能「买入」或「放弃」</b>（没有转让给他人 / 机构这条路）；
           202 大额房产可与<b>机构合伙人</b>联合购买（机构出
           ${Math.round(window.SOLO.partnerShare * 100)}% 首付、分走同比例现金流）</li>

@@ -300,11 +300,69 @@ function energyUpkeep(p){
   return v;
 }
 function isJobless(p){ return numOr(p.joblessNeed) > 0 && numOr(p.joblessProgress) < numOr(p.joblessNeed); }
+/* 旧档没有出生年份：保留原人数与支出，从迁移年龄起计龄，不猜测过去。
+   旧档缴费历史同样缺失，以已度过的退休前年数作兼容估计并明确标记。 */
+function ensureFamily(p){
+  const age=numOrDef(p.age,AGE_START),retireAge=window.SOLO.retireAge;
+  if(!p.family){
+    const prior=Math.max(0,Math.min(age,retireAge)-AGE_START);
+    p.family={version:1,children:[],contributionYears:prior,estimatedContributionYears:prior,lastYearAge:age-1};
+  }
+  const family=p.family;
+  while(family.children.length<numOr(p.children)) family.children.push({
+    id:'child-'+(family.children.length+1),birthAge:age,ageUnknown:true
+  });
+  p.children=family.children.length;
+  return family;
+}
+function childStage(age){
+  const F=window.FAMILY;
+  return age<F.childAdultAge?{label:'未成年',ratio:1}:age<F.childIndependentAge?
+    {label:'成年过渡期',ratio:F.adultSupportRatio}:{label:'已独立',ratio:0};
+}
+function familySummary(p){
+  const f=ensureFamily(p),F=window.FAMILY,age=numOrDef(p.age,AGE_START);
+  const children=f.children.map(child=>{
+    const years=Math.max(0,age-child.birthAge),stage=childStage(years);
+    return {...child,age:years,stage:stage.label,expense:Math.round(numOr(p.job.perChild)*stage.ratio)};
+  });
+  const contributionYears=Math.max(0,numOr(f.contributionYears));
+  const pensionRatio=window.SOLO.pensionRatio*Math.min(1,contributionYears/F.pensionFullYears);
+  const base=numOrDef(p.baseSalary,numOr(p.job.salary));
+  const medicalRate=p.retired?Math.min(F.medicalMaxRate,F.medicalBaseRate+
+    Math.max(0,age-window.SOLO.retireAge)*F.medicalAnnualStep):0;
+  return {children,childExpense:children.reduce((sum,c)=>sum+c.expense,0),
+    dependentCount:children.filter(c=>c.expense>0).length,contributionYears,
+    estimatedContributionYears:numOr(f.estimatedContributionYears),pensionRatio,pension:Math.round(base*pensionRatio),
+    medicalBase:Math.round(base*medicalRate),medicalRate,crisisMedical:numOr(p.medicalExp)};
+}
+function addChild(g,p){
+  const f=ensureFamily(p);
+  if(f.children.length>=3) return false;
+  f.children.push({id:'child-'+(f.children.length+1),birthAge:ageOf(g,p),ageUnknown:false});
+  p.children=f.children.length;
+  return true;
+}
+/* 只在真实年度结算中调用；同龄重复回调不能重复增加缴费年数。 */
+function settleFamilyYear(g,p,since){
+  const f=ensureFamily(p);
+  if(since<=f.lastYearAge) return;
+  if(!p.inFT && !p.retired && !isJobless(p) && numOr(p.salary)>0) f.contributionYears++;
+  f.lastYearAge=since;
+  f.children.forEach(child=>{
+    const before=childStage(Math.max(0,since-child.birthAge)),after=childStage(Math.max(0,since+1-child.birthAge));
+    if(before.ratio===after.ratio) return;
+    const expense=Math.round(numOr(p.job.perChild)*after.ratio);
+    const text=`${p.name} 的第 ${f.children.indexOf(child)+1} 个孩子${child.ageUnknown?'按更新后记录年数':''}进入${after.label}，下一年月养育支出调整为 ${money(expense)}`;
+    log(g,text,'good',p.name);milestone(g,p,text,'good');
+  });
+}
 /* 按年龄与就业状态重算：工资、个税、生活支出系数、赡养支出、精力上限。
    ★ 之所以把结果【写回玩家字段】而不是改 finance 的签名，是为了让 finance(p) 保持原样 ——
      否则几十处调用点都要改成 finance(g,p)，风险远大于收益。 */
 function refreshLife(g, p){
   if(!p || !g) return p;
+  ensureFamily(p);
   const sc = salaryStageOf(g, p), ls = lifeStageOf(g, p);
   if(typeof p.baseSalary !== 'number') p.baseSalary = numOrDef(p.job && p.job.salary, 0);
   p.salaryMult  = sc.mult;
@@ -330,9 +388,9 @@ function refreshLife(g, p){
   }
   /* 失业期间主动收入归零；低精力则绩效打折（现实里状态差会直接影响产出与奖金）。
      注：退休后不再进入求职期（见 startJobless），所以这里三者不会同时成立。 */
-  let salary = p.retired ? p.baseSalary * S.pensionRatio : p.baseSalary * sc.mult;
+  let salary = p.retired ? familySummary(p).pension : p.baseSalary * sc.mult;
   if(isJobless(p)) salary = 0;
-  else if(numOr(p.energy) < window.ENERGY.lowAt) salary = salary * window.ENERGY.lowSalaryMult;
+  else if(!p.retired && numOr(p.energy) < window.ENERGY.lowAt) salary = salary * window.ENERGY.lowSalaryMult;
   p.salary   = Math.round(salary);
   /* 赡养支出 = 实发工资 × 阶段比例。用【实发工资】而不是基础工资，
      这样失业（工资归零）时赡养负担也随之暂停 —— 现实中失去收入后，
@@ -397,7 +455,8 @@ function retireBreakOf(g){
   p.retireSettled = true;
   p.retireRound = g.round;
   const age = ageOf(g, p);
-  milestone(g, p, `${age} 岁退休：此后工资改为养老金（基础工资的 ${Math.round(window.SOLO.pensionRatio * 100)}%），不额外补结`, 'info');
+  const family=familySummary(p);
+  milestone(g, p, `${age} 岁退休：已记录缴费 ${family.contributionYears} 年，此后养老金 ${money(family.pension)}/月（基础工资的 ${(family.pensionRatio*100).toFixed(1)}%），不额外补结`, 'info');
   return { by:p.id, age, years:0, amount:0, deficit:0 };
 }
 
@@ -507,6 +566,7 @@ function lifeBaseHousing(p){
 /* 收入支出表 + 资产负债表（实时推导，任何操作后立即生效） */
 function finance(p){
   ensureLoans(p);
+  const family=familySummary(p);
   const inc = {
     salary:      p.salary || 0,
     interest:    (p.assets.savings||[]).reduce((s,x)=>s+x.interest,0),
@@ -537,9 +597,9 @@ function finance(p){
     retail: Math.round(numOrDef(p.job.retail, 0) * lifeCoef),
     other:  Math.round(numOrDef(p.job.other, 0)  * lifeCoef),
     elder:  numOr(p.elderCare),
-    medical:numOr(p.medicalExp),
+    medical:family.medicalBase+family.crisisMedical,
     extra:  p.liabs.extraPay || 0,
-    children: p.children * numOrDef(p.job.perChild, 0),
+    children: family.childExpense,
     bank:   loanDue(p, 'bank')
   };
   const totalIncome   = inc.salary + inc.interest + inc.dividend + inc.realEstate + inc.business + inc.ftBusiness;
@@ -1041,6 +1101,7 @@ function newPlayer(i, name, job, color, icon){
     job,
     salary: job.salary,
     children: 0,
+    family:{version:1,children:[],contributionYears:0,estimatedContributionYears:0,lastYearAge:AGE_START-1},
     cash: 0,
     liabs: { home:job.liab.home, school:job.liab.school, car:job.liab.car, credit:job.liab.credit, bank:0, other:0, extraPay:0 },
     assets: { stocks:[], realEstate:[], business:[], ftBusiness:[], savings:[], funds:[], lands:[], collectibles:[] },
@@ -1159,7 +1220,7 @@ function newGame(cfg){
     const S = window.SOLO;
     g.soloStage = soloStageOf(g);
     const st = window.SOLO_STAGES[g.soloStage];
-    log(g, `单人模式规则：${S.retireAge} 岁起工资停发、改领养老金（替代率 ${Math.round(S.pensionRatio*100)}%）；` +
+    log(g, `单人模式规则：${S.retireAge} 岁起工资停发，养老金按缴费年数计算（${window.FAMILY.pensionFullYears} 年达到基础工资的 ${Math.round(S.pensionRatio*100)}%）；退休医疗随年龄增加；` +
            `没有其他玩家 —— 遇到投资机会只能「买入」或「放弃」，202 大额房产的联合购买由机构合伙人承接`, 'info');
     log(g, `【人生阶段 1/${window.SOLO_STAGES.length}】${st.nm} · ${st.range} · ${st.tag} —— 本期核心：${st.tension}`, 'info');
   }
@@ -1217,7 +1278,7 @@ function lifeComplete(g, p){ return isAgeMode(g) && ageOf(g, p) >= g.endAge; }
 
 /* 旧档保留已经发生的现金和年龄，从恢复点开始按发薪日推进，绝不重发历史收入。 */
 function migrateTime(g){
-  if(g.timeVersion === 2) return migrateAssets(g);
+  if(g.timeVersion === 2) return migrateFamily(migrateAssets(g));
   const legacyAge = g.startAge + Math.max(0, numOr(g.round) - 1);
   g.players.forEach(p=>{
     p.age = isAgeMode(g) ? Math.min(g.endAge, legacyAge) : legacyAge;
@@ -1233,7 +1294,14 @@ function migrateTime(g){
   g.lastRetire = null;
   g.timeVersion = 2;
   log(g, '已更新结算规则：从现在起，每经过一个发薪日或分红日只结算一年并长一岁。历史现金保留，旧记录不重新入账。', 'info');
-  return migrateAssets(g);
+  return migrateFamily(migrateAssets(g));
+}
+function migrateFamily(g){
+  g.players.forEach(p=>{
+    ensureFamily(p);
+    if(!g.over && !p.finished && !p.out) refreshLife(g,p);
+  });
+  return g;
 }
 
 /* 单人模式同样按年龄推进（20→65 岁），所以也属于「年龄制」；
@@ -1520,6 +1588,7 @@ function movePlayer(g, p, steps){
     if(amount >= 0){ p.cash += amount; collected += amount; }
     else deficit += -amount;
     amortize(g, p);
+    settleFamilyYear(g,p,since);
     ASSET_KINDS.forEach(k=>(p.assets[k] || []).forEach(it=>{ it.heldYears = numOr(it.heldYears) + 1; }));
     p.age = since + 1;
     p.settledAge = p.age;
@@ -2084,6 +2153,7 @@ window.Engine = {
   /* 时间口径：发薪日推进一年；一个结算年 = monthsPerPayday() 个月（见 window.TIME） */
   monthsPerPayday, monthsPerYear, toYears, toYearsFloor, annual,
   /* 人生阶段：收入 / 支出 / 赡养 / 医疗，全部由年龄推导 */
+  ensureFamily, familySummary, addChild, settleFamilyYear,
   curveAt, salaryStageOf, lifeStageOf, refreshLife, refreshAllLife, refreshAllEnergy,
   /* 精力：上限与恢复随年龄衰减，持有资产持续消耗，归零触发健康危机 */
   energyMax, energyRecover, energyUpkeep, spendEnergy, tickEnergy, healthCrisis,

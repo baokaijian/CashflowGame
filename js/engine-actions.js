@@ -497,8 +497,7 @@ function doCharity(g, yes){
 }
 function addBaby(g){
   const p = E.current(g);
-  if(p.children >= 3){ log(g, `${p.name} 已有 3 个孩子（上限），本次不再增加支出`, 'info', p.name); return { ok:true, capped:true }; }
-  p.children++;
+  if(!E.addChild(g,p)){ log(g, `${p.name} 已有 3 个孩子（上限），本次不再增加支出`, 'info', p.name); return { ok:true, capped:true }; }
   E.bump(p, 'babies');
   E.milestone(g, p, `第 ${g.round} 轮添丁，每月养育支出 +${money(p.job.perChild)}`, 'bad');
   log(g, `${p.name} 增加一个孩子（共 ${p.children} 个），每月支出 +${money(p.job.perChild)}`, 'bad', p.name);

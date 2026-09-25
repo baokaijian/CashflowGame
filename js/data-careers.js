@@ -308,9 +308,8 @@ window.LIFESTYLE = {
      多人模式的「把投资卡卖给其他玩家」照常保留。 */
 window.SOLO = {
   label: '单人模式',
-  /* 退休断崖：61 岁起工资停发，改领养老金。
-     养老金替代率取值参考：我国城镇职工养老金替代率约 40%—50%，
-     这里取 45% —— 足以让「只有劳动收入」的人在退休后立刻感到压力。 */
+  /* 游戏养老金上限：实际比例还需乘已缴费年数 / FAMILY.pensionFullYears。
+     此处是对局参数，不是现实社保待遇计算器。 */
   retireAge: 61, pensionRatio: 0.45,
   /* 人生赢家的年龄门槛（来自财富流：60 岁钟声响起前进入顺流层并实现梦想） */
   winAge: 60,
@@ -319,6 +318,15 @@ window.SOLO = {
   partnerShare: 0.50, partnerEnergy: 0.6,
   /* 退休后不再进入求职期：被「裁员」改为退休金调整（一次性损失 1 个月养老金） */
   retireShockMult: 1.0
+};
+
+/* 家庭年度账本：均为游戏平衡参数，不模拟真实教育费用或社保政策。
+   养育期保留原职业卡支出，成年过渡期减半；养老金在 41 个计费年达到原 45% 上限。
+   退休医疗随年龄温和抬升，与健康危机的临时医疗费分别记录。 */
+window.FAMILY = {
+  childAdultAge:18, childIndependentAge:22, adultSupportRatio:0.5,
+  pensionFullYears:41,
+  medicalBaseRate:0.02, medicalAnnualStep:0.005, medicalMaxRate:0.06
 };
 
 /* -------- 人生阶段（单人模式的叙事层） --------

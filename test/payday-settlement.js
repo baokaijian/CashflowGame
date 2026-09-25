@@ -116,10 +116,12 @@ test('一回合跨过退休年龄：60→61 按工资、61→62 按养老金，�
   const {g,p} = game();
   p.age=60; E.refreshLife(g,p);
   const before=p.cash, salaryYear=E.annual(E.settleCashflow(p));
+  const separate=JSON.parse(JSON.stringify(g));pay(separate,separate.players[0]);
+  const pensionMonthly=E.settleCashflow(separate.players[0]); // 61 岁账本，不能拿62岁的医疗费反推
   const ld=pay(g,p,9);
   assert.equal(ld.settled.yearsPaid,2);
   assert.equal(ld.settled.years[0].amount,salaryYear);
-  assert.equal(ld.settled.years[1].monthly,p.salary + E.finance(p).passive - E.finance(p).totalExpenses);
+  assert.equal(ld.settled.years[1].monthly,pensionMonthly);
   assert(p.retired);
   assert.equal(p.age,62);
   assert.equal(p.cash-before,ld.collected);

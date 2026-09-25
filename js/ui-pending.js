@@ -762,6 +762,7 @@ function showBaby(g, p, P){
     <div class="modal__body">
       <p class="hint">${capped?'每人最多 3 个孩子，本次不再增加支出。':`增加一个孩子，每月支出增加 ${money(p.job.perChild)}。`}</p>
       <div class="sec__total"><span>当前孩子数量</span><span class="money">${p.children} / 3</span></div>
+      <p class="hint">从本次添丁开始逐年计龄：${window.FAMILY.childAdultAge} 岁起养育支出减半，${window.FAMILY.childIndependentAge} 岁起归零。每经过一个结算日只增长一年。</p>
     </div>
     ${foot(`<button class="btn btn--primary" data-ok>确定</button>`)}`,
     { onMount(m){ $('[data-ok]',m).onclick = ()=>{ A.addBaby(g); finishTurnAction(); }; } });

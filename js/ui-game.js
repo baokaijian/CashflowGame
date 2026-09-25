@@ -1553,7 +1553,7 @@ function retireNotice(g){
   r.shown = true;
   const p = g.players[r.by];
   if(!p) return false;
-  const ratio = Math.round((window.SOLO.pensionRatio || 0.45) * 100);
+  const family=E.familySummary(p),ratio=(family.pensionRatio*100).toFixed(1);
   U.openModal(`
     <div class="modal__head"><h3>🏖️ ${r.age} 岁 · 开始领取养老金</h3></div>
     <div class="modal__body">
@@ -1561,6 +1561,8 @@ function retireNotice(g){
         这是「只靠劳动收入」的人生必然遇到的那道台阶。</p>
       <p class="hint">刚经过的结算日已结清一年收支。下一个结算日起按养老金口径计算，不额外补结。</p>
       <div class="sec__total"><span>此后每月主动收入</span><span>${money(p.salary)}（养老金 · 替代率 ${ratio}%）</span></div>
+      <div class="sec__total"><span>已记录缴费年数</span><b>${family.contributionYears} 年${family.estimatedContributionYears?'（含旧档兼容估计）':''}</b></div>
+      <div class="sec__total"><span>退休基础医疗支出</span><b>${money(family.medicalBase)}/月，随年龄增加</b></div>
       <div class="sec__total"><span>每月缺口 / 结余</span>
         <span class="money ${E.finance(p).cashflow < 0 ? 'neg' : 'pos'}">${money(E.finance(p).cashflow)}</span></div>
       <p class="hint" style="margin-top:8px"><b>退休后不再有求职这条路。</b>
