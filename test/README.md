@@ -1,6 +1,6 @@
 # test/ —— 验证脚本
 
-本项目**没有测试框架、没有依赖**，这里是十二个可直接运行的验证脚本。
+本项目**没有测试框架、没有依赖**，这里包含可直接运行的验证脚本。
 改动人生命题与消费升级相关的参数（`SALARY_CURVE` / `LIFE_STAGES` / `ENERGY` / `UNEMPLOYMENT` / `LIFESTYLE`）后，**必须重跑第 1—3 个**；
 改动单人模式参数（`SOLO` / `SOLO_STAGES`）后，**必须重跑第 4 个**；
 改动时间口径（`TIME`）后，**必须重跑第 5 个**；
@@ -286,3 +286,13 @@ for f in js/*.js; do node --check "$f" || echo "FAIL $f"; done
 
 探针常会给结果元素挂上 `style`，用严格写法 `<pre id="DIAG">` 会匹配失败，
 表现为「探针明明跑了却报 NO DIAG」。用 `<pre[^>]*id="DIAG"[^>]*>`。
+
+## 统一资产交易回归
+
+```bash
+node test/asset-transactions.js
+node test/property-sales.js
+node test/collateral-appraisal.js
+```
+
+覆盖统一股票报价、本人份额融资与费用、挂牌买回、失败不扣款、持仓身份、旧档恢复、急售与协议转让。浏览器 `N` 组验证挂牌页面、贷款返回和存档恢复。

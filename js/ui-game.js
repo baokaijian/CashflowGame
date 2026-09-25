@@ -313,12 +313,13 @@ function showPlayerDetail(pid){
             <div class="rowlist__row"><span>股票</span><b>${p.assets.stocks.reduce((s,x)=>s+x.shares,0)} 股</b></div>
             <div class="rowlist__row"><span>年结余</span><b>${money(E.annual(E.settleCashflow(p)))}</b></div>
             <div class="rowlist__row"><span>被动收入（年）</span><b>${money(E.annual(E.finance(p).passive))}</b></div>
-            <div class="rowlist__row"><span>净资产</span><b>${money(E.netWorth(p))}</b></div>
+            <div class="rowlist__row"><span>账面净资产（排名口径）</span><b>${money(E.netWorth(p))}</b></div>
+            <div class="rowlist__row"><span>参考估值净资产（已扣项目融资与其他负债）</span><b>${money(E.valuedNetWorth(g,p))}</b></div>
           </div>
           <p class="hint">已开启「不显示对手财务明细」，仅显示概览。可在开局设置中调整。</p>
         </div>`
       : `${U.renderIncome(p)}
-        <div class="sec"><div class="sec__title">资产负债表 · 资产</div>${U.renderAssets(p)}</div>
+        <div class="sec"><div class="sec__title">资产负债表 · 资产</div>${U.renderAssets(p,g)}</div>
         <div class="sec"><div class="sec__title">资产负债表 · 负债</div>${U.renderLiabs(p)}</div>`}
     </div>
     <div class="modal__foot"><button class="btn btn--primary" data-close>关闭</button></div>`,
@@ -450,7 +451,7 @@ function renderFinance(){
     <div class="fin-cols">
       <div>${U.renderIncome(p)}</div>
       <div>
-        <div class="sec"><div class="sec__title">资产</div>${U.renderAssets(p)}
+        <div class="sec"><div class="sec__title">资产</div>${U.renderAssets(p,g)}
           ${(function(){
             /* 资产估值：账面成本 ≠ 当前市价。玩家最需要看到的就是这个差额 ——
                「纸面上有 50 万」和「现在能抵押出多少」是两件事。 */
@@ -1178,16 +1179,16 @@ function openLoanCenter(key, preset){
           <span class="muted">${cp.appraisal.book > 0 ? ((cp.appraisal.value / cp.appraisal.book - 1) * 100 >= 0 ? '+' : '') + ((cp.appraisal.value / cp.appraisal.book - 1) * 100).toFixed(1) + '%' : '—'}</span></b></div>
         <div class="rowlist__row"><span>可抵押净值</span><b class="money">${money(cp.collateral)}</b></div>
         <div class="rowlist__row"><span>折算规则</span>
-          <b><span class="muted">房产按本人首付的权益比例；其他资产按各类折算比例，见下方明细</span></b></div>
+          <b><span class="muted">房产按本人份额估值减项目融资余额，最低为零；其他资产按各类折算比例</span></b></div>
       </div>
-      <p class="hint">当前估值随游戏行情与持有年数变化。抵押折算金额合计再乘 ${Math.round((window.CREDIT.collateralRate || 0.5)*100)}% 授信率和信用系数，才是资产通道的额度，不等于可直接借到的现金。</p>
+      <p class="hint">股票采用最近统一报价；房产报价更新参考估值，之后随周期变化。抵押折算金额合计再乘 ${Math.round((window.CREDIT.collateralRate || 0.5)*100)}% 授信率和信用系数，才是资产通道的额度，不等于可直接借到的现金。</p>
       ${cp.appraisal.rows.length ? `<details class="appraisal-detail" open>
         <summary>${cp.appraisal.rows.length} 项已持有资产 · 逐项对应</summary>
         <div class="rowlist">
           ${cp.appraisal.rows.map(r => `<div class="rowlist__row" data-collateral-asset>
             <span><b>${esc(E.assetLabel(r.item) || '资产')}</b>
               ${r.kind === 'realEstate' ? `<br><span class="muted">本人首付 ${money(r.item.dp)}${r.item.joint ? ` · 持有 ${Math.round((r.item.share || 0)*100)}% 份额，账面与估值仅计本人份额` : ''}</span>` : ''}</span>
-            <span><span class="muted">账面成本 ${money(r.book)}<br>当前估值 ${money(r.value)}<br>抵押折算比例 ${(r.collateralShare*100).toFixed(1)}%</span>
+            <span><span class="muted">账面成本 ${money(r.book)}<br>当前估值 ${money(r.value)}<br>${r.kind==='realEstate'?`减项目融资余额 ${money(r.debt)}`:`抵押折算比例 ${(r.collateralShare*100).toFixed(1)}%`}<br>${esc(r.source)}</span>
             <br><b>抵押折算金额 ${money(r.collateral)}</b></span>
           </div>`).join('')}
         </div>
@@ -1309,13 +1310,13 @@ function sellAssetDialog(p, kind, i){
   if(!others.length) return U.toast('没有其他玩家可以购买','err');
   let item, value;
   if(kind==='stock'){ item = p.assets.stocks[i]; value = item.shares*item.cost; }
-  if(kind==='realestate'){ item = p.assets.realEstate[i]; value = item.dp; }
+  if(kind==='realestate'){ item = p.assets.realEstate[i]; E.registerProperty(g,p,item); value = Math.max(0,E.propertyValue(g,item)-E.projectDebt(item)); }
   if(kind==='business'){ item = p.assets.business[i]; value = item.cost; }
   const nm = item.symbol ? `${item.symbol} ${item.shares} 股` : item.nm;
   U.openModal(`
     <div class="modal__head"><h3>出售：${esc(nm)}</h3></div>
     <div class="modal__body">
-      <p class="hint">资产账面价值 ${money(value)}。选择买家与成交价（双方自愿）。</p>
+      <p class="hint">${kind==='realestate'?`参考股权价值 ${money(value)}。下方约定价为本人份额的股权款；买方另承接项目融资余额 ${money(E.projectDebt(item))}，该融资继续计在房产名下。`:`资产账面价值 ${money(value)}。`}选择买家与成交价（双方自愿）。</p>
       <div class="picklist">
         ${others.map(o=>`<button class="pick" data-oid="${o.id}"><span class="pick__ico">${o.icon}</span>
           <span><span class="pick__t">${esc(o.name)}</span><span class="pick__d">现金 ${money(o.cash)}</span></span>
@@ -1335,10 +1336,15 @@ function sellAssetDialog(p, kind, i){
       $$('[data-oid]',m).forEach(b=>b.onclick=()=>{
         const buyer = g.players[+b.dataset.oid];
         const price = Math.round(+inp.value||0);
+        if(kind==='realestate'){
+          const r=A.transferProperty(g,p,buyer,item.holdingId,price);
+          if(!r.ok) return U.toast(r.msg,'err');
+          U.closeModal();renderAll();U.toast('交易完成，融资与房产一同转移','ok');return;
+        }
+        if(price<0) return U.toast('成交价不能为负','err');
         if(buyer.cash < price) return U.toast(`${buyer.name} 现金不足`,'err');
         buyer.cash -= price; p.cash += price;
         if(kind==='stock'){ buyer.assets.stocks.push(item); p.assets.stocks.splice(i,1); }
-        if(kind==='realestate'){ buyer.assets.realEstate.push(item); p.assets.realEstate.splice(i,1); }
         if(kind==='business'){ buyer.assets.business.push(item); p.assets.business.splice(i,1); }
         E.log(g, `${p.name} 以 ${money(price)} 将 ${nm} 出售给 ${buyer.name}`, 'info');
         U.closeModal(); renderAll(); U.toast('交易完成','ok');
@@ -1376,7 +1382,7 @@ function cashTransferDialog(){
 /* 202：融券做空 / 期权操作面板 */
 function openShortPanel(){
   const g = Game.g, p = E.current(g);
-  const prices = p.stockPrice||{};
+  const prices = Object.fromEntries(SHORTABLE.map(symbol=>[symbol,E.stockPrice(g,symbol)]));
   U.openModal(`
     <div class="modal__head"><h3>融券做空 / 期权操作</h3></div>
     <div class="modal__body">

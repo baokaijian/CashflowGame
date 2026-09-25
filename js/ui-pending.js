@@ -141,6 +141,7 @@ function showPending(){
   const game = G(), g = game.g, P = g.pending;
   if(!P) return;
   const p = g.players[P.p];
+  if(P.propertyMarket && ['opportunity','opportunity202'].includes(P.type)) return showPropertyMarket(g,p,P);
   switch(P.type){
     case 'info':          return showInfo(g, p, P);
     case 'rest':          return showRest(g, p, P);
@@ -191,8 +192,9 @@ function showOpportunity(g, p, P){
         <p class="hint" style="margin-top:8px">考察一类方向需要投入研究时间（消耗精力），
           而且<b>放弃机会也不退还</b> —— 研究过了就是沉没成本。这也正是「机会」，不是「白给」。</p>
       </div>
-    ${foot(`<button class="btn btn--text" data-skip>放弃这次机会</button>`)}`,
+    ${foot(`<button class="btn btn--text" data-skip>放弃这次机会</button><button class="btn btn--tonal" data-property-market>查看再次挂牌房产（${E.propertyListings(g).length}）</button>`)}`,
       { onMount(m){
+        $('[data-property-market]',m).onclick=()=>{P.propertyMarket=true;showPropertyMarket(g,p,P);};
         /* ⚠️ 必须有出口：精力不足以考察时若只能点牌堆，玩家会彻底卡在这一格 ——
            放弃不消耗精力（都还没开始研究），所以这条退路是零成本的。 */
         const skip = $('[data-skip]',m);
@@ -224,8 +226,9 @@ function showOpportunity202(g, p, P){
         <div class="sec__total"><span>你的现金</span><span class="money">${money(p.cash)}</span></div>
         ${P.market?`<div class="sec__title" style="margin-top:14px">同时抽到的行情卡</div>${face('market', P.market)}`:''}
       </div>
-    ${foot(`<button class="btn btn--text" data-skip>放弃这次机会</button>`)}`,
+    ${foot(`<button class="btn btn--text" data-skip>放弃这次机会</button><button class="btn btn--tonal" data-property-market>查看再次挂牌房产（${E.propertyListings(g).length}）</button>`)}`,
       { onMount(m){
+        $('[data-property-market]',m).onclick=()=>{P.propertyMarket=true;showPropertyMarket(g,p,P);};
         const skip = $('[data-skip]',m);
         if(skip) skip.onclick = ()=>{ finishTurnAction(); U.toast('已放弃这次投资机会', 'info'); };
         $$('[data-k]',m).forEach(b=>b.onclick=()=>{
@@ -240,8 +243,45 @@ function showOpportunity202(g, p, P){
   showDealCard(g, p, P.deal, P);
 }
 
+/* 已卖出的实体房产在下一回合起挂牌，一次投资机会承接一份。 */
+function showPropertyMarket(g,p,P){
+  if(P.market && !P.impact) P.impact=A.marketImpact(g,P.market);
+  const plans=E.propertyListings(g),energy=A.energyCost('realEstate');
+  U.openModal(`
+    <div class="modal__head"><h3>🏠 再次挂牌房产</h3></div>
+    <div class="modal__body">
+      <p class="hint">这里是本局已经卖出的房产，保留原编号与历史。卖出后的下一回合起可承接，每次投资机会可买一份；买入价格是本人所获份额的总价，首付之外由项目融资承担。</p>
+      ${plans.length?plans.map(x=>`<div class="sec" data-property-listing="${esc(x.listingId)}">
+        <div class="sec__title">${esc(x.nm)} · ${(x.share*100).toFixed(1)}% 份额</div>
+        <p class="hint">房产编号 ${esc(x.propertyId)} · 已记录 ${x.heldYears} 年 · 历史 ${x.history.length} 笔</p>
+        <div class="rowlist">
+          <div class="rowlist__row"><span>本人成交总价</span><b>${money(x.cost)}</b></div>
+          <div class="rowlist__row"><span>首付 / 项目融资</span><b>${money(x.dp)} / ${money(x.debt)}</b></div>
+          <div class="rowlist__row"><span>费用 / 实付现金</span><b>${money(x.fee)} / ${money(x.need)}</b></div>
+          <div class="rowlist__row"><span>租金 / 月净现金流</span><b>${money(x.rent)} / ${money(x.cf)}</b></div>
+        </div>
+        <p class="hint">${x.history.slice(-4).map(h=>`第 ${h.round} 轮 ${esc(h.type)}，份额 ${((h.share||0)*100).toFixed(1)}%`).join('；')}</p>
+        <button class="btn btn--primary" data-buy-listing="${esc(x.listingId)}" ${p.cash<x.need || Math.round(p.energy)<energy?'disabled':''}>确认承接（精力 ${energy}）</button>
+      </div>`).join(''):'<p class="muted">目前没有可承接的挂牌房产。房产卖出后，从下一回合起在这里出现。</p>'}
+      <p class="hint">你的现金 ${money(p.cash)} · 精力 ${Math.round(p.energy)}。买入后租金沿用该房产记录，融资利息按本次余额计算。</p>
+    </div>
+    ${foot('<button class="btn btn--text" data-back>返回投资方向</button><button class="btn btn--tonal" data-loan>先贷款</button>')}`,
+    {onMount(m){
+      $('[data-back]',m).onclick=()=>{delete P.propertyMarket;showPending();};
+      $('[data-loan]',m).onclick=()=>{U.closeModal();window.UiGame.onMenu('loan');};
+      $$('[data-buy-listing]',m).forEach(b=>b.onclick=()=>{
+        const plan=plans.find(x=>x.listingId===b.dataset.buyListing);
+        const r=A.buyPropertyListing(g,plan.listingId,plan);
+        if(!r.ok){U.toast(r.msg||'承接失败，请刷新后重试','err');showPropertyMarket(g,p,P);return;}
+        if(P.market) setMarketOnly(g,p,P);else finishTurnAction();
+        window.UiGame.renderAll();U.toast('承接成功，房产编号与历史已保留','ok');checkEscapePrompt(g,p);
+      });
+    }});
+}
+
 /* ------------------------------ 投资卡决策 ------------------------------ */
 function showDealCard(g, p, card, P){
+  card=E.priceDeal(g,card);
   const unitDeal = card.kind==='stock' || (card.kind==='collectible' && card.unit);
   const qty = unitDeal ? (card.min||1) : 1;
   const cost = A.dealCost(g, card, qty);
@@ -342,6 +382,8 @@ function showDealCard(g, p, card, P){
             if(cb.checked) partners += Math.max(0, Math.round(+$('[data-jamt="'+cb.dataset.jp+'"]', m).value||0));
           });
           $('#jointMine', m).textContent = money(Math.max(0, c - partners));
+          $('#needCost',m).textContent=money(Math.max(0,c-partners));
+          b.disabled=c-partners<=0 || p.cash<c-partners || Math.round(p.energy)<needEnergy;
         }
       };
       if(q){
@@ -391,8 +433,8 @@ function showDealCard(g, p, card, P){
             if(amt>0) parts.push({ id:+cb.dataset.jp, amt });
           });
           const mine = A.dealCost(g, card, 1) - parts.reduce((s,x)=>s+x.amt,0);
-          if(mine < 0) return U.toast('合作方出资超过首付总额', 'err');
-          if(parts.length && p.cash < mine) return U.toast('你的现金不足以承担出资部分', 'err');
+          if(mine <= 0) return U.toast('牵头玩家需要承担部分首付，合作方出资不能达到首付总额', 'err');
+          if(p.cash < mine) return U.toast('你的现金不足以承担出资部分', 'err');
           for(const x of parts){
             const o = g.players[x.id];
             if(o.cash < x.amt) return U.toast(`${o.name} 现金不足 ${money(x.amt)}`, 'err');
@@ -411,6 +453,7 @@ function showDealCard(g, p, card, P){
           const myShare = mine/total;
           p.cash -= mine;
           p.assets.realEstate.push({ nm:card.nm+(mine<total?'（共有）':''), dp:mine, cost:Math.round(card.cost*myShare), cf:Math.round(card.cf*myShare), rent:Math.round((card.rent||0)*myShare), share:myShare, joint:parts.length>0 });
+          const sharedProperty=E.registerProperty(g,p,E.stampAsset(g,p.assets.realEstate[p.assets.realEstate.length-1]));
           E.bump(p, 'dealsBought'); E.bump(p, 'investTotal', mine);
           E.bump(p, 'cfGained', Math.round(card.cf*myShare));
           E.milestone(g, p, `第 ${g.round} 轮与 ${parts.length} 位玩家联合购买「${card.nm}」，出资 ${money(mine)}（占比 ${Math.round(myShare*100)}%），月现金流 +${money(Math.round(card.cf*myShare))}`, 'good');
@@ -420,6 +463,7 @@ function showDealCard(g, p, card, P){
             const sh = x.amt/total;
             o.cash -= x.amt;
             o.assets.realEstate.push({ nm:card.nm+'（共有）', dp:x.amt, cost:Math.round(card.cost*sh), cf:Math.round(card.cf*sh), rent:Math.round((card.rent||0)*sh), share:sh, joint:true });
+            E.registerProperty(g,o,E.stampAsset(g,o.assets.realEstate[o.assets.realEstate.length-1]),sharedProperty.id);
             E.log(g, `${o.name} 参与联合购买 ${card.nm}，出资 ${money(x.amt)}（占比 ${Math.round(sh*100)}%），月现金流 +${money(Math.round(card.cf*sh))}`, 'good', o.name);
           });
           finishTurnAction();
@@ -451,6 +495,7 @@ function checkEscapePrompt(g, p){
 /* ------------------------------ 市场行情 ------------------------------ */
 function showMarket(g, p, P){
   if(!P.impact) P.impact = A.marketImpact(g, P.card);
+  if(!P.quoteRecorded){A.applyMarketQuote(g,P.card);P.quoteRecorded=true;}
   /* 行情冲击只执行一次，交易清单每次按当前持仓重建，避免连续出售使用旧下标。
      旧存档里的行情选项也在这里替换为带房产编号和份额价格的新选项。 */
   const card = P.card, opt = A.marketOptions(g, card);
@@ -495,8 +540,8 @@ function showMarket(g, p, P){
    对应真实社会里「借钱、卖东西、还不上就破产」的处理方式。 */
 function shortfallPanel(g, p, amount){
   const gap = Math.max(0, amount - p.cash);
-  const items = E.sellableAssets(p);
-  const total = items.reduce((s,x)=>s+x.value, 0);
+  const items = E.sellableAssets(p,g);
+  const total = items.reduce((s,x)=>s+Math.max(0,x.value), 0);
   return `
     <div class="sec" style="margin-top:16px">
       <div class="sec__title"><span>资金不足</span><span class="neg">还差 ${money(gap)}</span></div>
@@ -508,11 +553,11 @@ function shortfallPanel(g, p, amount){
           <span class="pick__d">借入 ${money(gap)}，月息 ${(BANK.loanRate*100).toFixed(1)}% → 此后每月多付 ${money(Math.round(gap*BANK.loanRate))}</span></span>
           <span class="pick__go">›</span></button>
       </div>
-      <div class="sec__title" style="margin-top:14px"><span>或变卖资产套现</span><span>急售价 = 账面 ${Math.round(E.SELL_RATE*100)}%</span></div>
+      <div class="sec__title" style="margin-top:14px"><span>或变卖资产套现</span><span>参考估值的 ${Math.round(E.SELL_RATE*100)}%，房产再扣融资与费用</span></div>
       ${items.length ? `<div class="rowlist">
         ${items.map(x=>`<div class="rowlist__row">
           <span>${esc(x.nm)}<br><span class="muted">账面 ${money(x.book)} → 变现 <b class="pos">${money(x.value)}</b></span></span>
-          <button class="btn btn--s btn--outline" data-sellone="${x.key}:${x.i}">变卖</button>
+          <button class="btn btn--s btn--outline" data-sellone="${x.key}:${x.i}:${x.assetId}">变卖</button>
         </div>`).join('')}
       </div>
       <p class="hint" style="margin-top:8px">全部变卖可套现 ${money(total)}${total >= gap ? '，足以付清本次款项。' : '，仍不足付清，需要再向银行贷款。'}</p>`
@@ -525,7 +570,7 @@ function bindShortfall(m, g, p, amount){
   if(loan) loan.onclick = ()=>{ U.closeModal(); window.UiGame.openLoan(amount - p.cash); };
   $$('[data-sellone]', m).forEach(b=>b.onclick = ()=>{
     const parts = b.dataset.sellone.split(':');
-    const r = A.liquidate(g, p, parts[0], +parts[1]);
+    const r = A.liquidate(g, p, parts[0], +parts[1],parts[2]);
     if(!r.ok) return U.toast(r.msg || '变卖失败', 'err');
     U.toast(`已变现 ${money(r.value)}`, 'ok');
     window.UiGame.renderAll();

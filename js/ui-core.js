@@ -203,11 +203,12 @@ function renderIncome(p){
 function assetLine(nm, meta){
   return `<div class="asset"><span class="asset__t">${esc(nm)}</span><span class="asset__m">${meta}</span></div>`;
 }
-function renderAssets(p){
+function renderAssets(p, g){
+  g=g || (window.Game && window.Game.g);
   const a = p.assets;
   const blocks = [];
-  if(a.stocks.length) blocks.push(a.stocks.map(s=>assetLine(`${s.symbol} ${s.shares} 股`, `成本 ${money(s.cost)}/股 · 市值 ${money(s.shares*s.cost)}`)).join(''));
-  if(a.realEstate.length) blocks.push(a.realEstate.map(r=>assetLine(r.nm, `首付 ${money(r.dp)} · 房租净收入 ${money(r.cf)}/月`)).join(''));
+  if(a.stocks.length) blocks.push(a.stocks.map(s=>assetLine(`${s.symbol} ${s.shares} 股`, `成本 ${money(s.cost)}/股 · ${g?`参考市值 ${money(E.appraiseAsset(g,'stocks',s).value)}`:`账面 ${money(s.shares*s.cost)}`}`)).join(''));
+  if(a.realEstate.length) blocks.push(a.realEstate.map(r=>assetLine(r.nm, `首付 ${money(r.dp)} · 本人购入总价 ${money(r.cost)} · 项目融资余额 ${money(E.projectDebt(r))}${g?` · 本人参考估值 ${money(E.propertyValue(g,r))}`:''} · 房租净收入 ${money(r.cf)}/月 · 编号 ${r.propertyId||'待登记'}`)).join(''));
   if(a.business.length) blocks.push(a.business.map(b=>assetLine(b.nm, `投入 ${money(b.cost)} · +${money(b.cf)}/月`)).join(''));
   if(a.ftBusiness.length) blocks.push(a.ftBusiness.map(b=>assetLine(b.nm, `投入 ${money(b.cost)} · +${money(b.cf)}/月`)).join(''));
   if(a.savings.length) blocks.push(a.savings.map(s=>assetLine(s.nm, `本金 ${money(s.cost)} · +${money(s.interest)}/月`)).join(''));
@@ -225,7 +226,7 @@ function renderAssets(p){
      `剩余 0 年`不会出现：还清的那一刻余额即为 0，这一行直接从表里消失。 */
 function renderLiabs(p){
   E.ensureLoans(p);
-  const rows = E.LOAN_KEYS.map(k=>{
+  let rows = E.LOAN_KEYS.map(k=>{
     const i = E.loanInfo(p, k);
     if(i.balance <= 0) return '';
     const sub = i.revolving
@@ -233,6 +234,7 @@ function renderLiabs(p){
       : `年供 ${money(i.dueYear)} · 剩余 ${i.remainingYears} 年`;
     return `<div class="rowlist__row"><span>${i.nm}<br><span class="muted">${sub}</span></span><b class="money">${money(i.balance)}</b></div>`;
   }).filter(Boolean).join('');
+  rows += p.assets.realEstate.filter(r=>E.projectDebt(r)>0).map(r=>`<div class="rowlist__row"><span>${esc(r.nm)} · 项目融资<br><span class="muted">持有期付息，已扣在房租净收入中；出售时还本</span></span><b class="money">${money(E.projectDebt(r))}</b></div>`).join('');
   return rows ? `<div class="rowlist">${rows}</div>` : '<p class="muted">无负债。</p>';
 }
 

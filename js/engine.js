@@ -601,7 +601,7 @@ function ftMonthly(p){
 function netWorth(p){
   let a = p.cash;
   a += p.assets.stocks.reduce((s,x)=>s+x.shares*x.cost,0);
-  a += p.assets.realEstate.reduce((s,x)=>s+x.dp,0);
+  a += p.assets.realEstate.reduce((s,x)=>s+assetBookOf('realEstate',x)-projectDebt(x),0);
   a += p.assets.business.reduce((s,x)=>s+x.cost,0);
   a += p.assets.ftBusiness.reduce((s,x)=>s+x.cost,0);
   a += p.assets.savings.reduce((s,x)=>s+x.cost,0);
@@ -612,6 +612,11 @@ function netWorth(p){
   let debt = 0;
   LOAN_KEYS.forEach(k=> debt += numOr(p.liabs[k]));
   return a - debt;
+}
+function valuedNetWorth(g,p){
+  ensureLoans(p);
+  return p.cash+appraiseAll(g,p).value-p.assets.realEstate.reduce((s,r)=>s+projectDebt(r),0)
+    -LOAN_KEYS.reduce((s,k)=>s+numOr(p.liabs[k]),0);
 }
 
 /* ------------------------------ 财务自由圈的收支 ------------------------------ */
@@ -680,6 +685,125 @@ function bumpMarket(g, kind, mult){
    避免「新增了一类资产但某个函数忘了算」这种漏项。 */
 const ASSET_KINDS = ['savings','funds','stocks','collectibles','lands','realEstate','business','ftBusiness'];
 
+/* 价格、房产与交易记录随存档保存。默认沿用无交易手续费的游戏规则。 */
+function assetMarket(g){
+  if(!g.assetMarket) g.assetMarket = {version:1, quotes:{}, properties:{}, listings:[], trades:[], next:0, feeRate:0};
+  return g.assetMarket;
+}
+function assetName(item){ return (item.nm || item.symbol || '').replace(/（(?:与机构共有|共有)）$/, ''); }
+function assetKey(kind, item){ return kind + ':' + (item.symbol || assetName(item)); }
+function quoteOf(g, kind, item){ return g && g.assetMarket && g.assetMarket.quotes[assetKey(kind,item)]; }
+function stockPrice(g,symbol){
+  const q=quoteOf(g,'stocks',{symbol});
+  if(q) return q.price;
+  const holding=g && g.players.flatMap(p=>p.assets.stocks).find(s=>s.symbol===symbol);
+  return holding ? holding.cost : undefined;
+}
+function recordQuote(g, kind, item, price, source){
+  if(!Number.isFinite(price) || price < 0) return;
+  const m=assetMarket(g);
+  const q = {price, source:source || '行情报价', round:g.round, turnNo:g.turnNo, index:marketIndex(g,kind), revision:++m.next};
+  assetMarket(g).quotes[assetKey(kind,item)] = q;
+  return q;
+}
+function holdingId(g,item){
+  if(!item.holdingId) item.holdingId='holding-'+(++assetMarket(g).next);
+  return item.holdingId;
+}
+function marketAge(g){ return Math.max(0,...g.players.map(p=>ageOf(g,p)-g.startAge)); }
+function projectDebt(item){ return Math.max(0, numOrDef(item.projectDebt, assetBookOf('realEstate',item) - numOr(item.dp))); }
+function holdingShare(item){ return Math.max(0, Math.min(1, numOrDef(item.share,1))); }
+function registerProperty(g, p, item, propertyId){
+  const m=assetMarket(g), share=holdingShare(item);
+  if(!item.propertyId){
+    const used=new Set(g.players.flatMap(player=>player.assets.realEstate.map(r=>r.propertyId)));
+    do{ item.propertyId='property-'+(++m.next); }while(m.properties[item.propertyId]||used.has(item.propertyId));
+  }
+  if(propertyId) item.propertyId=propertyId;
+  holdingId(g,item);
+  if(item.projectDebt == null) item.projectDebt=projectDebt(item);
+  if(item.financingRate == null) item.financingRate=numOrDef(window.YIELD && window.YIELD.mortgageRate,0.0041);
+  if(!m.properties[item.propertyId]){
+    const whole=share>0 ? Math.round(assetBookOf('realEstate',item)/share) : 0;
+    m.properties[item.propertyId]={id:item.propertyId,nm:assetName(item),referencePrice:whole,
+      referenceIndex:item.legacyAsset ? 1 : marketIndex(g,'realEstate'),
+      referenceRevision:m.next,
+      rent:share>0 ? Math.round(numOrDef(item.rent,numOr(item.cf)+item.projectDebt*item.financingRate)/share) : 0,
+      downRate:whole>0 && share>0 ? numOr(item.dp)/(whole*share) : 1,
+      createdAge:ageOf(g,p)-numOr(item.heldYears),history:[]};
+  }
+  const prop=m.properties[item.propertyId];
+  if(!prop.history.some(h=>h.holdingId===item.holdingId)){
+    const record={type:item.legacyAsset?'存档登记':'买入',propertyId:prop.id,
+      holdingId:item.holdingId,player:p.id,round:g.round,age:ageOf(g,p),share,cost:item.cost,
+      debt:item.projectDebt,fee:numOr(item.acquisitionFee)};
+    prop.history.push(record);m.trades.push(record);
+  }
+  return prop;
+}
+function propertyValue(g, item){
+  const prop=g.assetMarket && g.assetMarket.properties[item.propertyId];
+  const latest=quoteOf(g,'realEstate',item);
+  const quote=latest && (!prop || latest.revision>prop.referenceRevision) ? latest : null;
+  // 同类型行情更新参考估值；实际成交报价另行锁定，刷新面板不会改价。
+  const price=quote ? quote.price : prop ? prop.referencePrice : assetBookOf('realEstate',item)/Math.max(holdingShare(item),1e-9);
+  const base=quote ? quote.index : prop ? prop.referenceIndex : 1;
+  return Math.max(0,Math.round(price * marketIndex(g,'realEstate') / Math.max(base,0.01) * holdingShare(item)));
+}
+function propertySettlement(g,item,wholePrice){
+  if(!Number.isFinite(wholePrice)||wholePrice<0) return null;
+  const share=holdingShare(item), price=Math.round(wholePrice*share), debt=projectDebt(item);
+  const fee=Math.round(price*Math.max(0,numOr(assetMarket(g).feeRate)));
+  return {share,price,debt,fee,gain:price-assetBookOf('realEstate',item)-fee,proceeds:price-debt-fee};
+}
+function recordPropertySale(g,p,item,plan,wholePrice,reason,relist=true){
+  const prop=registerProperty(g,p,item), m=assetMarket(g);
+  const record={type:reason||'卖出',propertyId:prop.id,holdingId:item.holdingId,player:p.id,round:g.round,
+    age:ageOf(g,p),share:plan.share,price:plan.price,debt:plan.debt,fee:plan.fee,proceeds:plan.proceeds};
+  prop.history.push(record);m.trades.push(record);
+  prop.referencePrice=wholePrice;prop.referenceIndex=marketIndex(g,'realEstate');
+  prop.referenceRevision=++m.next;
+  if(relist) m.listings.push({id:'listing-'+(++m.next),propertyId:prop.id,share:plan.share,
+    heldYears:numOr(item.heldYears),listedAge:marketAge(g),soldBy:p.id,availableTurn:numOr(g.turnNo)+1,status:'listed'});
+}
+function listingPlan(g,listing){
+  const prop=assetMarket(g).properties[listing.propertyId];
+  if(!prop || listing.status!=='listed' || numOr(g.turnNo)<listing.availableTurn) return null;
+  const sample={nm:prop.nm,propertyId:prop.id,share:listing.share,cost:prop.referencePrice*listing.share};
+  const cost=propertyValue(g,sample), down=Math.max(0,Math.min(1,prop.downRate));
+  const dp=Math.round(cost*down),debt=cost-dp,fee=Math.round(cost*Math.max(0,numOr(assetMarket(g).feeRate)));
+  const rent=Math.round(prop.rent*listing.share),rate=numOrDef(window.YIELD && window.YIELD.mortgageRate,0.0041);
+  return {listingId:listing.id,propertyId:prop.id,nm:prop.nm,share:listing.share,cost,dp,debt,fee,
+    need:dp+fee,rent,cf:rent-Math.round(debt*rate),rate,
+    heldYears:listing.heldYears+Math.max(0,marketAge(g)-numOr(listing.listedAge)),history:prop.history};
+}
+function propertyListings(g){ return assetMarket(g).listings.map(l=>listingPlan(g,l)).filter(Boolean); }
+function migrateAssets(g){
+  const isLegacy=!g.assetMarket;
+  assetMarket(g);
+  g.players.forEach(p=>{
+    p.assets.realEstate.forEach(item=>{
+      if(isLegacy) item.legacyAsset=true;
+      registerProperty(g,p,item);
+    });
+    // 旧档只能恢复已有的最近股票报价，不猜测历史交易、不改现金。
+    if(isLegacy) Object.entries(p.stockPrice||{}).forEach(([symbol,price])=>{
+      if(!quoteOf(g,'stocks',{symbol})) recordQuote(g,'stocks',{symbol},price,'存档报价');
+    });
+  });
+  g.players.forEach(p=>p.assets.stocks.forEach(item=>{
+    if(!quoteOf(g,'stocks',item)) recordQuote(g,'stocks',item,item.cost,isLegacy?'存档取得价参考':'开局取得价参考');
+  }));
+  return g;
+}
+function priceDeal(g,card){
+  if(!card) return card;
+  const kind=card.kind==='stock'?'stocks':card.kind==='collectible'&&card.unit?'collectibles':null;
+  const q=kind && quoteOf(g,kind,card);
+  if(!q) return card;
+  return Object.assign({},card,{price:q.price,note:`当前统一报价 ${money(q.price)}/单位，可买 ${card.min}—${card.max} 单位。买卖与估值使用同一行情价格。`});
+}
+
 /* 账面成本（取得时的金额，不随市价变动；界面上用来对照估值涨跌） */
 function assetBookOf(kind, item){
   if(!item) return 0;
@@ -694,8 +818,16 @@ function appraiseAsset(g, kind, item){
   const index = marketIndex(g, kind);
   const held  = Math.max(0, numOr(item && item.heldYears));
   const decay = Math.pow(1 - numOrDef(D[kind], 0), held);
-  return { book, index, years: held, decay,
-           value: Math.max(0, Math.round(book * index * decay)) };
+  const quote=quoteOf(g,kind,item);
+  let value=Math.max(0,Math.round(book*index*decay)),source='周期估算';
+  if(kind==='stocks'){value=Math.round(numOrDef(stockPrice(g,item.symbol),item.cost)*item.shares);source=quote?quote.source:'暂无行情，按已有取得价参考';}
+  else if(kind==='realEstate'){value=propertyValue(g,item);source=quote?'行情参考估值':'房产参考估值';}
+  else if(quote){
+    const qty=kind==='stocks'?numOr(item.shares):kind==='collectibles'?numOrDef(item.qty,1):1;
+    value=Math.max(0,Math.round(quote.rate==null?quote.price*qty:book*quote.rate));source=quote.source;
+  }
+  return {book,index,years:held,decay,value,source,quoteRound:quote && quote.round,
+    debt:kind==='realEstate'?projectDebt(item):0};
 }
 /* 给资产记录买入轮次和持有年数；持有年数只在持有者经过结算日时增加。
    ★ 统一在这里打标（而不是在各个 push 点手写），避免漏掉某条买入路径。 */
@@ -722,7 +854,7 @@ function appraiseAll(g, p){
     (p.assets[kind] || []).forEach(item=>{
       const a = appraiseAsset(g, kind, item);
       const collateralShare = collateralShareOf(kind, item);
-      const net = Math.round(a.value * collateralShare);
+      const net = kind==='realEstate' ? Math.max(0,a.value-a.debt) : Math.round(a.value * collateralShare);
       rows.push(Object.assign({ kind, item, collateralShare, collateral:net }, a));
       book += a.book; value += a.value;
       collateral += net;
@@ -731,11 +863,8 @@ function appraiseAll(g, p){
   return { rows, book, value, collateral, index: marketIndex(g, 'realEstate') };
 }
 
-/* 可抵押资产的【当前估值净值】 —— 失业 / 无收入时的应急授信依据。
-   ★ 与 liquidatableValue 的区别：那个是「破产清算时的快速变现值」（房产不计，
-     因为卖不掉），这个是「抵押授信依据」（房产可以抵押，但要按净值算）。
-   ★ 房产与企业用【已付首付】而不是总价：还在还贷的部分不属于你，
-     银行不会为不属于你的份额放款。 */
+/* 房产抵押权益 = 本人份额估值 − 对应项目融资余额，最低为零。
+   其他资产使用各类折算率；授信率在 creditProfile 中再应用一次。 */
 function collateralValue(g, p){
   return appraiseAll(g, p).collateral;
 }
@@ -1034,6 +1163,7 @@ function newGame(cfg){
            `没有其他玩家 —— 遇到投资机会只能「买入」或「放弃」，202 大额房产的联合购买由机构合伙人承接`, 'info');
     log(g, `【人生阶段 1/${window.SOLO_STAGES.length}】${st.nm} · ${st.range} · ${st.tag} —— 本期核心：${st.tension}`, 'info');
   }
+  assetMarket(g); migrateAssets(g);
   trackRound(g);                   /* 起始快照：报告的财富走势从第 1 轮就有基准点 */
   return g;
 }
@@ -1087,7 +1217,7 @@ function lifeComplete(g, p){ return isAgeMode(g) && ageOf(g, p) >= g.endAge; }
 
 /* 旧档保留已经发生的现金和年龄，从恢复点开始按发薪日推进，绝不重发历史收入。 */
 function migrateTime(g){
-  if(g.timeVersion === 2) return g;
+  if(g.timeVersion === 2) return migrateAssets(g);
   const legacyAge = g.startAge + Math.max(0, numOr(g.round) - 1);
   g.players.forEach(p=>{
     p.age = isAgeMode(g) ? Math.min(g.endAge, legacyAge) : legacyAge;
@@ -1103,7 +1233,7 @@ function migrateTime(g){
   g.lastRetire = null;
   g.timeVersion = 2;
   log(g, '已更新结算规则：从现在起，每经过一个发薪日或分红日只结算一年并长一岁。历史现金保留，旧记录不重新入账。', 'info');
-  return g;
+  return migrateAssets(g);
 }
 
 /* 单人模式同样按年龄推进（20→65 岁），所以也属于「年龄制」；
@@ -1572,7 +1702,7 @@ function drawDeal(g, deckName){
   const deck = g.decks[n];
   const card = drawCard(deck, ()=>log(g,'投资卡用完，重新洗牌','sys'));
   if(card) deck.disc.push(card);   /* 抽过的卡进入弃牌堆，牌堆抽空后重新洗入 */
-  return Object.assign({ deck:n }, card || {});
+  return priceDeal(g,Object.assign({ deck:n }, card || {}));
 }
 function drawMarket(g){
   const deck = g.decks.market;
@@ -1637,31 +1767,31 @@ function payCash(p, amount){
 /* 可主动变卖的资产清单（含急售价）。期权与财务自由圈企业不计入：
    期权本就随时可能作废，财务自由圈企业计入出圈战绩、不便回退。 */
 const SELL_KEYS = ['stocks','realEstate','business','savings','funds','lands','collectibles'];
-function sellableAssets(p){
-  const out = [];
-  p.assets.stocks.forEach((s,i)=>out.push({ key:'stocks', i, nm:assetLabel(s), book:s.shares*s.cost }));
-  p.assets.realEstate.forEach((r,i)=>out.push({ key:'realEstate', i, nm:assetLabel(r), book:r.dp||0 }));
-  p.assets.business.forEach((b,i)=>out.push({ key:'business', i, nm:assetLabel(b), book:b.cost||0 }));
-  p.assets.savings.forEach((x,i)=>out.push({ key:'savings', i, nm:assetLabel(x), book:x.cost||0 }));
-  p.assets.funds.forEach((x,i)=>out.push({ key:'funds', i, nm:assetLabel(x), book:x.cost||0 }));
-  p.assets.lands.forEach((l,i)=>out.push({ key:'lands', i, nm:assetLabel(l), book:l.cost||0 }));
-  p.assets.collectibles.forEach((c,i)=>out.push({ key:'collectibles', i, nm:assetLabel(c), book:c.cost||0 }));
-  return out.map(x=>Object.assign(x, { value: Math.round(x.book * SELL_RATE) }));
+function sellableAssets(p, g){
+  return SELL_KEYS.flatMap(key=>(p.assets[key]||[]).map((item,i)=>{
+    const book=assetBookOf(key,item), value=g?appraiseAsset(g,key,item).value:book;
+    const wholePrice=key==='realEstate'?Math.round(value/Math.max(holdingShare(item),1e-9)*SELL_RATE):0;
+    const plan=key==='realEstate'&&g?propertySettlement(g,item,wholePrice):null;
+    return {key,i,nm:assetLabel(item),book,value:plan?plan.proceeds:Math.round(value*SELL_RATE),
+      plan,wholePrice,assetId:g?holdingId(g,item):null};
+  }));
 }
-function sellValue(p){ return sellableAssets(p).reduce((s,x)=>s+x.value, 0); }
-/* 变卖一项资产换现金：拿到急售价，同时永久失去该资产及其现金流 */
-function liquidate(g, p, key, idx){
-  if(SELL_KEYS.indexOf(key) < 0) return { ok:false, msg:'该资产不可变卖。' };
-  const list = p.assets[key];
-  if(!list || !list[idx]) return { ok:false, msg:'资产不存在。' };
-  const info = sellableAssets(p).filter(x=>x.key===key && x.i===idx)[0];
-  const value = info ? info.value : 0;
-  list.splice(idx, 1);
-  p.cash += value;
-  bump(p, 'liquidations'); bump(p, 'liquidatedValue', value);
-  milestone(g, p, `第 ${g.round} 轮急售「${info?info.nm:''}」换现金 ${money(value)}（账面 ${money(info?info.book:0)}，折价变现）`, 'bad');
-  log(g, `${p.name} 急售 ${info?info.nm:''}，账面 ${money(info?info.book:0)}，按 ${Math.round(SELL_RATE*100)}% 变现 ${money(value)}`, 'info', p.name);
-  return { ok:true, value };
+function sellValue(p,g){ return sellableAssets(p,g).reduce((s,x)=>s+Math.max(0,x.value),0); }
+/* 急售使用参考估值折价，房产仍需偿还对应项目融资；失败不动资产与现金。 */
+function liquidate(g,p,key,idx,assetId){
+  if(!SELL_KEYS.includes(key)) return {ok:false,msg:'该资产不可变卖。'};
+  const list=p.assets[key];
+  if(assetId) idx=list.findIndex(item=>item.holdingId===assetId);
+  if(!list || !list[idx]) return {ok:false,msg:'资产已不在名下。'};
+  const info=sellableAssets(p,g).find(x=>x.key===key && x.i===idx);
+  if(info.value<0 && p.cash < -info.value) return {ok:false,msg:`偿还项目融资还需补款 ${money(-info.value)}，现金不足。`};
+  if(key==='realEstate') recordPropertySale(g,p,list[idx],info.plan,info.wholePrice,'急售');
+  list.splice(idx,1);p.cash+=info.value;
+  bump(p,'liquidations');bump(p,'liquidatedValue',info.value);
+  const detail=info.plan?`，偿还项目融资 ${money(info.plan.debt)}、费用 ${money(info.plan.fee)}`:'';
+  milestone(g,p,`第 ${g.round} 轮急售「${info.nm}」${detail}，净回款 ${money(info.value)}`,'bad');
+  log(g,`${p.name} 急售 ${info.nm}，按参考估值 ${Math.round(SELL_RATE*100)}% 成交${detail}，净回款 ${money(info.value)}`,'info',p.name);
+  return {ok:true,value:info.value};
 }
 /* 主动宣告破产：银行半价收购全部可变现资产抵债，玩家退出游戏 */
 function declareBankruptcy(g, p){
@@ -1700,34 +1830,28 @@ function surrender(g, p){
 }
 
 /* ------------------------------ 破产 ------------------------------ */
-function liquidatableValue(p){
-  let v = 0;
-  p.assets.stocks.forEach(s=>v += s.shares*s.cost*0.5);
-  p.options.forEach(o=>v += 0);           // 银行以半价收购期权，且作废不计
-  p.assets.collectibles.forEach(c=>v += c.cost*0.5);
-  p.assets.savings.forEach(c=>v += c.cost);
-  p.assets.funds.forEach(c=>v += c.cost);
-  return v;
+function liquidatableValue(p,g){
+  return SELL_KEYS.reduce((total,key)=>total+(p.assets[key]||[]).reduce((sum,item)=>{
+    const value=g?appraiseAsset(g,key,item).value:assetBookOf(key,item);
+    if(key==='realEstate'){
+      const proceeds=g?propertySettlement(g,item,Math.round(value/Math.max(holdingShare(item),1e-9)*BANK_RATE)).proceeds:value*BANK_RATE-projectDebt(item);
+      return sum+Math.max(0,proceeds);
+    }
+    return sum+value*(['savings','funds'].includes(key)?1:BANK_RATE);
+  },0),0);
 }
 /* 现金为负 → 被迫变现资产偿债（仍不足则进入破产判定） */
 function settleNegativeCash(g, p){
   if(p.cash >= 0) return true;
-  const pool = [];
-  p.assets.stocks.forEach((s,i)=>pool.push({ k:'stock', i, v:s.shares*s.cost, name:`${s.symbol} 股票 ${s.shares} 股` }));
-  p.assets.collectibles.forEach((c,i)=>pool.push({ k:'collectible', i, v:c.cost, name:c.nm }));
-  p.assets.savings.forEach((c,i)=>pool.push({ k:'savings', i, v:c.cost, name:c.nm }));
-  p.assets.funds.forEach((c,i)=>pool.push({ k:'funds', i, v:c.cost, name:c.nm }));
-  p.assets.lands.forEach((c,i)=>pool.push({ k:'land', i, v:c.cost, name:c.nm }));
-  pool.sort((a,b)=>b.v-a.v);
-  for(const it of pool){
-    if(p.cash >= 0) break;
-    p.cash += it.v;
-    if(it.k==='stock')            p.assets.stocks.splice(it.i,1);
-    else if(it.k==='collectible') p.assets.collectibles.splice(it.i,1);
-    else if(it.k==='savings')     p.assets.savings.splice(it.i,1);
-    else if(it.k==='funds')       p.assets.funds.splice(it.i,1);
-    else if(it.k==='land')        p.assets.lands.splice(it.i,1);
-    log(g, `${p.name} 现金不足，被迫变现 ${it.name} 换取 ${money(it.v)}`, 'bad', p.name);
+  const pool=['stocks','collectibles','savings','funds','lands'].flatMap(key=>p.assets[key].map(item=>({
+    key,item,value:appraiseAsset(g,key,item).value,name:assetLabel(item)
+  }))).sort((a,b)=>b.value-a.value);
+  for(const entry of pool){
+    if(p.cash>=0) break;
+    const list=p.assets[entry.key],index=list.indexOf(entry.item);
+    if(index<0) continue;
+    p.cash+=entry.value;list.splice(index,1);
+    log(g,`${p.name} 现金不足，被迫变现 ${entry.name} 换取 ${money(entry.value)}`,'bad',p.name);
   }
   return p.cash >= 0;
 }
@@ -1741,7 +1865,7 @@ function checkBankruptcy(g, p){
      用同一个账本会漏判自由圈的破产风险（分红减去支出后可能是负的）。 */
   const f = p.inFT ? ftFinance(p) : finance(p);
   if(f.cashflow >= 0) return false;            /* 现金流为正的角色不会破产 */
-  const liq = p.cash + liquidatableValue(p);
+  const liq = p.cash + liquidatableValue(p,g);
   if(liq > 0) return false;                    /* 仍有资产可变现，玩家可自行扭转 */
   /* 出售所有资产仍无法扭转 → 破产出局 */
   bankLiquidate(g, p);
@@ -1760,22 +1884,27 @@ function checkBankruptcy(g, p){
 function bankLiquidate(g, p){
   let proceeds = 0;
   /* 银行按半价收购全部可变现资产（房产 / 企业 / 土地此前漏掉，会凭空消失且不计价） */
-  p.assets.stocks.forEach(s=>{ proceeds += s.shares*s.cost*BANK_RATE; log(g,`银行以半价收购 ${p.name} 的 ${s.symbol} 股票 ${s.shares} 股`, 'bad', p.name); });
-  p.assets.collectibles.forEach(c=>{ proceeds += c.cost*BANK_RATE; });
-  p.assets.savings.forEach(c=>{ proceeds += c.cost; });
-  p.assets.funds.forEach(c=>{ proceeds += c.cost; });
-  p.assets.realEstate.forEach(r=>{ proceeds += (r.dp||0)*BANK_RATE; log(g,`银行以半价收购 ${p.name} 的房产「${r.nm}」`, 'bad', p.name); });
-  p.assets.business.forEach(b=>{ proceeds += (b.cost||0)*BANK_RATE; log(g,`银行以半价收购 ${p.name} 的企业「${b.nm}」`, 'bad', p.name); });
-  p.assets.lands.forEach(l=>{ proceeds += (l.cost||0)*BANK_RATE; log(g,`银行以半价收购 ${p.name} 的土地「${l.nm}」`, 'bad', p.name); });
+  p.assets.stocks.forEach(s=>{ proceeds += appraiseAsset(g,'stocks',s).value*BANK_RATE; log(g,`银行以半价收购 ${p.name} 的 ${s.symbol} 股票 ${s.shares} 股`, 'bad', p.name); });
+  p.assets.collectibles.forEach(c=>{ proceeds += appraiseAsset(g,'collectibles',c).value*BANK_RATE; });
+  p.assets.savings.forEach(c=>{ proceeds += appraiseAsset(g,'savings',c).value; });
+  p.assets.funds.forEach(c=>{ proceeds += appraiseAsset(g,'funds',c).value; });
+  p.assets.realEstate.forEach(r=>{
+    const whole=Math.round(propertyValue(g,r)/Math.max(holdingShare(r),1e-9)*BANK_RATE);
+    const plan=propertySettlement(g,r,whole);proceeds+=plan.proceeds;
+    recordPropertySale(g,p,r,plan,whole,'破产清算');
+    log(g,`银行按参考估值半价清算 ${p.name} 的房产「${r.nm}」，扣除融资 ${money(plan.debt)} 与费用 ${money(plan.fee)} 后净回款 ${money(plan.proceeds)}`,'bad',p.name);
+  });
+  p.assets.business.forEach(b=>{ proceeds += appraiseAsset(g,'business',b).value*BANK_RATE; log(g,`银行以半价收购 ${p.name} 的企业「${b.nm}」`, 'bad', p.name); });
+  p.assets.lands.forEach(l=>{ proceeds += appraiseAsset(g,'lands',l).value*BANK_RATE; log(g,`银行以半价收购 ${p.name} 的土地「${l.nm}」`, 'bad', p.name); });
   p.options.forEach(o=>log(g, `${p.name} 的期权作废`, 'bad', p.name));
   p.assets.stocks=[]; p.assets.collectibles=[]; p.assets.savings=[]; p.assets.funds=[];
   p.assets.realEstate=[]; p.assets.business=[]; p.assets.lands=[]; p.options=[];
   p.cash += proceeds;
   /* 优先还贷，不足部分银行核销 */
   const debt = p.liabs.home+p.liabs.school+p.liabs.car+p.liabs.credit+p.liabs.bank+(p.liabs.other||0);
-  const pay = Math.min(p.cash, debt);
-  const rest = debt - pay;
-  p.cash -= pay;
+  const pay = Math.min(Math.max(0,p.cash), debt);
+  const rest = debt - pay + Math.max(0,-p.cash);
+  p.cash = Math.max(0,p.cash-pay);
   p.liabs = { home:0, school:0, car:0, credit:0, bank:0, other:0, extraPay:0 };
   if(rest>0) log(g, `${p.name} 贷款缺口 ${money(rest)} 由银行核销`, 'sys', p.name);
 }
@@ -1967,6 +2096,8 @@ window.Engine = {
   /* 资产估值：市场周期 + 行情冲击 + 折旧 */
   ASSET_KINDS, marketShockOf, marketCycleOf, marketIndex, bumpMarket,
   assetBookOf, appraiseAsset, appraiseAll, stampAsset,
+  assetMarket, assetName, quoteOf, stockPrice, recordQuote, holdingId, projectDebt, holdingShare, registerProperty, valuedNetWorth,
+  propertyValue, propertySettlement, recordPropertySale, listingPlan, propertyListings, migrateAssets, priceDeal,
   /* 多头借贷识别 */
   multiBorrowingOf,
   /* 入不敷出：月现金流为负时的统一处理入口 */

@@ -337,7 +337,7 @@ window.addEventListener('load', function(){
     ok(q('#loanPurchaseContext').textContent.indexOf('¥236,500')>=0 && q('#loanPurchaseContext').textContent.indexOf('¥106,425')>=0, '待购项目总价与首付对应原卡片');
     ok(q('#loanPurchaseContext').textContent.indexOf('不计入下方已有资产估值')>=0, '明确待购商铺未计入已有抵押物');
     var owned=q('#modal [data-collateral-asset]');
-    ok(owned.textContent.indexOf('TEST 700 股')>=0 && owned.textContent.indexOf('¥15,400')>=0 && owned.textContent.indexOf('¥17,710')>=0 && owned.textContent.indexOf('¥8,855')>=0, '原截图金额逐项绑定已有资产名称与数量');
+    ok(owned.textContent.indexOf('TEST 700 股')>=0 && owned.textContent.indexOf('¥15,400')>=0 && owned.textContent.indexOf('¥7,700')>=0, '无报价股票按取得价参考，抵押金额绑定已有资产');
     ok(q('#modal details.appraisal-detail').open, '抵押物明细默认展开');
     q('#modal [data-close]').click();
     ok(title().indexOf('地铁口小商铺')>=0, '关闭贷款回到原商铺，尚未买入');
@@ -347,7 +347,7 @@ window.addEventListener('load', function(){
     var all=[].slice.call(document.querySelectorAll('#modal [data-collateral-asset]'));
     var shop=all.filter(function(el){return el.textContent.indexOf('地铁口小商铺')>=0;})[0];
     ok(all.length===2 && shop.textContent.indexOf('¥236,500')>=0 && shop.textContent.indexOf('¥106,425')>=0, '买入成功后商铺以正确成本和首付出现在抵押明细');
-    ok(shop.textContent.indexOf('45.0%')>=0, '商铺使用该资产的 45% 首付权益折算');
+    ok(shop.textContent.indexOf('减项目融资余额 ¥130,075')>=0, '商铺按本人估值减对应融资余额折算');
     ok(!q('#loanPurchaseContext'), '买入后不再显示待购状态');
     q('#modal [data-close]').click();
   });
@@ -377,6 +377,52 @@ window.addEventListener('load', function(){
     ok(p.cash===3548000 && p.assets.realEstate.length===1 && p.assets.realEstate[0].nm==='地铁口小商铺','继续卖出另一套，数组变化后仍定位正确');
     ok(!q('#modal [data-sell]'),'全部匹配房产卖完后不再提供重复出售按钮');
     mb('完成市场结算').click();
+  });
+
+  step('N 统一估值与挂牌买回', function(){return true;}, function(){
+    OUT.push('');OUT.push('=== N. 统一估值与挂牌买回 ===');
+    window.startGame({rule:'101',mode:'solo',count:1,names:['挂牌测试'],seed:42});
+    var E=window.Engine,A=window.Act,g=window.Game.g,p=g.players[0];p.cash=2000000;p.energy=100;
+    Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});
+    var r={nm:'回归商铺',cost:1000000,dp:300000,cf:1000,rent:3870,share:1,heldYears:4};
+    p.assets.realEstate=[r];E.registerProperty(g,p,r);
+    A.marketImpact(g,{kind:'realestate',prop:r.nm,price:1200000});
+    window.UiGame.onMenu('loan');
+    ok(q('#modal').textContent.indexOf('减项目融资余额 ¥700,000')>=0 && q('#modal').textContent.indexOf('抵押折算金额 ¥500,000')>=0,'贷款面板按估值扣项目融资，展示真实权益');
+    window.UI.closeModal();
+    var opt=A.marketOptions(g,{kind:'realestate',prop:r.nm,price:1200000})[0];A.marketSell(g,opt);
+    g.turnNo++;E.setPending(g,{type:'opportunity'});window.UiPending.showPending();
+    q('#modal [data-property-market]').click();
+    ok(q('#modal').textContent.indexOf(r.propertyId)>=0 && q('#modal').textContent.indexOf('¥840,000')>=0,'挂牌显示原房产编号与本次融资金额');
+    q('#modal [data-loan]').click();mb('关闭').click();
+    ok(!!q('#modal [data-buy-listing]'),'从贷款返回同一挂牌决策');
+    var cash=p.cash;q('#modal [data-buy-listing]').click();
+    ok(p.cash===cash-360000 && p.assets.realEstate.length===1 && p.assets.realEstate[0].propertyId===r.propertyId,'买回同一房产，按当前报价支付首付');
+    ok(p.assets.realEstate[0].holdingId!==r.holdingId && !g.pending,'新持仓编号、机会已结算，不会重复购买');
+    window.UiGame.saveState();window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];
+    ok(E.assetMarket(g).properties[r.propertyId].history.length===3 && E.propertyListings(g).length===0,'保存恢复保留买卖历史与已成交状态');
+  });
+
+  step('O 202 挂牌与共有购买', function(){return true;}, function(){
+    OUT.push('');OUT.push('=== O. 202 挂牌与共有购买 ===');
+    window.startGame({rule:'202',mode:'solo',count:1,names:['202挂牌'],seed:42});
+    var E=window.Engine,A=window.Act,g=window.Game.g,p=g.players[0];p.cash=2000000;p.energy=100;
+    Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});
+    var r={nm:'挂牌住宅',cost:1000000,dp:300000,cf:1000,rent:3870,share:1};p.assets.realEstate=[r];E.registerProperty(g,p,r);
+    A.marketSell(g,A.marketOptions(g,{kind:'realestate',prop:r.nm,price:1200000})[0]);g.turnNo++;
+    E.setPending(g,{type:'opportunity202',market:{kind:'stock',symbol:'TEST',price:25}});window.UiPending.showPending();
+    q('#modal [data-property-market]').click();q('#modal [data-buy-listing]').click();
+    ok(g.pending.type==='market' && E.stockPrice(g,'TEST')===25,'202 买回后保留同时抽到的行情卡');
+    mb('完成市场结算').click();ok(!g.pending,'202 行情结算后正常结束机会');
+    window.startGame({rule:'202',mode:'age',count:2,names:['共有甲','共有乙'],seed:42});
+    g=window.Game.g;p=g.players[0];var other=g.players[1],card=window.DECK_CASHFLOW.find(function(x){return x.kind==='realestate'&&x.joint;});
+    g.players.forEach(function(player){Object.keys(player.assets).forEach(function(k){player.assets[k]=[];});player.energy=100;player.cash=card.dp*.6;});
+    E.setPending(g,{type:'opportunity202',deal:card});window.UiPending.showPending();
+    var cb=q('#modal [data-jp]'),amt=q('#modal [data-jamt]');amt.value=card.dp*.5;cb.checked=true;cb.dispatchEvent(new Event('change'));
+    ok(!q('#modal [data-buy]').disabled,'双方分别买不起整套首付时，可以按各自份额联合购买');
+    q('#modal [data-buy]').click();
+    ok(p.assets.realEstate.length===1 && other.assets.realEstate.length===1 && p.assets.realEstate[0].propertyId===other.assets.realEstate[0].propertyId,'联合购买共用房产实体编号');
+    ok(p.assets.realEstate[0].holdingId!==other.assets.realEstate[0].holdingId,'各共有人的持仓与融资独立');
   });
 
   /* ---------------- 状态机驱动 ---------------- */
