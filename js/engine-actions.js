@@ -207,6 +207,26 @@ function matchProp(re, prop){
   if(!prop) return true;
   return (re.nm||'').indexOf(prop) >= 0 || (prop||'').indexOf(re.nm||'') >= 0;
 }
+/* 交易使用持久编号定位房产，不能依赖筛选顺序或出售后会变化的数组下标。
+   旧存档在首次生成行情选项时补编号；编号和序号随对局保存。 */
+function propertyId(g, re){
+  if(!re.propertyId){
+    const used = new Set(g.players.flatMap(p=>p.assets.realEstate.map(r=>r.propertyId)));
+    do{
+      g.nextPropertyId = (g.nextPropertyId || 0) + 1;
+      re.propertyId = 'property-' + g.nextPropertyId;
+    }while(used.has(re.propertyId));
+  }
+  return re.propertyId;
+}
+/* 行情卡报整套价格；cost / dp 已是本人份额，报价只在这里折算一次。 */
+function propertySale(re, wholePrice){
+  const share = re.share == null ? 1 : re.share;
+  if(!Number.isFinite(share) || share < 0 || share > 1 || !Number.isFinite(wholePrice) || wholePrice < 0) return null;
+  const price = Math.round(wholePrice * share);
+  const gain = price - (re.cost || 0);
+  return { share, price, gain, proceeds:(re.dp || 0) + gain };
+}
 function marketOptions(g, card){
   const list = [];
   if(!card) return list;
@@ -228,11 +248,14 @@ function marketOptions(g, card){
         });
         break;
       case 'realestate':
-        p.assets.realEstate.filter(re=>matchProp(re, card.prop)).forEach((re,ix)=>{
-          const profit = card.price - (re.cost||0);
-          list.push({ id:`r_${p.id}_${ix}`, pid:p.id, pname:p.name, ico:'🏠',
-            label:re.nm, sub:`买入价 ${money(re.cost)} → 售出 ${money(card.price)}（差价 ${profit>=0?'+':''}${money(profit)}）+ 首付返还 ${money(re.dp)}`,
-            kind:'realestate', prop:re.nm, price:card.price, ix });
+        p.assets.realEstate.forEach((re,ix)=>{
+          if(!matchProp(re, card.prop)) return;
+          const sale = propertySale(re, card.price);
+          if(!sale) return;
+          const assetId = propertyId(g, re);
+          list.push({ id:`r_${p.id}_${assetId}`, pid:p.id, pname:p.name, ico:'🏠',
+            label:re.nm, sub:`整套报价 ${money(card.price)} · 本人份额 ${(sale.share*100).toFixed(1)}% → 本人成交款 ${money(sale.price)}；本人购入成本 ${money(re.cost)}，首付 ${money(re.dp)}；${sale.proceeds >= 0 ? '实际收回' : '需补款'} ${money(Math.abs(sale.proceeds))}`,
+            kind:'realestate', prop:re.nm, price:sale.price, wholePrice:card.price, assetId, ix });
         });
         break;
       case 'business':
@@ -266,9 +289,11 @@ function marketOptions(g, card){
         });
         break;
       case 'disaster':
-        p.assets.realEstate.filter(re=>matchProp(re, card.target)).forEach((re,ix)=>{
-          list.push({ id:`x_${p.id}_${ix}`, pid:p.id, pname:p.name, ico:'💥',
-            label:`${re.nm} 受灾`, sub:`选择该房产承受损失（资产归零）`, kind:'disaster', ix });
+        p.assets.realEstate.forEach((re,ix)=>{
+          if(!matchProp(re, card.target)) return;
+          const assetId = propertyId(g, re);
+          list.push({ id:`x_${p.id}_${assetId}`, pid:p.id, pname:p.name, ico:'💥',
+            label:`${re.nm} 受灾`, sub:`选择该房产承受损失（资产归零）`, kind:'disaster', assetId, ix });
         });
         p.assets.lands.filter(l=>matchProp({nm:l.nm}, card.target)||card.target==='土地').forEach((l,ix)=>{
           list.push({ id:`x_${p.id}_l${ix}`, pid:p.id, pname:p.name, ico:'💥',
@@ -283,7 +308,7 @@ function marketOptions(g, card){
 /* 执行交易（内部实现，记账统一交给下面的 marketSell 包装） */
 function doMarketSell(g, opt){
   const p = g.players[opt.pid];
-  if(!p) return { ok:false };
+  if(!p || p.out || p.finished) return { ok:false };
   switch(opt.kind){
     case 'stock':{
       const s = p.assets.stocks.find(x=>x.symbol===opt.symbol);
@@ -306,12 +331,17 @@ function doMarketSell(g, opt){
       return { ok:true, text:`行权获得 ${money(gain)}` };
     }
     case 'realestate':{
-      const re = p.assets.realEstate[opt.ix]; if(!re) return { ok:false };
-      const gain = opt.price - (re.cost||0);
-      p.cash += re.dp + gain;
-      p.assets.realEstate.splice(opt.ix,1);
-      log(g, `${p.name} 出售 ${re.nm}：收回首付 ${money(re.dp)} + 差价 ${money(gain)}，共 ${money(re.dp+gain)}`, gain>=0?'good':'bad', p.name);
-      return { ok:true, text:`收回 ${money(re.dp+gain)}` };
+      const ix = opt.assetId ? p.assets.realEstate.findIndex(re=>re.propertyId===opt.assetId) : -1;
+      if(ix < 0) return { ok:false, msg:'该房产已不在名下，请重新查看行情。' };
+      const re = p.assets.realEstate[ix], sale = propertySale(re, opt.wholePrice);
+      if(!sale) return { ok:false, msg:'房产份额或报价无效。' };
+      if(sale.proceeds < 0 && !canPay(p, -sale.proceeds))
+        return { ok:false, msg:`售房款不足偿还项目融资，还需补款 ${money(-sale.proceeds)}，请先筹足现金。` };
+      p.cash += sale.proceeds;
+      p.assets.realEstate.splice(ix,1);
+      const text = `${sale.proceeds >= 0 ? '实际收回' : '补款'} ${money(Math.abs(sale.proceeds))}`;
+      log(g, `${p.name} 出售 ${re.nm}：整套报价 ${money(opt.wholePrice)} × 本人份额 ${(sale.share*100).toFixed(1)}% = ${money(sale.price)}，收回首付 ${money(re.dp)} + 差价 ${money(sale.gain)}，${text}`, sale.gain>=0?'good':'bad', p.name);
+      return { ok:true, proceeds:sale.proceeds, text };
     }
     case 'business':{
       const b = p.assets.business[opt.ix]; if(!b) return { ok:false };
@@ -352,8 +382,10 @@ function doMarketSell(g, opt){
       return { ok:true };
     }
     case 'disaster':{
-      const re = p.assets.realEstate[opt.ix]; if(!re) return { ok:false };
-      p.assets.realEstate.splice(opt.ix,1);
+      const ix = opt.assetId ? p.assets.realEstate.findIndex(re=>re.propertyId===opt.assetId) : -1;
+      if(ix < 0) return { ok:false };
+      const re = p.assets.realEstate[ix];
+      p.assets.realEstate.splice(ix,1);
       log(g, `${p.name} 的 ${re.nm} 完全损毁，资产归零`, 'bad', p.name);
       return { ok:true };
     }
@@ -368,7 +400,8 @@ function marketSell(g, opt){
     const p = g.players[opt.pid];
     if(p){
       E.bump(p, 'marketSells');
-      if(opt.price) E.bump(p, 'marketProceeds', opt.price);
+      if(r.proceeds != null) E.bump(p, 'marketProceeds', r.proceeds);
+      else if(opt.price) E.bump(p, 'marketProceeds', opt.price);
       E.milestone(g, p, `第 ${g.round} 轮行情兑现：${opt.label || opt.kind}${r.text ? '（' + r.text + '）' : ''}`, 'good');
     }
   }

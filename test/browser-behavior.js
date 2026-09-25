@@ -352,6 +352,33 @@ window.addEventListener('load', function(){
     q('#modal [data-close]').click();
   });
 
+  step('M 共有房产连续出售', function(){ return true; }, function(){
+    OUT.push('');OUT.push('=== M. 共有份额与连续卖房 ===');
+    window.startGame({rule:'202',mode:'solo',count:1,names:['卖房测试'],seed:42});
+    var g=window.Game.g,p=g.players[0];p.cash=2000000;
+    Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});
+    p.assets.realEstate=[
+      {nm:'地铁口小商铺',cost:236500,dp:106425,cf:650},
+      {nm:'长租公寓整栋（与机构共有）',cost:645000,dp:193500,cf:837,share:0.5,joint:true,partner:'机构'},
+      {nm:'长租公寓整栋',cost:1290000,dp:387000,cf:1673,share:1}
+    ];
+    window.Engine.setPending(g,{type:'market',card:{kind:'realestate',prop:'长租公寓整栋',price:1935000},
+      impact:{options:[{id:'old',pid:0,kind:'realestate',ix:0,price:1935000}],forced:[]}});
+    window.UiGame.saveState();window.UiGame.tryRestore();window.UiPending.showPending();
+    g=window.Game.g;p=g.players[0];
+    ok(q('#modal').textContent.indexOf('本人成交款 ¥967,500')>=0 && q('#modal').textContent.indexOf('实际收回 ¥516,000')>=0, '旧存档行情清单恢复为本人份额报价与回款');
+    var buttons=[].slice.call(document.querySelectorAll('#modal [data-sell]'));
+    ok(buttons.length===2,'仅列出匹配报价的两套房产');
+    buttons[0].click();
+    ok(p.cash===2516000 && p.assets.realEstate.length===2 && p.assets.realEstate[0].nm==='地铁口小商铺', '卖出共有房只入账 ¥516,000，保留不匹配的商铺');
+    buttons=[].slice.call(document.querySelectorAll('#modal [data-sell]'));
+    ok(buttons.length===1,'已卖房产从列表移除，剩余交易自动刷新');
+    buttons[0].click();
+    ok(p.cash===3548000 && p.assets.realEstate.length===1 && p.assets.realEstate[0].nm==='地铁口小商铺','继续卖出另一套，数组变化后仍定位正确');
+    ok(!q('#modal [data-sell]'),'全部匹配房产卖完后不再提供重复出售按钮');
+    mb('完成市场结算').click();
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

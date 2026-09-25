@@ -451,7 +451,10 @@ function checkEscapePrompt(g, p){
 /* ------------------------------ 市场行情 ------------------------------ */
 function showMarket(g, p, P){
   if(!P.impact) P.impact = A.marketImpact(g, P.card);
-  const card = P.card, opt = (P.impact.options||[]);
+  /* 行情冲击只执行一次，交易清单每次按当前持仓重建，避免连续出售使用旧下标。
+     旧存档里的行情选项也在这里替换为带房产编号和份额价格的新选项。 */
+  const card = P.card, opt = A.marketOptions(g, card);
+  P.impact.options = opt;
   const forced = (P.impact.forced||[]);
   const mine = opt.filter(o=>o.pid===p.id);
   const others = opt.filter(o=>o.pid!==p.id);
@@ -479,7 +482,7 @@ function showMarket(g, p, P){
         const o = opt.find(x=>String(x.id)===b.dataset.sell);
         if(!o) return;
         const r = A.marketSell(g, o);
-        if(!r.ok) return U.toast('操作失败', 'err');
+        if(!r.ok) return U.toast(r.msg || '操作失败', 'err');
         window.UiGame.renderAll();
         showMarket(g, p, g.pending);
       });
