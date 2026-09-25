@@ -324,6 +324,34 @@ window.addEventListener('load', function(){
     window.UI.closeModal(); window.Engine.clearPending(C.solo);
   });
 
+  step('L 商铺与已有抵押物对应', function(){ return true; }, function(){
+    OUT.push(''); OUT.push('=== L. 待购商铺与抵押物明细 ===');
+    window.startGame({rule:'101',mode:'solo',count:1,names:['Derek'],seed:42});
+    var g=window.Game.g,p=g.players[0],card=window.DECK_SMALL.filter(function(c){return c.id==='sm7';})[0];
+    Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});
+    p.age=26;p.cash=34505;p.assets.stocks.push({symbol:'TEST',shares:700,cost:22});
+    window.Engine.setPending(g,{type:'opportunity',deal:card});
+    window.UiPending.showPending();
+    q('#modal [data-loan]').click();
+    ok(q('#loanPurchaseContext').textContent.indexOf('地铁口小商铺')>=0, '先贷款明确显示待购商铺');
+    ok(q('#loanPurchaseContext').textContent.indexOf('¥236,500')>=0 && q('#loanPurchaseContext').textContent.indexOf('¥106,425')>=0, '待购项目总价与首付对应原卡片');
+    ok(q('#loanPurchaseContext').textContent.indexOf('不计入下方已有资产估值')>=0, '明确待购商铺未计入已有抵押物');
+    var owned=q('#modal [data-collateral-asset]');
+    ok(owned.textContent.indexOf('TEST 700 股')>=0 && owned.textContent.indexOf('¥15,400')>=0 && owned.textContent.indexOf('¥17,710')>=0 && owned.textContent.indexOf('¥8,855')>=0, '原截图金额逐项绑定已有资产名称与数量');
+    ok(q('#modal details.appraisal-detail').open, '抵押物明细默认展开');
+    q('#modal [data-close]').click();
+    ok(title().indexOf('地铁口小商铺')>=0, '关闭贷款回到原商铺，尚未买入');
+    p.cash=200000;p.energy=100;
+    window.UiPending.showPending();q('#modal [data-buy]').click();
+    window.UiGame.openLoan();
+    var all=[].slice.call(document.querySelectorAll('#modal [data-collateral-asset]'));
+    var shop=all.filter(function(el){return el.textContent.indexOf('地铁口小商铺')>=0;})[0];
+    ok(all.length===2 && shop.textContent.indexOf('¥236,500')>=0 && shop.textContent.indexOf('¥106,425')>=0, '买入成功后商铺以正确成本和首付出现在抵押明细');
+    ok(shop.textContent.indexOf('45.0%')>=0, '商铺使用该资产的 45% 首付权益折算');
+    ok(!q('#loanPurchaseContext'), '买入后不再显示待购状态');
+    q('#modal [data-close]').click();
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

@@ -704,19 +704,31 @@ function stampAsset(g, item){
   if(item && item.heldYears == null) item.heldYears = 0;
   return item;
 }
-/* 玩家全部资产的重估汇总 */
+/* 单项资产的抵押折算比例；只处理已经入账的持有资产。 */
+function collateralShareOf(kind, item){
+  const h = ((window.MARKET && window.MARKET.haircut) || {})[kind];
+  if(h === 'equity'){
+    const cost = numOr(item.cost) || numOr(item.dp);
+    return cost > 0 ? Math.min(1, Math.max(0, numOr(item.dp) / cost)) : 0;
+  }
+  return Math.max(0, Math.min(1, numOrDef(h, 0.5)));
+}
+/* 玩家全部已持有资产的重估与抵押汇总。明细、合计和授信共用同一份计算。 */
 function appraiseAll(g, p){
   const rows = [];
-  let book = 0, value = 0;
-  if(!p) return { rows, book, value, index: 1 };
+  let book = 0, value = 0, collateral = 0;
+  if(!p) return { rows, book, value, collateral, index: 1 };
   ASSET_KINDS.forEach(kind=>{
     (p.assets[kind] || []).forEach(item=>{
       const a = appraiseAsset(g, kind, item);
-      rows.push(Object.assign({ kind, item }, a));
+      const collateralShare = collateralShareOf(kind, item);
+      const net = Math.round(a.value * collateralShare);
+      rows.push(Object.assign({ kind, item, collateralShare, collateral:net }, a));
       book += a.book; value += a.value;
+      collateral += net;
     });
   });
-  return { rows, book, value, index: marketIndex(g, 'realEstate') };
+  return { rows, book, value, collateral, index: marketIndex(g, 'realEstate') };
 }
 
 /* 可抵押资产的【当前估值净值】 —— 失业 / 无收入时的应急授信依据。
@@ -725,28 +737,7 @@ function appraiseAll(g, p){
    ★ 房产与企业用【已付首付】而不是总价：还在还贷的部分不属于你，
      银行不会为不属于你的份额放款。 */
 function collateralValue(g, p){
-  if(!p) return 0;
-  const H = (window.MARKET && window.MARKET.haircut) || {};
-  let v = 0;
-  ASSET_KINDS.forEach(kind=>{
-    (p.assets[kind] || []).forEach(item=>{
-      const ap = appraiseAsset(g, kind, item);
-      const h  = H[kind];
-      /* 'equity'：房产按「已付首付占市价的比例」折算权益 ——
-         还在还贷的部分不属于你，银行不会为不属于你的份额放款。
-         用比例而不是固定折扣的好处：房价上涨时你的权益份额同步上涨，
-         这是现实中「房子升值 → 可贷额度跟着提高」的由来。 */
-      let share;
-      if(h === 'equity'){
-        const cost = numOr(item.cost) || numOr(item.dp);
-        share = cost > 0 ? Math.min(1, numOr(item.dp) / cost) : 1;
-      } else {
-        share = numOrDef(h, 0.5);
-      }
-      v += ap.value * share;
-    });
-  });
-  return Math.round(v);
+  return appraiseAll(g, p).collateral;
 }
 
 /* 当前适用的【月度结余】—— 两圈各用各的账本：
@@ -844,7 +835,8 @@ function creditProfile(g, p){
 
   /* ① 主体资格：第一还款来源，或可抵押的资产。
      两者都没有才是真的借不到 —— 失业但有房 / 有存单的人，现实中仍有抵押融资渠道。 */
-  const collateral   = collateralValue(g, p);
+  const appraisal    = appraiseAll(g, p);
+  const collateral   = appraisal.collateral;
   const byCollateral = Math.round(collateral * numOrDef(C.collateralRate, 0.5));
   if(monthlyIncome <= 0 && byCollateral <= 0){
     reasons.push(jobless
@@ -906,7 +898,7 @@ function creditProfile(g, p){
   }
   return { ok: reasons.length === 0 && available > 0, score, grade,
            limit, used, available, byIncome, byDTI, byCollateral, collateral,
-           incomeScore, multi, appraisal: appraiseAll(g, p),
+           incomeScore, multi, appraisal,
            gross: Math.max(incomeCap, assetCap), want:0,
            dtiNow, maxDTI, monthlyIncome, annualIncome, rate,
            bankrupts, deficitMonths, jobless, retired, banLeft, reasons };

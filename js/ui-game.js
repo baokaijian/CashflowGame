@@ -1082,6 +1082,8 @@ const MULTI_TONE = { '正常':'var(--green)', '关注':'var(--accent)', '较集�
 function openLoanCenter(key, preset){
   const g = Game.g, p = E.current(g);
   const fromCard = !!g.pending;    /* 从卡片里的「先贷款 / 贷款补足」进来时，本轮卡片还未结算 */
+  const purchase = fromCard && g.pending.deal && g.pending.deal.kind === 'realestate'
+    ? g.pending.deal : null;
   if(key !== undefined) LoanUI.key = key;
   if(LoanUI.key && E.loanInfo(p, LoanUI.key).balance <= 0) LoanUI.key = null;
   /* 统一退路：贷款弹层是从卡片里顶上来的，关闭后必须把那张卡片还给玩家。
@@ -1124,10 +1126,20 @@ function openLoanCenter(key, preset){
 
       ${loanOpBlock(g, p)}
 
+      ${purchase ? `<div class="sec" id="loanPurchaseContext">
+        <div class="sec__title">待购房产 · ${esc(purchase.nm)}</div>
+        <div class="rowlist">
+          <div class="rowlist__row"><span>房产总价</span><b>${money(purchase.cost)}</b></div>
+          <div class="rowlist__row"><span>项目首付（全额参与）</span><b>${money(purchase.dp)}</b></div>
+          <div class="rowlist__row"><span>项目融资（已计入月现金流）</span><b>${money(Math.max(0, purchase.cost - purchase.dp))}</b></div>
+        </div>
+        <p class="hint">这项房产尚未买入，<b>不计入下方已有资产估值</b>。本次借款按你的收入或已持有资产核定，用于补足首付；买入成功后才会新增对应资产。项目融资成本已从租金中扣除，不会作为本次借款再次发放。</p>
+      </div>` : ''}
       <div class="sec__title" style="margin-top:18px">信用贷借款</div>
       <p class="hint">信用贷随借随还，月息 <b>${(E.loanType('bank').rate*100).toFixed(1)}%</b>（年化约 ${(E.loanType('bank').rate*12*100).toFixed(0)}%）。
-        <b>额度由收入核定</b>：银行同时看「负债收入比 ≤ ${(cp.maxDTI*100).toFixed(0)}%」与
-        「年收入 × ${(window.CREDIT && window.CREDIT.incomeMult || 1.2).toFixed(1)} 倍」，取较小者再乘信用系数。</p>
+        收入授信同时看「负债收入比 ≤ ${(cp.maxDTI*100).toFixed(0)}%」与
+        「年收入 × ${(window.CREDIT && window.CREDIT.incomeMult || 1.2).toFixed(1)} 倍」，取较小者再乘信用系数；
+        已有资产也可提供抵押授信，最终取两条通道中的较高额度，扣除已借余额。</p>
       <div class="rowlist">
         <div class="rowlist__row"><span>信用评级</span>
           <b style="color:${cp.ok ? 'var(--green)' : 'var(--red)'}">${cp.grade.key} · ${cp.grade.label}
@@ -1157,7 +1169,8 @@ function openLoanCenter(key, preset){
         短期反复借还往往意味着「借新还旧」，风控会据此降额甚至拒贷。
         房贷 / 车贷 / 助学贷款属于正常负债，<b>不计入</b>多头。</p>
 
-      <div class="sec__title" style="margin-top:16px">抵押物估值（动态）</div>
+      <div class="sec__title" style="margin-top:16px">已持有资产的抵押估值（合计）</div>
+      <p class="hint">仅统计已经买入或开局获得的资产，包含房产及可折算的金融、经营资产；待购项目不在其中。每项资产的对应金额见下方明细。</p>
       <div class="rowlist">
         <div class="rowlist__row"><span>账面成本</span><b>${money(cp.appraisal.book)}</b></div>
         <div class="rowlist__row"><span>当前估值</span>
@@ -1165,18 +1178,17 @@ function openLoanCenter(key, preset){
           <span class="muted">${cp.appraisal.book > 0 ? ((cp.appraisal.value / cp.appraisal.book - 1) * 100 >= 0 ? '+' : '') + ((cp.appraisal.value / cp.appraisal.book - 1) * 100).toFixed(1) + '%' : '—'}</span></b></div>
         <div class="rowlist__row"><span>可抵押净值</span><b class="money">${money(cp.collateral)}</b></div>
         <div class="rowlist__row"><span>折算规则</span>
-          <b><span class="muted">房产按已付首付的权益比例；其余按处置难度 ${Math.round(((window.MARKET && window.MARKET.haircut && window.MARKET.haircut.business) || 0.4) * 100)}%—100%</span></b></div>
+          <b><span class="muted">房产按本人首付的权益比例；其他资产按各类折算比例，见下方明细</span></b></div>
       </div>
-      <p class="hint">银行按抵押物的<b>当前市价</b>放贷，而市价会随行情周期涨跌、资产本身也会折旧
-        （房产不折旧，企业与设备约 4%/年，土地长期微涨）。
-        <b>房价下行时你的可贷额度会一起缩水</b> —— 这正是现实中「抵押物不足被要求补保证金」的由来。</p>
-      ${cp.appraisal.rows.length ? `<details class="appraisal-detail">
-        <summary>查看 ${cp.appraisal.rows.length} 项资产的重估明细</summary>
+      <p class="hint">当前估值随游戏行情与持有年数变化。抵押折算金额合计再乘 ${Math.round((window.CREDIT.collateralRate || 0.5)*100)}% 授信率和信用系数，才是资产通道的额度，不等于可直接借到的现金。</p>
+      ${cp.appraisal.rows.length ? `<details class="appraisal-detail" open>
+        <summary>${cp.appraisal.rows.length} 项已持有资产 · 逐项对应</summary>
         <div class="rowlist">
-          ${cp.appraisal.rows.map(r => `<div class="rowlist__row">
-            <span>${esc(r.item.nm || r.item.symbol || '资产')}</span>
-            <span><span class="muted">账面 ${money(r.book)} × ${r.index.toFixed(2)}${r.years > 0 ? ' × 折旧 ' + r.decay.toFixed(2) : ''}</span>
-            <b>${money(r.value)}</b></span>
+          ${cp.appraisal.rows.map(r => `<div class="rowlist__row" data-collateral-asset>
+            <span><b>${esc(E.assetLabel(r.item) || '资产')}</b>
+              ${r.kind === 'realEstate' ? `<br><span class="muted">本人首付 ${money(r.item.dp)}${r.item.joint ? ` · 持有 ${Math.round((r.item.share || 0)*100)}% 份额，账面与估值仅计本人份额` : ''}</span>` : ''}</span>
+            <span><span class="muted">账面成本 ${money(r.book)}<br>当前估值 ${money(r.value)}<br>抵押折算比例 ${(r.collateralShare*100).toFixed(1)}%</span>
+            <br><b>抵押折算金额 ${money(r.collateral)}</b></span>
           </div>`).join('')}
         </div>
       </details>` : '<p class="hint">目前没有可抵押的资产。</p>'}
