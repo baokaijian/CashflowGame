@@ -289,16 +289,59 @@ function energyRecover(g, p){
 }
 /* 每回合「持有」维护精力：金融资产几乎不需要打理，房产 / 企业 / 持仓期权才持续占用时间。
    这正是「长期持有指数基金」与「自己开店」在真实世界里最本质的差别之一。 */
-function energyUpkeep(p){
-  const U = window.ENERGY.upkeep;
-  let v = 0;
-  v += (p.assets.realEstate||[]).length * U.realEstate;
-  v += (p.assets.business||[]).length   * U.business;
-  v += (p.assets.ftBusiness||[]).length * U.ftBusiness;
-  v += (p.options||[]).length           * U.option;
-  v += (p.shorts||[]).length            * U.short;
-  return v;
+/* 参数随持仓保存；旧档从原卡名称 / tier 恢复，无法识别时使用一般经营。
+   不使用随机数，反复渲染、恢复和交易不会重抽经营属性。 */
+function operationProfile(kind,item){
+  if(item.operating) return item.operating;
+  const cfg=window.OPERATIONS, profiles=cfg.profiles;
+  const cards=[...(window.DECK_SMALL||[]),...(window.DECK_BIG||[]),...(window.DECK_CAPGAIN||[]),
+    ...(window.DECK_CASHFLOW||[]),...(window.FT_BUSINESSES||[])];
+  const name=assetName(item).replace(/ · 特许经营$/, '');
+  const source=cards.find(c=>c.nm===name && (kind==='ftBusiness' ? c.id===item.bizId : c.kind===(kind==='realEstate'?'realestate':kind)));
+  const id=item.opProfile || (source && source.opProfile) || (kind==='realEstate'
+    ? (item.tier==='park'?'parking':item.tier==='com'?'commercial':name.includes('老破小')?'agingHousing':'housing')
+    : (['self','brand','equity'].includes(item.tier)?item.tier:'standard'));
+  return Object.assign({id},profiles[id]||profiles.standard);
 }
+function stampOperation(kind,item){
+  if(['realEstate','business','ftBusiness'].includes(kind) && !item.operating)
+    item.operating=operationProfile(kind,item);
+  return item;
+}
+function managementFee(item){
+  return Math.round(Math.max(0,numOr(item.cf))*numOr(item.orgContract && item.orgContract.fee));
+}
+function assetCashflow(item){ return numOr(item.cf)-managementFee(item); }
+/* 同一物理房产的多笔份额只算一个项目；规模优惠限于同类经营。
+   按平均工作量计算，数组顺序不影响精力；第六项起另加协调负担。 */
+function operatingSummary(p){
+  const cfg=window.OPERATIONS, projects=new Map();
+  ['realEstate','business','ftBusiness'].forEach(kind=>(p.assets[kind]||[]).forEach((item,i)=>{
+    const op=operationProfile(kind,item), share=kind==='realEstate'?holdingShare(item):1;
+    const key=kind+':'+(kind==='realEstate'&&item.propertyId?item.propertyId:i);
+    const row=projects.get(key)||{kind,group:op.group,label:op.label,share:0,work:0};
+    row.share+=share;
+    row.work+=share*op.upkeep*numOrDef(item.orgContract && item.orgContract.upkeep,1);
+    projects.set(key,row);
+  }));
+  const groups=new Map();
+  projects.forEach(row=>{
+    if(row.share<=0) return;
+    const work=row.work/row.share*(row.kind==='realEstate'?0.25+0.75*Math.min(1,row.share):1);
+    const key=row.kind+':'+row.group, group=groups.get(key)||{label:row.label,count:0,base:0};
+    group.count++;group.base+=work;groups.set(key,group);
+  });
+  const rows=[...groups.values()].map(row=>{
+    const scaled=row.base/row.count*(1+cfg.scaleDiscount*(row.count-1));
+    return Object.assign(row,{saving:row.base-scaled,upkeep:scaled});
+  });
+  const count=projects.size, overload=cfg.overload*Math.pow(Math.max(0,count-cfg.capacity),2);
+  const trading=(p.options||[]).length*window.ENERGY.upkeep.option+(p.shorts||[]).length*window.ENERGY.upkeep.short;
+  return {rows,count,base:rows.reduce((s,r)=>s+r.base,0),saving:rows.reduce((s,r)=>s+r.saving,0),
+    overload,trading,total:Math.ceil(rows.reduce((s,r)=>s+r.upkeep,0)+overload+trading-1e-9)};
+}
+function energyUpkeep(p){ return operatingSummary(p).total; }
+
 function isJobless(p){ return numOr(p.joblessNeed) > 0 && numOr(p.joblessProgress) < numOr(p.joblessNeed); }
 /* 旧档没有出生年份：保留原人数与支出，从迁移年龄起计龄，不猜测过去。
    旧档缴费历史同样缺失，以已度过的退休前年数作兼容估计并明确标记。 */
@@ -571,7 +614,7 @@ function finance(p){
     salary:      p.salary || 0,
     interest:    (p.assets.savings||[]).reduce((s,x)=>s+x.interest,0),
     dividend:    (p.assets.funds||[]).reduce((s,x)=>s+x.interest,0),
-    realEstate:  (p.assets.realEstate||[]).reduce((s,x)=>s+x.cf,0),   /* 联合购买时 cf 已按出资比例切分 */
+    realEstate:  (p.assets.realEstate||[]).reduce((s,x)=>s+assetCashflow(x),0),   /* 联合购买时 cf 已按出资比例切分 */
     business:    (p.assets.business||[]).reduce((s,x)=>s+x.cf,0),
     ftBusiness:  (p.assets.ftBusiness||[]).reduce((s,x)=>s+x.cf,0)
   };
@@ -774,6 +817,7 @@ function marketAge(g){ return Math.max(0,...g.players.map(p=>ageOf(g,p)-g.startA
 function projectDebt(item){ return Math.max(0, numOrDef(item.projectDebt, assetBookOf('realEstate',item) - numOr(item.dp))); }
 function holdingShare(item){ return Math.max(0, Math.min(1, numOrDef(item.share,1))); }
 function registerProperty(g, p, item, propertyId){
+  stampOperation('realEstate',item);
   const m=assetMarket(g), share=holdingShare(item);
   if(!item.propertyId){
     const used=new Set(g.players.flatMap(player=>player.assets.realEstate.map(r=>r.propertyId)));
@@ -790,9 +834,10 @@ function registerProperty(g, p, item, propertyId){
       referenceRevision:m.next,
       rent:share>0 ? Math.round(numOrDef(item.rent,numOr(item.cf)+item.projectDebt*item.financingRate)/share) : 0,
       downRate:whole>0 && share>0 ? numOr(item.dp)/(whole*share) : 1,
-      createdAge:ageOf(g,p)-numOr(item.heldYears),history:[]};
+      operating:Object.assign({},item.operating),createdAge:ageOf(g,p)-numOr(item.heldYears),history:[]};
   }
   const prop=m.properties[item.propertyId];
+  if(!prop.operating) prop.operating=Object.assign({},item.operating);
   if(!prop.history.some(h=>h.holdingId===item.holdingId)){
     const record={type:item.legacyAsset?'存档登记':'买入',propertyId:prop.id,
       holdingId:item.holdingId,player:p.id,round:g.round,age:ageOf(g,p),share,cost:item.cost,
@@ -835,13 +880,14 @@ function listingPlan(g,listing){
   const rent=Math.round(prop.rent*listing.share),rate=numOrDef(window.YIELD && window.YIELD.mortgageRate,0.0041);
   return {listingId:listing.id,propertyId:prop.id,nm:prop.nm,share:listing.share,cost,dp,debt,fee,
     need:dp+fee,rent,cf:rent-Math.round(debt*rate),rate,
-    heldYears:listing.heldYears+Math.max(0,marketAge(g)-numOr(listing.listedAge)),history:prop.history};
+    operating:prop.operating,heldYears:listing.heldYears+Math.max(0,marketAge(g)-numOr(listing.listedAge)),history:prop.history};
 }
 function propertyListings(g){ return assetMarket(g).listings.map(l=>listingPlan(g,l)).filter(Boolean); }
 function migrateAssets(g){
   const isLegacy=!g.assetMarket;
   assetMarket(g);
   g.players.forEach(p=>{
+    ASSET_KINDS.forEach(kind=>(p.assets[kind]||[]).forEach(item=>stampOperation(kind,item)));
     p.assets.realEstate.forEach(item=>{
       if(isLegacy) item.legacyAsset=true;
       registerProperty(g,p,item);
@@ -877,7 +923,8 @@ function appraiseAsset(g, kind, item){
   const book  = assetBookOf(kind, item);
   const index = marketIndex(g, kind);
   const held  = Math.max(0, numOr(item && item.heldYears));
-  const decay = Math.pow(1 - numOrDef(D[kind], 0), held);
+  const op=['business','ftBusiness'].includes(kind)?operationProfile(kind,item):null;
+  const decay = op ? Math.max(op.floor,Math.pow(1-op.decay,held)) : Math.pow(1 - numOrDef(D[kind], 0), held);
   const quote=quoteOf(g,kind,item);
   let value=Math.max(0,Math.round(book*index*decay)),source='周期估算';
   if(kind==='stocks'){value=Math.round(numOrDef(stockPrice(g,item.symbol),item.cost)*item.shares);source=quote?quote.source:'暂无行情，按已有取得价参考';}
@@ -891,7 +938,8 @@ function appraiseAsset(g, kind, item){
 }
 /* 给资产记录买入轮次和持有年数；持有年数只在持有者经过结算日时增加。
    ★ 统一在这里打标（而不是在各个 push 点手写），避免漏掉某条买入路径。 */
-function stampAsset(g, item){
+function stampAsset(g, item, kind){
+  if(item && kind) stampOperation(kind,item);
   if(item && item.buyRound == null) item.buyRound = numOr(g && g.round) || 1;
   if(item && item.heldYears == null) item.heldYears = 0;
   return item;
@@ -1193,7 +1241,7 @@ function newGame(cfg){
       /* 组合卡里的资产在开局就已持有 → 买入轮次记为第 1 轮（折旧从 20 岁起算）。
          不标记的话，它们会在玩家第一次买入任何资产时被误标成「当前轮次」，
          折旧年限凭空少算。 */
-      ASSET_KINDS.forEach(k => (p.assets[k] || []).forEach(it => stampAsset(g, it)));
+      ASSET_KINDS.forEach(k => (p.assets[k] || []).forEach(it => stampAsset(g, it, k)));
     }
     refreshLife(g, p);                    /* 按年龄推导工资 / 税负 / 支出系数 / 赡养支出 */
     p.energy = energyMax(g, p);           /* 开局精力满格 */
@@ -2156,6 +2204,7 @@ window.Engine = {
   ensureFamily, familySummary, addChild, settleFamilyYear,
   curveAt, salaryStageOf, lifeStageOf, refreshLife, refreshAllLife, refreshAllEnergy,
   /* 精力：上限与恢复随年龄衰减，持有资产持续消耗，归零触发健康危机 */
+  operationProfile, stampOperation, managementFee, assetCashflow, operatingSummary,
   energyMax, energyRecover, energyUpkeep, spendEnergy, tickEnergy, healthCrisis,
   /* 失业求职期 / 公益捐赠税前扣除 / 银翅膀 */
   isJobless, startJobless, settleAtBreak, jobHunt, donationRefund, useWing,

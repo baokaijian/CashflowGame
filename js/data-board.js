@@ -88,13 +88,13 @@ window.DREAMS = [
 
 /* ---------- 财务自由圈企业（绿色格：只能用现金购买，不允许贷款） ---------- */
 window.FT_BUSINESSES = [
-  { id:'b1', nm:'连锁奶茶品牌',  ico:'🧋', cost:215000, cf:2329  },
-  { id:'b2', nm:'连锁火锅店',    ico:'🍲', cost:322500, cf:3494  },
-  { id:'b3', nm:'新能源充电站',  ico:'🔌', cost:430000, cf:4658 },
-  { id:'b4', nm:'物流快递公司',  ico:'🚚', cost:537500, cf:5823 },
-  { id:'b5', nm:'商业综合体',    ico:'🏬', cost:752500, cf:8152 },
-  { id:'b6', nm:'科技公司',      ico:'💻', cost:1075000, cf:11646 },
-  { id:'b7', nm:'新能源整车厂',  ico:'🏭', cost:1720000, cf:18633 }
+  { id:'b1', opProfile:'brand', nm:'连锁奶茶品牌',  ico:'🧋', cost:215000, cf:2329  },
+  { id:'b2', opProfile:'brand', nm:'连锁火锅店',    ico:'🍲', cost:322500, cf:3494  },
+  { id:'b3', opProfile:'equipment', nm:'新能源充电站',  ico:'🔌', cost:430000, cf:4658 },
+  { id:'b4', opProfile:'self', nm:'物流快递公司',  ico:'🚚', cost:537500, cf:5823 },
+  { id:'b5', opProfile:'equity', nm:'商业综合体',    ico:'🏬', cost:752500, cf:8152 },
+  { id:'b6', opProfile:'technology', nm:'科技公司',      ico:'💻', cost:1075000, cf:11646 },
+  { id:'b7', opProfile:'equipment', nm:'新能源整车厂',  ico:'🏭', cost:1720000, cf:18633 }
 ];
 
 /* ---------- 财务自由圈特殊格费用 ---------- */

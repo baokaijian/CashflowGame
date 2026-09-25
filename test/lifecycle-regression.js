@@ -29,7 +29,7 @@ function handleCard(g, p, P, seen) {
     case 'deficit': {
       seen.deficit++;
       const r = A.payDeficit(g, P.amount);
-      if (!r.ok) { E.declareBankruptcy(g, p); return true; }
+      if (!r.ok) { E.declareBankruptcy(g, p); E.clearPending(g); return true; }
       /* 缺口补上后要回到落格事件继续结算 —— 与界面 showDeficit 的行为一致 */
       const landed = P.landed;
       E.clearPending(g);
@@ -82,7 +82,7 @@ function handleCard(g, p, P, seen) {
 
 function playOne(rule, count, cap) {
   const names = ['甲','乙','丙','丁','戊','己'].slice(0, count);
-  const g = E.newGame({ rule, mode: 'age', count, names });
+  const g = E.newGame({ rule, mode: 'age', count, names, seed:20260926+Number(rule)+count });
   let turns = 0, negCash = 0, nanSeen = 0, stuck = 0, energyNeg = 0, rehire = 0;
   const seen = { jobless: 0, crisis: 0, deficit: 0, buy: 0, buyFail: 0, downsized: 0, doodad: 0, market: 0 };
 

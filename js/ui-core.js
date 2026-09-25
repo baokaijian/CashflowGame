@@ -220,14 +220,25 @@ function renderIncomeBase(p){
 function assetLine(nm, meta){
   return `<div class="asset"><span class="asset__t">${esc(nm)}</span><span class="asset__m">${meta}</span></div>`;
 }
+function operationMeta(kind,item){
+  const op=E.operationProfile(kind,item),contract=item.orgContract;
+  return `${esc(op.label)} · 基础管理 ${op.upkeep} 精力/回合`+
+    (kind==='realEstate'?'':` · 年折旧 ${(op.decay*100).toFixed(1)}% · 残值基准 ${Math.round(op.floor*100)}%`)+
+    (contract?` · ${esc(contract.name)} · 管理费 ${money(E.managementFee(item))}/月（正现金流 ${Math.round(contract.fee*100)}%）`:'');
+}
+function operatingPreview(p,kind,item){
+  const assets=Object.assign({},p.assets,{[kind]:[...(p.assets[kind]||[]),item]});
+  const before=E.energyUpkeep(p),after=E.energyUpkeep(Object.assign({},p,{assets}));
+  return `<span data-operating-preview class="hint" style="display:block">${operationMeta(kind,item)}<br>买入后组合维护：${before} → <b>${after} 精力/回合</b>（已计同类管理节省与扩张负担）</span>`;
+}
 function renderAssets(p, g){
   g=g || (window.Game && window.Game.g);
   const a = p.assets;
   const blocks = [];
   if(a.stocks.length) blocks.push(a.stocks.map(s=>assetLine(`${s.symbol} ${s.shares} 股`, `成本 ${money(s.cost)}/股 · ${g?`参考市值 ${money(E.appraiseAsset(g,'stocks',s).value)}`:`账面 ${money(s.shares*s.cost)}`}`)).join(''));
-  if(a.realEstate.length) blocks.push(a.realEstate.map(r=>assetLine(r.nm, `首付 ${money(r.dp)} · 本人购入总价 ${money(r.cost)} · 项目融资余额 ${money(E.projectDebt(r))}${g?` · 本人参考估值 ${money(E.propertyValue(g,r))}`:''} · 房租净收入 ${money(r.cf)}/月 · 编号 ${r.propertyId||'待登记'}`)).join(''));
-  if(a.business.length) blocks.push(a.business.map(b=>assetLine(b.nm, `投入 ${money(b.cost)} · +${money(b.cf)}/月`)).join(''));
-  if(a.ftBusiness.length) blocks.push(a.ftBusiness.map(b=>assetLine(b.nm, `投入 ${money(b.cost)} · +${money(b.cf)}/月`)).join(''));
+  if(a.realEstate.length) blocks.push(a.realEstate.map(r=>assetLine(r.nm, `首付 ${money(r.dp)} · 本人购入总价 ${money(r.cost)} · 项目融资余额 ${money(E.projectDebt(r))}${g?` · 本人参考估值 ${money(E.propertyValue(g,r))}`:''} · 房租净收入 ${money(E.assetCashflow(r))}/月 · ${operationMeta('realEstate',r)} · 编号 ${r.propertyId||'待登记'}`)).join(''));
+  if(a.business.length) blocks.push(a.business.map(b=>assetLine(b.nm, `投入 ${money(b.cost)} · +${money(b.cf)}/月 · ${operationMeta('business',b)}`)).join(''));
+  if(a.ftBusiness.length) blocks.push(a.ftBusiness.map(b=>assetLine(b.nm, `投入 ${money(b.cost)} · +${money(b.cf)}/月 · ${operationMeta('ftBusiness',b)}`)).join(''));
   if(a.savings.length) blocks.push(a.savings.map(s=>assetLine(s.nm, `本金 ${money(s.cost)} · +${money(s.interest)}/月`)).join(''));
   if(a.funds.length) blocks.push(a.funds.map(s=>assetLine(s.nm, `本金 ${money(s.cost)} · +${money(s.interest)}/月`)).join(''));
   if(a.lands.length) blocks.push(a.lands.map(l=>assetLine(l.nm, `取得成本 ${money(l.cost)}`)).join(''));
@@ -235,7 +246,8 @@ function renderAssets(p, g){
   if(p.options.length) blocks.push(p.options.map(o=>assetLine(o.label, `行权价 ${money(o.strike)} · 权利金 ${money(o.premium)}/股 · ${o.expiresAt - 0 > 0 ? '剩余 ≤3 回合' : ''}`)).join(''));
   if(p.shorts && p.shorts.length) blocks.push(p.shorts.map(s=>assetLine(`做空 ${s.symbol} ${s.shares} 股`, `建仓价 ${money(s.price)} · 出现报价强制平仓`)).join(''));
   if(!blocks.length) return '<p class="muted">暂无资产。</p>';
-  return `<div class="rowlist">${blocks.join('')}</div>`;
+  const ops=E.operatingSummary(p);
+  return `<div data-operating-summary class="hint">组合管理：${ops.count} 项经营资产 · 同类节省 ${ops.saving.toFixed(1)} · 扩张协调 +${ops.overload.toFixed(1)} · 总维护 <b>${ops.total} 精力/回合</b>（含期权和做空）</div><div class="rowlist">${blocks.join('')}</div>`;
 }
 /* 负债表：除了余额，一并给出年供与剩余【年数】——
    ★ 期限一律以「年」呈现：游戏里每个结算日 = 一年，一次结算按「结算年」折算 12 个月，
@@ -389,8 +401,7 @@ function renderSetupRules(){
         <li><b>${window.SOLO.retireAge} 岁起工资停发</b>，按缴费年数改领养老金；${window.FAMILY.pensionFullYears} 年达到基础工资
           ${Math.round(window.SOLO.pensionRatio * 100)}% 的上限，养老金免征个税；退休基础医疗随年龄增加</li>
         <li>没有其他玩家：遇到投资机会<b>只能「买入」或「放弃」</b>（没有转让给他人 / 机构这条路）；
-          202 大额房产可与<b>机构合伙人</b>联合购买（机构出
-          ${Math.round(window.SOLO.partnerShare * 100)}% 首付、分走同比例现金流）</li>
+          202 大额房产可选择<b>共担资本 / 资金后盾 / 运营管家</b>，比较出资、净收益与管理精力</li>
       </ul>
       <p class="rules-note"><b>不排名次</b>，按「什么时候做到的」评人生评级 ——
         <b>${window.SOLO.winAge} 岁前</b>出圈并实现梦想＝<b>人生赢家（S）</b>；
@@ -491,6 +502,6 @@ function activeTab(name){
 }
 
 window.UI = { $, $$, esc, money, pct, setTheme, initTheme, toggleTheme, toast, openModal, closeModal, requestClose,
-  confirmBox, renderIncome, renderAssets, renderLiabs, assetLine, line, initSetup, renderNames, applyModeUI, Setup,
+  confirmBox, operationMeta, operatingPreview, renderIncome, renderAssets, renderLiabs, assetLine, line, initSetup, renderNames, applyModeUI, Setup,
   initChrome, closeDrawer, activeTab, energyBar, escapeBar, lifeChips, renderSetupRules, paydayNotice };
 })();

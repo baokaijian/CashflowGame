@@ -97,12 +97,12 @@ function buyDeal(g, card, exec){
       log(g, `${p.name} 认购 ${card.nm}，支出 ${money(cost)}，月现金流 +${money(card.interest)}`, 'good', p.name);
       break;
     case 'business':
-      p.assets.business.push({ nm:card.nm, cost, cf:card.cf });
+      p.assets.business.push({ nm:card.nm, opProfile:card.opProfile, tier:card.tier, cost, cf:card.cf });
       log(g, `${p.name} 投资 ${card.nm}，支出 ${money(cost)}，月现金流 +${money(card.cf)}`, 'good', p.name);
       break;
     case 'realestate':{
       const share = 1; // 份额买入走机构 / 联合购买 / 再挂牌专用入口。
-      p.assets.realEstate.push({ nm:card.nm, dp:cost, cost:card.cost, cf:Math.round(card.cf*share), rent:card.rent||0, share, joint:!!(exec.partners&&exec.partners.length) });
+      p.assets.realEstate.push({ nm:card.nm, opProfile:card.opProfile, tier:card.tier, dp:cost, cost:card.cost, cf:Math.round(card.cf*share), rent:card.rent||0, share, joint:!!(exec.partners&&exec.partners.length) });
       E.registerProperty(g,p,p.assets.realEstate[p.assets.realEstate.length-1]);
       log(g, `${p.name} 买入 ${card.nm}，首付 ${money(cost)}，月现金流 +${money(Math.round(card.cf*share))}`, 'good', p.name);
       break;
@@ -125,7 +125,7 @@ function buyDeal(g, card, exec){
      addStock / addCollectible 两个辅助函数也在此覆盖之内，漏不掉。
      stampAsset 只标记尚无 buyRound 的项，所以不会覆盖已持有资产的原始轮次。 */
   ['stocks','collectibles','lands','savings','business','realEstate']
-    .forEach(k => (p.assets[k] || []).forEach(it => E.stampAsset(g, it)));
+    .forEach(k => (p.assets[k] || []).forEach(it => E.stampAsset(g, it, k)));
 
   const cfAdd = Math.round((card.cf || 0) * (exec.share || 1));
   E.bump(p, 'dealsBought'); E.bump(p, 'investTotal', cost); E.bump(p, 'cfGained', cfAdd);
@@ -574,7 +574,7 @@ function buyFTBusiness(g, bizId){
   const en1 = needEnergy(p, energyCost('ftBusiness'), `购入企业「${biz.nm}」`);
   if(!en1.ok) return { ok:false, msg:en1.msg };
   p.cash -= biz.cost;
-  p.assets.ftBusiness.push(E.stampAsset(g, { nm:biz.nm, cost:biz.cost, cf:biz.cf, bizId:biz.id }));
+  p.assets.ftBusiness.push(E.stampAsset(g, { nm:biz.nm, opProfile:biz.opProfile, cost:biz.cost, cf:biz.cf, bizId:biz.id }, 'ftBusiness'));
   p.ftGain = (p.ftGain||0) + biz.cf;
   E.bump(p, 'ftBusinesses'); E.bump(p, 'investTotal', biz.cost); E.bump(p, 'cfGained', biz.cf);
   E.milestone(g, p, `第 ${g.round} 轮在财务自由圈购入企业「${biz.nm}」，月现金流 +${money(biz.cf)}（累计 ${money(p.ftGain)} / ${money(E.empireTarget())}）`, 'good');
@@ -593,7 +593,7 @@ function openFranchise(g, bizId){
   if(!en2.ok) return { ok:false, msg:en2.msg };
   p.cash -= dp;
   const extraCf = Math.round(owned.cf*0.5);
-  p.assets.ftBusiness.push(E.stampAsset(g, { nm:owned.nm+' · 特许经营', cost:dp, cf:extraCf, bizId, franchise:true }));
+  p.assets.ftBusiness.push(E.stampAsset(g, { nm:owned.nm+' · 特许经营', operating:Object.assign({},E.operationProfile('ftBusiness',owned)), cost:dp, cf:extraCf, bizId, franchise:true }, 'ftBusiness'));
   p.ftGain = (p.ftGain||0) + extraCf;
   E.bump(p, 'ftBusinesses'); E.bump(p, 'investTotal', dp); E.bump(p, 'cfGained', extraCf);
   E.milestone(g, p, `第 ${g.round} 轮为「${owned.nm}」开设特许经营，额外现金流 +${money(extraCf)}（累计 ${money(p.ftGain)} / ${money(E.empireTarget())}）`, 'good');
@@ -757,42 +757,37 @@ function huntJob(g){ return E.jobHunt(g, E.current(g)); }
      所以单人模式遇到机会只能【买入】或【放弃】。
      多人模式的 sellOpportunity（卖给其他玩家）照常保留。 */
 
-/* 与机构合伙人联合购买（202 大额房产的「联合购买」在单人下的等价形式）。
-   机构出 partnerShare 的首付、分走同比例的现金流 —— 现实里找投资人搭伙就是这样：
-   你出小头、让渡一部分收益，换来「买得起」。
-   精力按玩家自己承担的比例扣（跑流程的仍是他，所以不低于 partnerEnergy 那一档）。 */
-/* 机构合伙的分账：总首付 / 玩家出资 / 玩家占比 / 玩家月现金流。
-   界面上的「你自己出资」直接读这里，保证与实扣一致。 */
-function orgPartnerPlan(g, card){
-  const S = window.SOLO;
-  const total = dealCost(g, card, 1);
-  const orgShare = S.partnerShare || 0.5;
-  const share = 1 - orgShare;                        /* 玩家自己占的比例 */
-  return { total, orgShare, share, mine: Math.round(total * share),
-           cf: Math.round((card.cf || 0) * share),
-           energy: Math.max(1, Math.round(dealEnergy(card) * (S.partnerEnergy || 0.6))) };
+/* 三种机构方案共用分账函数；出资比例、正收益管理费与精力分工保存到合同。
+   界面预览、买入实扣、财务净额读取同一套参数。 */
+function orgPartnerPlan(g, card, partnerId='balanced'){
+  const contract=window.OPERATIONS.partners.find(x=>x.id===partnerId);
+  if(!contract) return null;
+  const total=dealCost(g,card,1),orgShare=contract.share,share=1-orgShare;
+  const grossCf=Math.round((card.cf||0)*share),fee=Math.round(Math.max(0,grossCf)*contract.fee);
+  const item={nm:card.nm,opProfile:card.opProfile,tier:card.tier,share,cf:grossCf,orgContract:contract};
+  return {contract:Object.assign({},contract),total,orgShare,share,mine:Math.round(total*share),grossCf,fee,cf:grossCf-fee,
+    upkeep:E.operatingSummary({assets:{realEstate:[item]}}).total,
+    energy:Math.max(1,Math.round(dealEnergy(card)*contract.energy))};
 }
 
-function buyDealWithOrg(g, card){
-  if(card.kind!=='realestate') return {ok:false,msg:'机构合伙仅适用于房产。'};
-  const p = E.current(g), S = window.SOLO;
-  const plan = orgPartnerPlan(g, card);
-  const total = plan.total, orgShare = plan.orgShare, share = plan.share, mine = plan.mine;
-  if(!canPay(p, mine)) return { ok:false, msg:`机构出 ${Math.round(orgShare*100)}% 首付后，你仍需出资 ${money(mine)}，现金不足。` };
-  const en = needEnergy(p, plan.energy, `与机构合伙买入「${card.nm || '房产'}」`);
-  if(!en.ok) return { ok:false, msg:en.msg };
-  p.cash -= mine;
-  const cf = plan.cf;
-  p.assets.realEstate.push({
-    nm: card.nm + '（与机构共有）', dp: mine, cost: Math.round((card.cost || 0) * share),
-    cf, rent: Math.round((card.rent || 0) * share), share, joint: true, partner: '机构'
-  });
-  (p.assets.realEstate || []).forEach(it => E.stampAsset(g, it));
-  E.registerProperty(g,p,p.assets.realEstate[p.assets.realEstate.length-1]);
-  E.bump(p, 'dealsBought'); E.bump(p, 'investTotal', mine); E.bump(p, 'cfGained', cf);
-  E.milestone(g, p, `第 ${g.round} 轮与机构合伙买入「${card.nm}」，出资 ${money(mine)}（占比 ${Math.round(share*100)}%），月现金流 +${money(cf)}`, 'good');
-  E.log(g, `${p.name} 与机构合伙买入 ${card.nm}：机构出 ${money(total - mine)}（${Math.round(orgShare*100)}%），你出 ${money(mine)}（${Math.round(share*100)}%），月现金流 +${money(cf)}`, 'good', p.name);
-  return { ok:true, mine, share, cf, orgShare, total };
+function buyDealWithOrg(g, card, partnerId='balanced'){
+  if(!E.isSolo(g)||g.rule!=='202'||card.kind!=='realestate'||!card.joint)
+    return {ok:false,msg:'机构合伙仅适用于单人 202 的可联合购买房产。'};
+  const p=E.current(g),plan=orgPartnerPlan(g,card,partnerId);
+  if(!plan) return {ok:false,msg:'机构方案已失效，请重新选择。'};
+  const {total,orgShare,share,mine,cf}=plan;
+  if(!canPay(p,mine)) return {ok:false,msg:`机构出 ${Math.round(orgShare*100)}% 首付后，你仍需出资 ${money(mine)}，现金不足。`};
+  const en=needEnergy(p,plan.energy,`与${plan.contract.name}合伙买入「${card.nm}」`);
+  if(!en.ok) return {ok:false,msg:en.msg};
+  p.cash-=mine;
+  const item={nm:card.nm+'（与机构共有）',opProfile:card.opProfile,tier:card.tier,dp:mine,
+    cost:Math.round((card.cost||0)*share),cf:plan.grossCf,rent:Math.round((card.rent||0)*share),
+    share,joint:true,partner:'机构',orgContract:plan.contract};
+  E.stampAsset(g,item,'realEstate');E.registerProperty(g,p,item);p.assets.realEstate.push(item);
+  E.bump(p,'dealsBought');E.bump(p,'investTotal',mine);E.bump(p,'cfGained',cf);
+  const detail=`与${plan.contract.name}合伙买入「${card.nm}」，出资 ${money(mine)}（占比 ${Math.round(share*100)}%），月净现金流 ${money(cf)}，管理费 ${money(plan.fee)}/月`;
+  E.milestone(g,p,`第 ${g.round} 轮${detail}`,'good');E.log(g,`${p.name} ${detail}`,'good',p.name);
+  return {ok:true,mine,share,cf,orgShare,total};
 }
 
 /* 每次机会只能承接一条挂牌；物理房产编号保留，持仓编号重新生成。
@@ -810,7 +805,7 @@ function buyPropertyListing(g,listingId,expected){
   if(!en.ok) return en;
   const item={nm:plan.nm,propertyId:plan.propertyId,share:plan.share,joint:plan.share<1,
     cost:plan.cost,dp:plan.dp,projectDebt:plan.debt,financingRate:plan.rate,rent:plan.rent,acquisitionFee:plan.fee,
-    cf:plan.cf,heldYears:plan.heldYears};
+    cf:plan.cf,operating:plan.operating&&Object.assign({},plan.operating),heldYears:plan.heldYears};
   E.stampAsset(g,item);E.registerProperty(g,p,item,plan.propertyId);
   p.cash-=plan.need;p.assets.realEstate.push(item);
   listing.status='sold';listing.buyer=p.id;listing.boughtTurn=g.turnNo;

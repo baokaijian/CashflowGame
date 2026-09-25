@@ -446,6 +446,32 @@ window.addEventListener('load', function(){
     ok(q('#paneFinance [data-family-budget]').textContent.indexOf('旧档兼容估计')>=0,'旧档缴费历史的兼容估计明确展示');
   });
 
+  step('Q 经营选择与机构方案',function(){return true;},function(){
+    OUT.push('');OUT.push('=== Q. 经营选择与机构方案 ===');
+    window.startGame({rule:'202',mode:'solo',count:1,names:['经营测试'],seed:42});
+    var E=window.Engine,A=window.Act,g=window.Game.g,p=g.players[0];
+    Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});p.cash=2000000;p.energy=100;
+    var card=window.DECK_CASHFLOW.find(function(x){return x.id==='cf1';});
+    E.setPending(g,{type:'opportunity202',deal:card});window.UiPending.showPending();
+    ok(document.querySelectorAll('#modal [name=orgPlan]').length===3,'买入前可比较三种机构方案');
+    var plan=A.orgPartnerPlan(g,card,'operator');q('#modal [name=orgPlan][value=operator]').click();q('#orgPartner').click();
+    ok(q('#needCost').textContent===E.money(plan.mine) && q('#needEnergy').textContent.indexOf(plan.energy+' /')===0,'切换机构同步更新实付和买入精力');
+    ok(q('#modal [data-partner-plans]').textContent.indexOf(E.money(plan.fee))>=0 && q('#modal [data-operating-preview]'),'方案展示持续管理费和买入后组合维护');
+    q('#modal [data-loan]').click();
+    ok(q('#modal [data-loan-partner]').textContent.indexOf(E.money(plan.mine))>=0,'贷款页显示已选机构和本人首付');
+    mb('关闭').click();
+    ok(q('#orgPartner').checked && q('#modal [name=orgPlan][value=operator]').checked,'贷款返回仍保留所选机构');
+    var cash=p.cash;q('#modal [data-buy]').click();var x=p.assets.realEstate[0];
+    ok(p.cash===cash-plan.mine && x.orgContract.id==='operator' && E.finance(p).inc.realEstate===plan.cf,'真实买入按选定合同扣款和计净收益');
+    window.UiGame.renderAll();
+    ok(document.body.textContent.indexOf('运营管家')>=0 && !!q('[data-operating-summary]'),'资产表显示机构费用和组合经营负担');
+    window.UiGame.saveState();window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];
+    ok(p.assets.realEstate[0].orgContract.id==='operator' && E.finance(p).inc.realEstate===plan.cf,'刷新恢复不改机构合同或重复扣管理费');
+    p.energy=100;E.setPending(g,{type:'opportunity202',deal:window.DECK_CASHFLOW.find(function(x){return x.id==='cf6';})});window.UiPending.showPending();
+    ok(q('#modal [data-operating-preview]').textContent.indexOf('2.0%')>=0 && q('#modal [data-operating-preview]').textContent.indexOf('35%')>=0,'实业买入前展示自身折旧率和残值基准');
+    window.UI.closeModal();E.clearPending(g);
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

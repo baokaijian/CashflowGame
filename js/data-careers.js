@@ -132,6 +132,7 @@ window.ENERGY = {
   /* 每回合「持有」维护精力：金融资产几乎不需要打理，房产与企业则要持续投入时间。
      现实依据：这就是为什么「长期持有指数基金」比「自己开店」更省心的本质区别，
      也是过度扩张的人最终必须减持的原因。 */
+  /* 房产 / 实业改由 OPERATIONS 计算；前三项仅保留旧配置兼容。 */
   upkeep: { realEstate:2, business:3, ftBusiness:3, option:3, short:3 },
   /* 考察投资机会的时间成本（对应财富流的「考察费」，但真正昂贵的从来不是那点钱，而是时间） */
   dealCost: { small:6, big:10, capgain:8, cashflow:10 },
@@ -327,6 +328,32 @@ window.FAMILY = {
   childAdultAge:18, childIndependentAge:22, adultSupportRatio:0.5,
   pensionFullYears:41,
   medicalBaseRate:0.02, medicalAnnualStep:0.005, medicalMaxRate:0.06
+};
+
+/* 经营差异：游戏参数，经营现金流与资产转售价分开；残值不是保本承诺。
+   已取得资产保存参数快照，更新配置不会重写已有机构合同。 */
+window.OPERATIONS = {
+  scaleDiscount:0.75, capacity:5, overload:0.15,
+  profiles:{
+    parking:{label:'车位出租',group:'parking',upkeep:0.8,decay:0,floor:1},
+    housing:{label:'住宅出租',group:'housing',upkeep:2,decay:0,floor:1},
+    agingHousing:{label:'老旧住宅',group:'housing',upkeep:3,decay:0,floor:1},
+    commercial:{label:'商业出租',group:'commercial',upkeep:3,decay:0,floor:1},
+    self:{label:'亲力经营',group:'self',upkeep:4,decay:0.06,floor:0.15},
+    brand:{label:'品牌加盟',group:'brand',upkeep:2.5,decay:0.035,floor:0.25},
+    equity:{label:'股权参与',group:'equity',upkeep:1.5,decay:0.02,floor:0.35},
+    equipment:{label:'设备运营',group:'equipment',upkeep:1.5,decay:0.08,floor:0.10},
+    technology:{label:'技术经营',group:'technology',upkeep:2,decay:0.07,floor:0.10},
+    standard:{label:'一般经营',group:'standard',upkeep:3,decay:0.04,floor:0.20}
+  },
+  partners:[
+    {id:'balanced',name:'共担资本',share:0.5,energy:0.6,upkeep:1,fee:0,
+      note:'双方各出一半资金，日常管理仍由你牵头，不额外收管理费。'},
+    {id:'capital',name:'资金后盾',share:0.7,energy:0.9,upkeep:1,fee:0,
+      note:'机构承担七成资金，你负责日常经营，保留三成收益与出售权益。'},
+    {id:'operator',name:'运营管家',share:0.5,energy:0.4,upkeep:0.3,fee:0.2,
+      note:'双方各出一半资金，机构主导管理，另收你正现金流的 20% 管理费；亏损时免收。'}
+  ]
 };
 
 /* -------- 人生阶段（单人模式的叙事层） --------

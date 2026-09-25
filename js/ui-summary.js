@@ -174,7 +174,7 @@ function scoreOf(g, p, m){
   dims.push({ key:'sustain', label:'可持续性', score: sustain,
     comment: m.crises > 0
       ? `整局发生 ${m.crises} 次健康危机：精力被透支到归零，被迫休养并承担持续医疗支出。` +
-        `名下资产的每月维护需要 ${m.upkeep} 点精力，而每回合只能恢复 ${E.energyRecover(g, p)} 点 —— 管不过来的部分，宁可不要。`
+        `名下资产的每回合维护需要 ${m.upkeep} 点精力，而每回合只能恢复 ${E.energyRecover(g, p)} 点 —— 管不过来的部分，宁可不要。`
       : (m.energySpent > 0
         ? `精力投入合计 ${m.energySpent} 点，全程没有出现健康危机` +
           (m.deficitMonths > 0 ? `；但有 ${m.deficitMonths} 个月入不敷出（合计 ${money(m.deficitTotal)}）。` : '，且收支始终为正。')
@@ -350,7 +350,7 @@ function classLevers(g, p, m, cls){
     add('性价比最高的动作是特许经营',
       '首付只需要企业成本的 20%，却能拿到原现金流 50% 的额外现金流 —— 这是财务自由圈里回报率最高的一步。');
     add('精力依然是硬约束',
-      `企业每回合要花 3 点精力维护（当前维护 ${upkeep} 点 / 恢复 ${recover} 点）。` +
+      `企业维护随经营类型与组合规模变化（当前维护 ${upkeep} 点 / 恢复 ${recover} 点）。` +
       '财务自由圈里同样会因过劳而触发健康危机，扩张节奏要留余量。');
   }
   /* 消费升级规则上线后，这条建议对所有中高等级都成立 —— 也是这条规则真正的用意 */

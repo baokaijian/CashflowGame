@@ -464,7 +464,7 @@ function renderFinance(){
                 <span class="money ${d >= 0 ? 'pos' : 'neg'}">${money(ap.value)}
                   <span class="muted">${d >= 0 ? '+' : ''}${pctv.toFixed(1)}%</span></span>
               </div>
-              <p class="hint">估值 = 账面成本 × 行情周期 × 折旧。房价会跌、设备会旧、土地长期微涨 ——
+              <p class="hint">估值优先使用统一报价；无报价时按取得成本、周期与资产经营类型折旧估算。房价会跌、设备会旧、土地长期微涨 ——
                 <b>纸面资产不等于现在能变现的钱</b>，抵押额度就是按这个市价算的。</p>`;
           })()}
         </div>
@@ -595,7 +595,7 @@ function renderRules(){
       <li><b>多头借贷会被识别</b>：同时在多个<b>信用类</b>产品上有余额、近期频繁申请信用贷、或额度使用率过高，
         都会触发降额；达到红线时<b>直接拒贷</b>（房贷 / 车贷 / 助学属于正常负债，不计入）。</li>
       <li><b>抵押物按当前市价估值</b>：银行不按你的买入价放贷 —— 房价随 <b>8 年周期 ±15%</b> 波动（各类资产相位错开），
-        企业按 <b>4%/年</b> 折旧、土地长期微涨，存款 / 理财的本金不随行情变动。
+        企业按经营类型以 <b>2%—8%/年</b> 折旧，保留 10%—35% 残值基准（实际报价优先）、土地长期微涨，存款 / 理财的本金不随行情变动。
         <b>市价下行时你的可贷额度会一起缩水。</b></li>
       <li><b>单人退休与终局</b>：60→61 岁结清一年在职收支后切换养老金；
         65 岁处理完最后一年的收支即结束，不额外补结。20→65 岁共 45 次年度结算。</li>
@@ -1085,6 +1085,8 @@ function openLoanCenter(key, preset){
   const fromCard = !!g.pending;    /* 从卡片里的「先贷款 / 贷款补足」进来时，本轮卡片还未结算 */
   const purchase = fromCard && g.pending.deal && g.pending.deal.kind === 'realestate'
     ? g.pending.deal : null;
+  const partnerPlan = purchase && E.isSolo(g) && purchase.joint && g.pending.useOrgPartner
+    ? A.orgPartnerPlan(g,purchase,g.pending.orgPartnerId) : null;
   if(key !== undefined) LoanUI.key = key;
   if(LoanUI.key && E.loanInfo(p, LoanUI.key).balance <= 0) LoanUI.key = null;
   /* 统一退路：贷款弹层是从卡片里顶上来的，关闭后必须把那张卡片还给玩家。
@@ -1133,6 +1135,7 @@ function openLoanCenter(key, preset){
           <div class="rowlist__row"><span>房产总价</span><b>${money(purchase.cost)}</b></div>
           <div class="rowlist__row"><span>项目首付（全额参与）</span><b>${money(purchase.dp)}</b></div>
           <div class="rowlist__row"><span>项目融资（已计入月现金流）</span><b>${money(Math.max(0, purchase.cost - purchase.dp))}</b></div>
+          ${partnerPlan?`<div class="rowlist__row" data-loan-partner><span>${esc(partnerPlan.contract.name)} · 你的首付</span><b>${money(partnerPlan.mine)}</b></div>`:''}
         </div>
         <p class="hint">这项房产尚未买入，<b>不计入下方已有资产估值</b>。本次借款按你的收入或已持有资产核定，用于补足首付；买入成功后才会新增对应资产。项目融资成本已从租金中扣除，不会作为本次借款再次发放。</p>
       </div>` : ''}
