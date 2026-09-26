@@ -57,7 +57,7 @@ window.EXP_LABEL = {
   taxes:'个税与五险一金', home:'房贷', school:'教育培训支出', car:'车贷',
   credit:'信用卡分期', retail:'日常消费', other:'其他固定支出', otherLoan:'其他负债还款',
   extra:'额外固定支出', children:'子女养育支出', bank:'信用贷还款',
-  elder:'赡养父母支出', medical:'医疗健康支出', housingGap:'住房基线'
+  elder:'赡养父母支出', medical:'医疗健康支出', housingGap:'住房预算补足', carGap:'用车预算补足', consumptionGap:'消费预算补足'
 };
 window.INC_LABEL = {
   salary:'工资收入', interest:'存款 / 理财收益', dividend:'基金 / 分红收益',
@@ -402,17 +402,18 @@ window.SOLO_STAGES = [
         有房贷时按房贷算（数据与旧版完全一致，平衡不动），
         房贷还清后按基线算（成本不归零）。
 
-   ★ 只对住房设基线，不把「基本生活」也设一条 ——
-     生活性支出已经由 LIFE_STAGES 的人生阶段系数与消费升级规则管着，
-     再加一条会变成双重计费。 */
+   用车与消费预算按职业卡原始月供的一部分标定，先用仍在支付的月供与
+   已有日常消费抵扣，只有不足部分进入支出；不是还贷后再收一遍贷款。
+   这些比例属于游戏参数，不是现实车辆或家庭费用标准。 */
 window.LIFEBASE = {
   /* 住房基线 = 基础工资 × rate × 人生阶段系数（与房贷月供同口径：月度） */
   housingRate: 0.11,
+  carBudgetRatio:0.5, consumptionBudgetRatio:0.5,
   /* 自由圈的生活档次：财务自由之后生活方式会升级 ——
      换更好的房子、请人打理、更高标准的医疗与出行。
      这也是「出圈不等于安全」的来源：顺流层同样会被自己的开销拖住。 */
   freeTrackMult: 1.35,
-  label: '住房基线'
+  label: '持续生活预算'
 };
 
 /* -------- 信用额度（信用贷的授信规则） --------

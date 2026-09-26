@@ -472,6 +472,24 @@ window.addEventListener('load', function(){
     window.UI.closeModal();E.clearPending(g);
   });
 
+  step('R 持续生活预算与提前还款',function(){return true;},function(){
+    OUT.push('');OUT.push('=== R. 持续生活预算与提前还款 ===');
+    window.startGame({rule:'101',mode:'solo',count:1,names:['生活预算'],seed:42});
+    var E=window.Engine,g=window.Game.g,p=g.players[0];p.cash=2000000;E.amortize(g,p);E.clearPending(g);
+    ['car','credit'].forEach(function(key){
+      window.UiGame.onMenu('loan');q('#modal [data-pick='+key+']').click();q('#modal [data-quick=all]').click();
+      var plan=E.prepayPlan(p,key,p.liabs[key],'settle');
+      ok(q('#ppPreview').textContent.indexOf('实际年支出减少')>=0 && q('#ppPreview').textContent.indexOf(E.money(E.annual(plan.budget.saving)))>=0,key+' 还款预览显示持续预算后的实际改善');
+      q('#modal [data-do]').click();mb('关闭').click();window.UiGame.renderAll();
+      ok(p.liabs[key]===0 && E.finance(p).totalExpenses===plan.budget.after,key+' 真实结清后仍有对应生活预算，支出与预览一致');
+    });
+    ok(q('#paneFinance [data-budget=car]').textContent.indexOf('补足')>=0 && q('#paneFinance [data-budget=credit]').textContent.indexOf('补足')>=0,'财务面板显示用车和消费补足明细');
+    var cash=p.cash,total=E.finance(p).totalExpenses;window.UiGame.saveState();window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];
+    ok(p.cash===cash && E.finance(p).totalExpenses===total,'恢复存档不补扣历史费用，预算保持一致');
+    p.inFT=true;p.ftBase=10000;window.UiGame.renderAll();
+    ok(q('#paneFinance [data-living-budget]').textContent.indexOf('已含自由圈生活档次')>=0,'自由圈预算展示已应用生活档次的实际金额');
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

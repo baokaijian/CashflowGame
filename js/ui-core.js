@@ -151,9 +151,16 @@ function renderIncomeFT(p){
     </div>
   </div>
   <p class="hint">出圈后主动收入退出生活：工资不再入账，与工资绑定的个税也一并停征。
-    但住房成本与贷款月供照旧 —— <b>顺流层同样会因为开销超过分红而破产</b>。</p>`;
+    但住房、用车、消费预算与贷款月供照旧 —— <b>顺流层同样会因为开销超过分红而破产</b>。</p>`;
 }
-function renderIncome(p){ return renderIncomeBase(p)+renderFamily(p); }
+function renderIncome(p){ return renderIncomeBase(p)+renderLivingBudget(p)+renderFamily(p); }
+function renderLivingBudget(p){
+  const mult=p.inFT?window.LIFEBASE.freeTrackMult:1,rows=E.livingBudget(p,mult);
+  return `<div class="sec" data-living-budget><div class="sec__title">还贷后仍在的生活预算</div>
+    <p class="hint">月度金额${p.inFT?'，已含自由圈生活档次':''}。现有月供和日常消费先抵扣预算，只有不足部分计入支出；结清贷款仍能减少偿债负担。</p>
+    <div class="rowlist">${rows.map(r=>`<div class="rowlist__row" data-budget="${r.key}"><span>${r.name}<br><small>预算 ${money(r.base)} · 已计月供及消费 ${money(r.covered)}</small></span><b>补足 ${money(r.gap)}/月</b></div>`).join('')}</div>
+    <p class="hint">用车预算包含养护与更新准备；消费预算包含持续消费与用品更新。属于游戏预算，不是新增借款或历史欠款。</p></div>`;
+}
 function renderFamily(p){
   const f=E.familySummary(p),F=window.FAMILY;
   return `<div class="sec" data-family-budget>
@@ -193,10 +200,12 @@ function renderIncomeBase(p){
     <div class="rowlist">
       ${line(L.taxes, A(f.exp.taxes))}
       ${line(L.home, A(f.exp.home))}
-      ${f.exp.housingGap ? line(`${L.housingGap} <span class="muted">（房贷已结清，住房成本仍在）</span>`, A(f.exp.housingGap)) : ''}
+      ${f.exp.housingGap ? line(L.housingGap, A(f.exp.housingGap)) : ''}
       ${line(L.school, A(f.exp.school))}
       ${line(L.car, A(f.exp.car))}
+      ${f.exp.carGap ? line(L.carGap,A(f.exp.carGap)) : ''}
       ${line(L.credit, A(f.exp.credit))}
+      ${f.exp.consumptionGap ? line(L.consumptionGap,A(f.exp.consumptionGap)) : ''}
       ${line(L.retail, A(f.exp.retail))}
       ${line(L.other, A(f.exp.other))}
       ${f.exp.otherLoan ? line(L.otherLoan, A(f.exp.otherLoan)) : ''}

@@ -208,7 +208,7 @@ test('截图回归：积压两个回合后经过一次，只入账 ¥25,080 而�
   const {g,p}=game();
   p.name='Derek';
   // 固定年结余，隔离职业随机数及贷款到期引起的账本变化。
-  p.job={...p.job,salary:0,taxes:0,retail:0,other:0}; p.baseSalary=0;
+  p.job={...p.job,salary:0,taxes:0,retail:0,other:0,car:0,credit:0}; p.baseSalary=0;
   E.LOAN_KEYS.forEach(k=>p.liabs[k]=0);
   Object.keys(p.assets).forEach(k=>p.assets[k]=[]);
   p.assets.savings.push({nm:'测试年结余',cost:100000,interest:2090});

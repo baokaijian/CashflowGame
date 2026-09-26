@@ -1061,7 +1061,7 @@ function paintPreview(m, g, p){
   if(msgEl) msgEl.hidden = true;
   if(btn){ btn.disabled = false; btn.textContent = plan.cleared ? `确认结清（支付 ${money(plan.need)}）` : `确认提前还款（支付 ${money(plan.need)}）`; }
   const balBefore = money(plan.before.balance), balAfter = money(plan.after.balance);
-  const dueRow = `<div class="rowlist__row"><span>每年还款</span><b>${money(E.annual(plan.before.due))} → ${plan.after.due ? money(E.annual(plan.after.due)) : '—'}</b></div>`;
+  const dueRow = `<p class="hint">这里比较贷款还款额；住房、用车和消费预算不足的部分仍会计入生活支出，实际结余改善可能小于减少的月供。</p><div class="rowlist__row"><span>每年还款</span><b>${money(E.annual(plan.before.due))} → ${plan.after.due ? money(E.annual(plan.after.due)) : '—'}</b></div>`;
   const remRow = plan.info.revolving
     ? '<div class="rowlist__row"><span>还款计划</span><b>随借随还 · 无固定期数</b></div>'
     : `<div class="rowlist__row"><span>剩余期限</span><b>${E.toYears(plan.before.remaining)} 年 → ${E.toYears(plan.after.remaining)} 年</b></div>`;
@@ -1070,6 +1070,8 @@ function paintPreview(m, g, p){
     : `<div class="rowlist__row"><span>剩余利息</span><b>${money(plan.before.interestLeft)} → ${money(plan.after.interestLeft || 0)}</b></div>`;
   box.innerHTML =
       row('本次还本', money(plan.amt))
+      + row('生活与还贷总支出（年）',`${money(E.annual(plan.budget.before))} → ${money(E.annual(plan.budget.after))}`)
+      + row('实际年支出减少',money(E.annual(plan.budget.saving)),'pos')
     + row(`违约金${info.prepayRate ? `（${(info.prepayRate*100).toFixed(0)}%）` : '（免收）'}`, money(plan.fee), plan.fee ? 'neg' : 'pos')
     + row('本次应付现金', money(plan.need), 'money')
     + row('剩余本金', `${balBefore} → ${balAfter}`)
@@ -1252,7 +1254,7 @@ function openLoanCenter(key, preset){
           if(!r.ok) return U.toast(r.msg, 'err');
           renderAll();
           U.toast(r.cleared
-            ? `${E.loanType(r.key||LoanUI.key).nm}已结清，每年还款减少 ${money(E.annual(r.before.due))}`
+            ? `${E.loanType(r.key||LoanUI.key).nm}已结清，每年还款减少 ${money(E.annual(r.before.due))}；扣除持续生活预算后，年总支出减少 ${money(E.annual(plan.budget.saving))}`
             : `已提前还款 ${money(r.principal)}${r.fee ? `（含违约金 ${money(r.fee)}）` : ''}，${r.mode === 'reduce' ? `年还款降至 ${money(E.annual(r.after.due))}` : `剩余期限缩短至 ${E.toYears(r.after.remaining)} 年`}`
             + (r.savedInterest ? `，节省利息 ${money(r.savedInterest)}` : ''), 'ok');
           openLoanCenter(LoanUI.key);

@@ -236,7 +236,13 @@ function prepayPlan(p, key, amount, mode){
     newRem = periodsOf(newBal, t.rate, info.due);
   }
   const newInt = (newRem === null || !isFinite(newRem)) ? null : Math.max(0, newDue * newRem - newBal);
+  const projected=Object.assign({},p,{liabs:Object.assign({},p.liabs,{[key]:newBal}),
+    loans:Object.fromEntries(Object.entries(p.loans||{}).map(([k,v])=>[k,Object.assign({},v)]))});
+  if(projected.loans[key]) projected.loans[key].due=newDue;
+  const expenseBefore=p.inFT?ftExpenseOf(p):finance(p).totalExpenses;
+  const expenseAfter=p.inFT?ftExpenseOf(projected):finance(projected).totalExpenses;
   return Object.assign(plan, {
+    budget:{before:expenseBefore,after:expenseAfter,saving:expenseBefore-expenseAfter},
     ok:true, amt, fee, need, cleared,
     mode: cleared ? 'settle' : (mode === 'reduce' ? 'reduce' : 'shorten'),
     before:{ due:info.due, remaining:info.remaining, interestLeft:info.interestLeft, balance:info.balance },
@@ -598,11 +604,30 @@ function checkSoloStage(g){
    变成「物业 + 修缮 + 改善 + 换租」。
    它解决的是「门槛随负债消失而崩塌」：旧版门槛 = 总支出，房贷一还清
    门槛就从 ¥3,000 掉到 ¥400，出圈瞬时变成走过场。
-   见 data-careers.js 的 LIFEBASE 注释（现实依据与「为什么只对住房设基线」）。 */
+   见 data-careers.js 的 LIFEBASE 注释（持续生活预算与避免重复收费）。 */
 function lifeBaseHousing(p){
   const LB = window.LIFEBASE || {};
   const base = numOrDef(p.baseSalary, numOrDef(p.job && p.job.salary, 0));
   return Math.max(0, Math.round(base * numOrDef(LB.housingRate, 0) * numOrDef(p.lifeCoef, 1)));
+}
+
+/* 预算与偿债分开：存档中的职业卡提供原始生活基准，当前负债不能重设预算。
+   先放大预算，再扣现有月供，确保自由圈还贷不会反而抬高支出。 */
+function livingBudget(p,mult=1){
+  ensureLoans(p);
+  const cfg=window.LIFEBASE,j=p.job||{},coef=numOrDef(p.lifeCoef,1);
+  const retail=Math.round(numOr(j.retail)*coef);
+  const specs=[
+    {key:'home',name:'住房',base:lifeBaseHousing(p),spending:0},
+    {key:'car',name:'用车',base:Math.round(numOr(j.car)*cfg.carBudgetRatio*coef),spending:0},
+    {key:'credit',name:'日常消费',base:retail+Math.round(numOr(j.credit)*cfg.consumptionBudgetRatio*coef),spending:retail}
+  ];
+  return specs.map(row=>{
+    const base=Math.round(row.base*mult),spending=Math.round(row.spending*mult);
+    const due=numOr(p.liabs[row.key])>0?loanDue(p,row.key):0;
+    const covered=due+spending,gap=Math.max(0,base-covered);
+    return {key:row.key,name:row.name,base,spending,due,covered,gap,total:covered+gap};
+  });
 }
 
 /* ------------------------------ 财务计算 ------------------------------ */
@@ -627,12 +652,13 @@ function finance(p){
      ⚠️ 不能改成「房贷月供 + 基线」（开局会双算），也不能只放在门槛里
         （那样现金流会因还清贷款而暴涨，同样不真实）。 */
   const homeDue     = numOr(p.liabs.home) > 0 ? loanDue(p, 'home') : 0;
-  const housingBase = lifeBaseHousing(p);
-  const housingGap  = Math.max(0, housingBase - homeDue);
+  const budgets=livingBudget(p);
+  const housingBase=budgets[0].base,housingGap=budgets[0].gap;
+  const carGap=budgets[1].gap,consumptionGap=budgets[2].gap;
   const exp = {
     taxes:  numOrDef(p.taxesCur, numOrDef(p.job.taxes, 0)),
     home:   homeDue,
-    housingGap,
+    housingGap, carGap, consumptionGap,
     school: numOr(p.liabs.school) > 0 ? loanDue(p, 'school') : 0,
     car:    numOr(p.liabs.car)    > 0 ? loanDue(p, 'car')    : 0,
     credit: numOr(p.liabs.credit) > 0 ? loanDue(p, 'credit') : 0,
@@ -646,12 +672,12 @@ function finance(p){
     bank:   loanDue(p, 'bank')
   };
   const totalIncome   = inc.salary + inc.interest + inc.dividend + inc.realEstate + inc.business + inc.ftBusiness;
-  const totalExpenses = exp.taxes+exp.home+exp.housingGap+exp.school+exp.car+exp.credit+exp.retail+exp.other
+  const totalExpenses = exp.taxes+exp.home+exp.housingGap+exp.carGap+exp.consumptionGap+exp.school+exp.car+exp.credit+exp.retail+exp.other
     +exp.elder+exp.medical+exp.otherLoan+exp.extra+exp.children+exp.bank;
   const passive = inc.interest + inc.dividend + inc.realEstate + inc.business + inc.ftBusiness;
   const loanTotal = exp.home + exp.school + exp.car + exp.credit + exp.otherLoan + exp.bank;
   return { inc, exp, totalIncome, totalExpenses, cashflow: totalIncome - totalExpenses, passive,
-           bankLoanPay: exp.bank, loanTotal, housingBase, housingGap };
+           bankLoanPay: exp.bank, loanTotal, housingBase, housingGap, budgets };
 }
 
 /* 跳出老鼠赛跑的门槛 */
@@ -733,12 +759,13 @@ function ftExpenseOf(p, f){
   const LB = window.LIFEBASE || {};
   /* 只放大【生活性】支出 —— 贷款月供按实际金额计，不随生活档次膨胀 */
   const life  = f.exp.retail + f.exp.other + f.exp.elder + f.exp.medical
-              + f.exp.children + f.exp.extra + f.exp.housingGap;
+              + f.exp.children + f.exp.extra;
   /* ★ 工资薪金个税不再计 —— 出圈意味着主动收入退出生活，工资既然不入账，
      与工资绑定的个税与五险一金也一并停征（现实里财务自由后改按资产收益计税，
      本作简化为不计）。若只停收入不停税，会出现「为不存在的工资交税」的荒谬口径。
      但贷款月供照旧：负债不会因为你财务自由就消失。 */
-  return Math.round(life * numOrDef(LB.freeTrackMult, 1)) + f.loanTotal;
+  const mult=numOrDef(LB.freeTrackMult,1);
+  return Math.round(life*mult)+livingBudget(p,mult).reduce((s,row)=>s+row.gap,0)+f.loanTotal;
 }
 function ftFinance(p){
   const f = finance(p);
@@ -2209,7 +2236,7 @@ window.Engine = {
   /* 失业求职期 / 公益捐赠税前扣除 / 银翅膀 */
   isJobless, startJobless, settleAtBreak, jobHunt, donationRefund, useWing,
   /* 生活基线 / 自由圈账本 / 信用额度 */
-  lifeBaseHousing, ftExpenseOf, ftFinance, collateralValue, creditGradeOf, creditProfile, settleCashflow,
+  lifeBaseHousing, livingBudget, ftExpenseOf, ftFinance, collateralValue, creditGradeOf, creditProfile, settleCashflow,
   /* 突变点与终局结算 */
   retireBreakOf, finalSettle,
   /* 资产估值：市场周期 + 行情冲击 + 折旧 */
