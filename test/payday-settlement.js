@@ -34,7 +34,7 @@ function acknowledge(g, p, landed) {
 for (const mode of ['solo', 'age', 'endless']) for (const rule of ['101', '202']) {
   for (const inFT of [false, true]) test(`${mode}/${rule}/${inFT ? '分红' : '发薪'}：每格结一年并长一岁`, () => {
     const {g, p} = game(mode, rule);
-    p.inFT = inFT; p.ftBase = 10000;
+    p.inFT = inFT; p.assets.business.push({nm:'分红测试企业',cost:100000,cf:10000});
     E.refreshLife(g, p);
     const before = p.cash, expected = E.annual(E.settleCashflow(p));
     const periods = E.loanInfo(p, 'home').periods;

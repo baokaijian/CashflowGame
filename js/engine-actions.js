@@ -694,18 +694,19 @@ function coverShort(g, symbol){
 /* ------------------------------ 跳出老鼠赛跑 ------------------------------ */
 function escapeRatRace(g){
   const p = E.current(g);
+  if(p.inFT || p.escaped) return {ok:false,msg:'已经进入自由圈，出圈资金只能领取一次。'};
   if(E.lifeComplete(g, p)) return { ok:false, msg:'已到达终龄，请结束回合完成人生结算。' };
   const esc = E.escapeProgress(g, p);
   if(!esc.canEscape) return { ok:false, msg:`被动收入 ${money(esc.passive)} 尚未超过门槛 ${money(esc.target)}。` };
   p.inFT = true;
   E.syncPhase(g);            /* 旧的全局阶段字段：只作为「当前玩家所在圈」的镜像维护 */
-  p.ftBase = E.finance(p).passive;
+  p.ftIncomeVersion = 1;
   p.ftPos = 0;
-  const buyout = p.ftBase * 100;   /* 出圈资金 = 被动收入 × 100 */
+  const buyout = esc.passive * 100;   /* 一次性出圈奖励不变，未来分红按当前持仓推导。 */
   p.cash += buyout;
-  p.escaped = true; p.escapeRound = g.round; p.escapeAge = E.ageOf(g, p); p.escapePassive = p.ftBase;
-  E.milestone(g, p, `第 ${g.round} 轮被动收入 ${money(p.ftBase)} 超过门槛 ${money(esc.target)}，跳出老鼠赛跑，获得出圈资金 ${money(buyout)}`, 'good');
-  log(g, `${p.name} 被动收入 ${money(p.ftBase)} ＞ 门槛 ${money(esc.target)}，跳出老鼠赛跑进入财务自由圈！`, 'good', p.name);
+  p.escaped = true; p.escapeRound = g.round; p.escapeAge = E.ageOf(g, p); p.escapePassive = esc.passive;
+  E.milestone(g, p, `第 ${g.round} 轮被动收入 ${money(esc.passive)} 超过门槛 ${money(esc.target)}，跳出老鼠赛跑，获得出圈资金 ${money(buyout)}`, 'good');
+  log(g, `${p.name} 被动收入 ${money(esc.passive)} ＞ 门槛 ${money(esc.target)}，跳出老鼠赛跑进入财务自由圈！`, 'good', p.name);
   log(g, `${p.name} 获得出圈资金 ${money(buyout)}（被动收入 × 100）作为财务自由圈起始现金`, 'good', p.name);
   return { ok:true, buyout };
 }

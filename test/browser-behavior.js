@@ -486,7 +486,7 @@ window.addEventListener('load', function(){
     ok(q('#paneFinance [data-budget=car]').textContent.indexOf('补足')>=0 && q('#paneFinance [data-budget=credit]').textContent.indexOf('补足')>=0,'财务面板显示用车和消费补足明细');
     var cash=p.cash,total=E.finance(p).totalExpenses;window.UiGame.saveState();window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];
     ok(p.cash===cash && E.finance(p).totalExpenses===total,'恢复存档不补扣历史费用，预算保持一致');
-    p.inFT=true;p.ftBase=10000;window.UiGame.renderAll();
+    p.inFT=true;p.assets.business.push({nm:'分红测试企业',cost:100000,cf:10000});window.UiGame.renderAll();
     ok(q('#paneFinance [data-living-budget]').textContent.indexOf('已含自由圈生活档次')>=0,'自由圈预算展示已应用生活档次的实际金额');
   });
 
@@ -565,6 +565,32 @@ window.addEventListener('load', function(){
       ok(g.log.some(function(x){return x.text.indexOf('债权转让项目')>=0 && x.text.indexOf('本金 ¥43,000')>=0 && x.text.indexOf('收益 ¥2,150')>=0;}),rule+' 日志记录实际产品、本金、比例、到账和收益');
       mb('完成市场结算').click();ok(!g.pending,rule+' 兑付完成后正常结束行情');
       window.UI.closeModal();q('#toastHost').innerHTML='';
+    });
+  });
+
+  step('V 自由圈当前持仓与旧档收入',function(){return true;},function(){
+    OUT.push('');OUT.push('=== V. 自由圈收益归属 ===');
+    ['101','202'].forEach(function(rule){
+      window.UI.closeModal();window.startGame({rule:rule,mode:'solo',count:1,names:['分红归属'],seed:42});
+      var E=window.Engine,g=window.Game.g,p=g.players[0];Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});p.cash=2000000;p.energy=100;
+      p.assets.realEstate=[{nm:'收益测试房产',cost:1000000,dp:300000,cf:100000,rent:102870,orgContract:{fee:.2,upkeep:.55}}];
+      E.registerProperty(g,p,p.assets.realEstate[0]);window.UiGame.renderAll();var cash=p.cash,escapeButton=q('#btnEscape');escapeButton.click();escapeButton.onclick();
+      ok(p.inFT && p.cash===cash+8000000 && E.ftMonthly(p)===80000,rule+' 真实出圈奖励只发一次，分红按扣管理费后的持仓收入');
+      var panel=q('#paneFinance [data-ft-income]').textContent;
+      ok(panel.indexOf('房产净收入（已扣项目利息与机构管理费）')>=0 && panel.indexOf('¥960,000')>=0 && !/<\/?span|class=/.test(panel),rule+' 财务明细列出当前收入来源，没有代码标签');
+      E.setPending(g,{type:'market',card:{kind:'realestate',prop:'收益测试房产',price:1200000}});window.UiPending.showPending();q('#modal [data-sell]').click();
+      ok(p.assets.realEstate.length===0 && E.ftMonthly(p)===0 && q('#paneFinance [data-ft-income]').textContent.indexOf('当前持仓分红')>=0,rule+' 真实售房按钮执行后，房产和对应分红同时消失');
+      mb('完成市场结算').click();var biz=window.FT_BUSINESSES[0];E.setPending(g,{type:'business'});window.UiPending.showPending();q('#modal [data-buy="'+biz.id+'"]').click();
+      ok(E.ftMonthly(p)===biz.cf && p.ftGain===biz.cf && q('#paneFinance [data-ft-income]').textContent.indexOf('自由圈企业现金流')>=0,rule+' 购买自由圈企业只增加一份收入，财务和企业战绩一致');
+      p.ftBase=80000;delete p.ftIncomeVersion;cash=p.cash;window.UiGame.saveState();window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];
+      ok(p.cash===cash && E.ftMonthly(p)===biz.cf && !!q('#paneFinance [data-ft-income-migration]'),rule+' 旧档只改未来分红，保留现金并明确显示迁移说明');
+      window.UiGame.onMenu('finance');q('#modal [data-pid="0"]').click();
+      ok(q('#modal [data-ft-income]').textContent.indexOf(E.money(E.annual(biz.cf)))>=0 && !!q('#modal [data-ft-income-migration]'),rule+' 玩家详情使用同一收入金额与旧档说明');window.UI.closeModal();
+      window.UiGame.saveState();window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];
+      ok(p.cash===cash && E.ftMonthly(p)===biz.cf,rule+' 再次恢复不补发收入或重复奖励');
+      var expected=E.annual(E.ftFinance(p).cashflow),age=p.age;p.ftPos=0;var ld=E.movePlayer(g,p,1);
+      ok(ld.collected===Math.max(0,expected) && ld.deficit===Math.max(0,-expected) && p.age===age+1,rule+' 下一次分红日仅按当前账本结算一年并长一岁');
+      E.clearPending(g);window.UI.closeModal();q('#toastHost').innerHTML='';
     });
   });
 

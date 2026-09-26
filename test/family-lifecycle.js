@@ -47,7 +47,7 @@ test('只有在职且领取工资的已结算年份计缴费；失业和出圈�
  const {g,p}=game();pay(g,p);assert.equal(p.family.contributionYears,1);
  p.joblessNeed=3;p.joblessProgress=0;E.refreshLife(g,p);pay(g,p);assert.equal(p.family.contributionYears,1);
  p.joblessNeed=0;E.refreshLife(g,p);pay(g,p);assert.equal(p.family.contributionYears,2);
- p.inFT=true;p.ftBase=10000;pay(g,p);assert.equal(p.family.contributionYears,2);assert.equal(p.age,24);
+ p.inFT=true;p.assets.business.push({nm:'分红测试企业',cost:100000,cf:10000});pay(g,p);assert.equal(p.family.contributionYears,2);assert.equal(p.age,24);
 });
 test('连续41个在职年份到61岁，退休切换为45%上限且不额外发钱',()=>{
  const {g,p}=game();for(let i=0;i<F.pensionFullYears;i++)pay(g,p);
@@ -86,7 +86,7 @@ test('退休基础医疗逐年增加，康复只移除临时医疗，不移除�
  }
 });
 test('自由圈仍计家庭支出，但不把养老金或新缴费重复加入分红',()=>{
- const {g,p}=game('solo','202');A.addBaby(g);p.age=61;p.family.contributionYears=30;p.inFT=true;p.ftBase=10000;E.refreshLife(g,p);
+ const {g,p}=game('solo','202');A.addBaby(g);p.age=61;p.family.contributionYears=30;p.inFT=true;p.assets.business.push({nm:'分红测试企业',cost:100000,cf:10000});E.refreshLife(g,p);
  const f=E.finance(p),ft=E.ftFinance(p);
  assert.equal(ft.income,E.ftMonthly(p));assert(f.exp.children>=0);assert(f.exp.medical>0);
  assert.equal(ft.expense,E.ftExpenseOf(p,f));const ld=pay(g,p);assert.equal(ld.settled.years[0].monthly,ft.cashflow);

@@ -722,9 +722,10 @@ function escapeProgress(g, p){
     status: p.inFT ? 'escaped' : (canEscape ? 'ready' : 'progress')
   };
 }
-/* 财务自由圈月现金流 = 出圈时锁定的被动收入 + 财务自由圈企业现金流 */
+/* 自由圈收入只来自当前持仓。finance.passive 已含自由圈企业并扣除机构管理费，
+   不能再叠加企业收入，也不能使用旧档的 ftBase 出圈快照。 */
 function ftMonthly(p){
-  return (p.ftBase||0) + (p.assets.ftBusiness||[]).reduce((s,x)=>s+x.cf,0);
+  return finance(p).passive;
 }
 /* 资产总账面价值（用于净资产统计） */
 function netWorth(p){
@@ -769,9 +770,11 @@ function ftExpenseOf(p, f){
 }
 function ftFinance(p){
   const f = finance(p);
-  const income  = ftMonthly(p);                    /* 自由圈的收入是「分红」，不是工资 */
+  const income = f.passive;                       /* 当前资产分红，不含工资或养老金 */
   const expense = ftExpenseOf(p, f);
   return { income, expense, cashflow: income - expense,
+           incomeSources:{interest:f.inc.interest,dividend:f.inc.dividend,realEstate:f.inc.realEstate,
+             business:f.inc.business,ftBusiness:f.inc.ftBusiness},
            loans: f.loanTotal, payrollTax: 0, living: expense - f.loanTotal };
 }
 
@@ -1132,7 +1135,7 @@ function multiBorrowingOf(g, p, f){
     reasons.push(`最近 ${win} 个回合内申请了 ${draws} 次信用贷`);
   }
   /* ③ 额度使用率（相对「按收入本可获得的额度」） */
-  const base = Math.max(1, Math.min(annual(numOr(f.totalIncome)) * numOrDef(C.incomeMult, 1.2),
+  const base = Math.max(1, Math.min(annual(numOr(p.inFT?f.passive:f.totalIncome)) * numOrDef(C.incomeMult, 1.2),
                                    numOrDef(C.hardCap, 600000)));
   const util = numOr(p.liabs.bank) / base;
   const uWarn = numOrDef(M.utilWarn, 0.6), uMax = numOrDef(M.utilMax, 1);
@@ -1161,7 +1164,7 @@ function creditProfile(g, p){
   const f = finance(p);
   const rate = loanType('bank').rate || 0.01;
   const st = p.stats || {};
-  const monthlyIncome = numOr(f.totalIncome);
+  const monthlyIncome = numOr(p.inFT?f.passive:f.totalIncome);
   const annualIncome  = annual(monthlyIncome);
   const used   = numOr(p.liabs.bank);
   const jobless = isJobless(p);
@@ -1255,7 +1258,7 @@ function newPlayer(i, name, job, color, icon){
     liabs: { home:job.liab.home, school:job.liab.school, car:job.liab.car, credit:job.liab.credit, bank:0, other:0, extraPay:0 },
     assets: { stocks:[], realEstate:[], business:[], ftBusiness:[], savings:[], funds:[], lands:[], collectibles:[] },
     pos: 0, ftPos: 0, inFT: false,
-    ftBase: 0, ftGain: 0,
+    ftIncomeVersion: 1, ftGain: 0,
     charityTurns: 0, skipTurns: 0, pausedThisTurn: false, pausedNotified: false,
     /* 每个玩家独立计龄；settledAge 仅为旧存档兼容镜像，不再决定发薪。 */
     age: AGE_START, settledAge: AGE_START, settledYears: 0, finished: false,
@@ -1427,7 +1430,7 @@ function lifeComplete(g, p){ return isAgeMode(g) && ageOf(g, p) >= g.endAge; }
 
 /* 旧档保留已经发生的现金和年龄，从恢复点开始按发薪日推进，绝不重发历史收入。 */
 function migrateTime(g){
-  if(g.timeVersion === 2) return migrateFamily(migrateAssets(g));
+  if(g.timeVersion === 2) return migrateFTIncome(migrateFamily(migrateAssets(g)));
   const legacyAge = g.startAge + Math.max(0, numOr(g.round) - 1);
   g.players.forEach(p=>{
     p.age = isAgeMode(g) ? Math.min(g.endAge, legacyAge) : legacyAge;
@@ -1443,7 +1446,20 @@ function migrateTime(g){
   g.lastRetire = null;
   g.timeVersion = 2;
   log(g, '已更新结算规则：从现在起，每经过一个发薪日或分红日只结算一年并长一岁。历史现金保留，旧记录不重新入账。', 'info');
-  return migrateFamily(migrateAssets(g));
+  return migrateFTIncome(migrateFamily(migrateAssets(g)));
+}
+/* 只切换未来收入来源。旧快照保留供核对，不改现金、出圈奖励及已锁定的年度缺口。 */
+function migrateFTIncome(g){
+  g.players.forEach(p=>{
+    if(p.ftIncomeVersion===1) return;
+    p.ftIncomeVersion=1;
+    if(!p.inFT) return;
+    const previousIncome=numOr(p.ftBase)+(p.assets.ftBusiness||[]).reduce((s,x)=>s+numOr(x.cf),0);
+    const income=ftMonthly(p);
+    p.ftIncomeMigration={version:1,round:g.round,age:ageOf(g,p),previousIncome,income};
+    log(g,`${p.name} 的自由圈收入已改按当前持仓：月分红 ${money(previousIncome)} → ${money(income)}。售出资产不再分红，历史现金与出圈奖励保留，已发生的年度结算不重算。`,'info',p.name);
+  });
+  return g;
 }
 function migrateFamily(g){
   g.players.forEach(p=>{

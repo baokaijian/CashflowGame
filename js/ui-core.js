@@ -129,13 +129,18 @@ function renderIncomeFT(p){
   const ft = E.ftFinance(p);
   const A = v => E.annual(v);
   const LB = window.LIFEBASE || {};
+  const labels={interest:'理财利息',dividend:'基金分红',realEstate:'房产净收入（已扣项目利息与机构管理费）',
+    business:'实业现金流',ftBusiness:'自由圈企业现金流'};
+  const sources=Object.entries(ft.incomeSources).filter(([,value])=>value!==0);
   return `
-  <div class="sec">
+  <div class="sec" data-ft-income>
     <div class="sec__title">财务自由圈 · 收入<span class="muted">年度 · 一次分红日结算一年</span></div>
     <div class="rowlist">
-      ${line('企业 / 资产分红（毛额，未扣支出）', A(ft.income))}
+      ${sources.length?sources.map(([key,value])=>line(labels[key],A(value),value<0?'neg':'')).join(''):line('当前持仓分红',0)}
     </div>
     <div class="sec__total"><span>年总收入</span><span class="money">${money(A(ft.income))}</span></div>
+    <p class="hint">按当前持仓计算，尚未扣除下方家庭生活费与贷款月供。售出、转让或兑付后停止对应收入，租金及经营变化会同步反映；出圈资金只奖励一次。</p>
+    ${p.ftIncomeMigration?`<p class="hint" data-ft-income-migration>旧存档已更新分红规则：更新时月收入由 ${money(p.ftIncomeMigration.previousIncome)} 调整为 ${money(p.ftIncomeMigration.income)}。历史现金与出圈奖励保留，不重算已发生的年度结算；此后收入随持仓变化。</p>`:''}
   </div>
   <div class="sec">
     <div class="sec__title">支出<span class="muted">年度</span></div>

@@ -31,7 +31,7 @@ test('结清车贷与信用卡仍保留持续成本，还款预览与实际总�
 });
 test('部分提前还款降低月供，预览不改原计划且与实扣后账本相同',()=>{
  for(const free of [false,true]){
-  const {g,p}=game();p.inFT=free;p.ftBase=10000;E.amortize(g,p);
+  const {g,p}=game();p.inFT=free;p.assets.business.push({nm:'分红测试企业',cost:100000,cf:10000});E.amortize(g,p);
   const loans=JSON.stringify(p.loans),cash=p.cash,amt=Math.round(p.liabs.car*.8);
   const plan=E.prepayPlan(p,'car',amt,'reduce');assert(plan.ok);
   assert.equal(JSON.stringify(p.loans),loans);assert.equal(p.cash,cash);
@@ -61,7 +61,7 @@ test('自然还清的年度仍按年初账本结算，下一年才使用预算�
 });
 test('自由圈先调整预算后抵扣月供，逐步减债不会反向增加支出',()=>{
  for(const key of ['home','car','credit']){
-  const {p}=game();p.inFT=true;p.ftBase=20000;let previous=Infinity;
+  const {p}=game();p.inFT=true;p.assets.business.push({nm:'分红测试企业',cost:100000,cf:20000});let previous=Infinity;
   for(let due=1000;due>=0;due--){p.liabs[key]=due?10000:0;p.loans[key].due=due;
    const f=E.ftFinance(p);assert(f.expense<=previous,`${key}: ${due}`);previous=f.expense;
   }
@@ -69,7 +69,7 @@ test('自由圈先调整预算后抵扣月供，逐步减债不会反向增加�
  }
 });
 test('自由圈提前结清预览自洽，分红与生活预算只扣一次',()=>{
- const {g,p}=game();p.inFT=true;p.ftBase=10000;E.amortize(g,p);
+ const {g,p}=game();p.inFT=true;p.assets.business.push({nm:'分红测试企业',cost:100000,cf:10000});E.amortize(g,p);
  const plan=E.prepayPlan(p,'car',p.liabs.car,'settle');assert(plan.ok);assert(A.prepayLoan(g,'car',p.liabs.car,'settle').ok);
  assert.equal(E.ftFinance(p).expense,plan.budget.after);
  const expected=E.annual(E.ftFinance(p).cashflow),cash=p.cash;p.ftPos=0;E.movePlayer(g,p,1);

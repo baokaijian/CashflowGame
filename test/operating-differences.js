@@ -102,7 +102,7 @@ test('机构份额出售只收本人权益，挂牌买回保留经营属性，�
   assert.equal(E.managementFee(y),0);assert.equal(E.assetCashflow(y),y.cf);
 });
 test('自由圈企业与特许经营也保留经营差异，分红数值不被折旧误扣',()=>{
-  const g=game(),p=g.players[0];p.inFT=true;p.ftBase=1234;
+  const g=game(),p=g.players[0];p.inFT=true;p.assets.business.push({nm:'分红测试企业',cost:100000,cf:1234});
   assert(A.buyFTBusiness(g,'b3').ok);p.energy=100;assert(A.openFranchise(g,'b3').ok);
   assert.equal(p.assets.ftBusiness[0].operating.id,'equipment');assert.equal(p.assets.ftBusiness[1].operating.id,'equipment');
   const income=E.ftMonthly(p);p.assets.ftBusiness.forEach(x=>x.heldYears=100);

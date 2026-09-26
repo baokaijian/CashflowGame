@@ -11,7 +11,7 @@ for(const rule of ['101','202']) for(const inFT of [false,true]) {
   const type=inFT ? 'cashflowday' : 'paycheck';
   for(let from=0;from<24;from++) for(let steps=0;steps<=48;steps++) {
     const g=E.newGame({rule,mode:'endless',count:2,seed:42});
-    const p=g.players[0]; p.inFT=inFT; p.pos=p.ftPos=from; p.cash=10000000; p.ftBase=20000;
+    const p=g.players[0]; p.inFT=inFT; p.pos=p.ftPos=from; p.cash=10000000; p.assets.business.push({nm:'分红测试企业',cost:100000,cf:20000});
     const expected=Array.from({length:steps},(_,i)=>(from+i+1)%24);
     const hits=expected.filter(ix=>board[ix].t===type);
     const ld=E.movePlayer(g,p,steps);
@@ -57,7 +57,7 @@ for(const mode of ['solo','age']) for(const rule of ['101','202']) for(const see
   g.players.forEach((p,i)=>{
     p.cash=100000000;
     // 同局内外圈并行，故意制造不同的长岁速度。
-    p.inFT=!!(i%2); p.ftBase=20000;
+    p.inFT=!!(i%2); p.assets.business.push({nm:'分红测试企业',cost:100000,cf:20000});
   });
   let turns=0;
   while(!g.over && turns++<2500) {
