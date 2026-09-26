@@ -241,7 +241,7 @@ function applyMarketQuote(g,card){
     const kinds=kind==='savings'?['savings','funds']:[kind];
     kinds.forEach(k=>(p.assets[k]||[]).forEach(item=>{
       if((k==='realEstate'||k==='collectibles')&&!matchProp(item,card.prop)) return;
-      const price=(card.kind==='business'||card.kind==='savings')?Math.round(item.cost*(card.rate||1)):card.price;
+      const price=(card.kind==='business'||card.kind==='savings')?Math.round(item.cost*(card.rate==null?1:card.rate)):card.price;
       const q=E.recordQuote(g,k,item,price,'行情报价');
       if(q && (card.kind==='business'||card.kind==='savings')) q.rate=card.rate==null?1:card.rate;
     }));
@@ -315,12 +315,12 @@ function marketOptions(g, card){
         });
         break;
       case 'savings':
-        p.assets.savings.concat(p.assets.funds).forEach((s,ix)=>{
-          const price = Math.round(s.cost*(card.rate||1));
-          list.push({ id:`v_${p.id}_${ix}`, pid:p.id, pname:p.name, ico:'🏦',
+        ['savings','funds'].forEach(assetKind=>p.assets[assetKind].forEach(s=>{
+          const rate=card.rate==null?1:card.rate,price=Math.round(s.cost*rate),assetId=E.holdingId(g,s);
+          list.push({ id:`v_${p.id}_${assetId}`, pid:p.id, pname:p.name, ico:'🏦',
             label:s.nm, sub:`本金 ${money(s.cost)} → 到期兑现 ${money(price)}`,
-            kind:'savings', assetId:E.holdingId(g,s), ix, price });
-        });
+            kind:'savings', assetKind, assetId, principal:s.cost, rate, marketTurn:g.turnNo, price });
+        }));
         break;
       case 'disaster':
         p.assets.realEstate.forEach((re,ix)=>{
@@ -418,13 +418,29 @@ function doMarketSell(g, opt){
       return { ok:true };
     }
     case 'savings':{
-      const all = p.assets.savings.concat(p.assets.funds);
-      const item = all.find(x=>x.holdingId===opt.assetId); if(!item) return { ok:false };
-      p.cash += opt.price;
-      p.assets.savings = p.assets.savings.filter(x=>x!==item);
-      p.assets.funds = p.assets.funds.filter(x=>x!==item);
-      log(g, `${p.name} 兑现 ${item.nm}，收入 ${money(opt.price)}`, 'good', p.name);
-      return { ok:true, proceeds:opt.price };
+      // 不能让 undefined === undefined 把旧选项匹配到任意未编号的持仓。
+      if(!opt.assetId || !['savings','funds'].includes(opt.assetKind))
+        return {ok:false,msg:'兑付选项已过期，请重新打开行情，按当前持仓兑付。'};
+      const matches=p.assets.savings.concat(p.assets.funds).filter(x=>x.holdingId===opt.assetId);
+      if(matches.length!==1 || !p.assets[opt.assetKind].includes(matches[0]))
+        return {ok:false,msg:'该持仓已兑付或编号无法唯一对应，请重新核对持仓。'};
+      const item=matches[0],pending=g.pending,card=pending && pending.card;
+      if(!pending || pending.type!=='market' || !card || card.kind!=='savings' || opt.marketTurn!==g.turnNo)
+        return {ok:false,msg:'本次到期行情已结束，请等待新的兑付机会。'};
+      const principal=item.cost,rate=card.rate==null?1:card.rate,proceeds=Math.round(principal*rate);
+      if(!Number.isFinite(principal)||principal<0 || !Number.isFinite(rate)||rate<0 || !Number.isSafeInteger(proceeds))
+        return {ok:false,msg:'理财本金或兑付比例无效，本次未执行交易。'};
+      // 本金来自实际持仓，比例来自当次行情；旧报价只能校验，不能直接入账。
+      if(opt.principal!==principal || opt.rate!==rate || opt.price!==proceeds)
+        return {ok:false,msg:'持仓本金或兑付报价已变化，请重新查看行情后操作。'};
+      const gain=proceeds-principal;
+      E.assetMarket(g).trades.push({type:'到期兑付',kind:opt.assetKind,name:item.nm,holdingId:item.holdingId,
+        player:p.id,round:g.round,turnNo:g.turnNo,principal,rate,price:proceeds,gain});
+      p.cash += proceeds;
+      p.assets[opt.assetKind]=p.assets[opt.assetKind].filter(x=>x!==item);
+      const text=`本金 ${money(principal)} × ${Number((rate*100).toFixed(4))}% = 到账 ${money(proceeds)}（${gain>=0?'收益':'亏损'} ${money(Math.abs(gain))}）`;
+      log(g, `${p.name} 兑现 ${item.nm}：${text}`, gain>=0?'good':'bad', p.name);
+      return { ok:true, proceeds, text, label:item.nm };
     }
     case 'disaster':{
       const ix = opt.assetId ? p.assets.realEstate.findIndex(re=>re.holdingId===opt.assetId) : -1;
@@ -439,6 +455,7 @@ function doMarketSell(g, opt){
 }
 /* 行情卡交易统一入口：记账放在这里，一次覆盖股票 / 期权 / 房产 / 企业 / 收藏品 / 土地 / 兑现全部类型 */
 function marketSell(g, opt){
+  if(!opt) return {ok:false,msg:'交易选项无效，请重新查看行情。'};
   const r = doMarketSell(g, opt);
   const isLoss = opt.kind === 'disaster' || opt.kind === 'land-disaster';
   if(r && r.ok && !isLoss){
@@ -447,7 +464,7 @@ function marketSell(g, opt){
       E.bump(p, 'marketSells');
       if(r.proceeds != null) E.bump(p, 'marketProceeds', r.proceeds);
       else if(opt.price) E.bump(p, 'marketProceeds', opt.price);
-      E.milestone(g, p, `第 ${g.round} 轮行情兑现：${opt.label || opt.kind}${r.text ? '（' + r.text + '）' : ''}`, 'good');
+      E.milestone(g, p, `第 ${g.round} 轮行情兑现：${r.label || opt.label || opt.kind}${r.text ? '（' + r.text + '）' : ''}`, 'good');
     }
   }
   return r;

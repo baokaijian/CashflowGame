@@ -540,6 +540,34 @@ window.addEventListener('load', function(){
     });
   });
 
+  step('U 理财到期的持仓、报价与重复操作',function(){return true;},function(){
+    OUT.push('');OUT.push('=== U. 理财到期逐笔兑付 ===');
+    ['101','202'].forEach(function(rule){
+      window.UI.closeModal();window.startGame({rule:rule,mode:'solo',count:1,names:['兑付测试'],seed:42});
+      var E=window.Engine,A=window.Act,g=window.Game.g,p=g.players[0];
+      Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});p.cash=100000;p.energy=100;
+      A.buyDeal(g,window.DECK_SMALL.find(function(x){return x.id==='sm9';}));
+      A.buyDeal(g,window.DECK_BIG.find(function(x){return x.id==='bg12';}));
+      E.setPending(g,{type:'market',card:{id:'mk15',kind:'savings',rate:1.05},
+        impact:{options:[{id:'v_0_0',kind:'savings',pid:0,ix:0,price:11340}],forced:[]}});
+      window.UiGame.saveState();window.UiGame.tryRestore();window.UiPending.showPending();g=window.Game.g;p=g.players[0];
+      var cash=p.cash,buttons=[].slice.call(document.querySelectorAll('#modal [data-sell]'));
+      ok(buttons.length===2 && buttons[0].textContent==='兑付' && q('#modal').textContent.indexOf('¥45,150')>=0,rule+' 旧行情恢复后按两种产品本金分别展示兑付金额');
+      var oldButton=buttons[0],secondId=buttons[1].dataset.sell;oldButton.click();oldButton.onclick();
+      ok(p.cash===cash+11340 && p.assets.savings.length===1 && p.assets.savings[0].cost===43000 && q('#modal [data-sell]').dataset.sell===secondId,rule+' 第一笔只收回 ¥11,340，重复旧按钮不卖掉第二笔，也不复用按钮编号');
+      ok(q('#toastHost').textContent.indexOf('已兑付 高收益债基金')>=0 && q('#toastHost').textContent.indexOf('操作失败')<0,rule+' 成功兑付提示清晰，旧按钮不会产生失败误报');
+      window.UiGame.tryRestore();window.UiPending.showPending();g=window.Game.g;p=g.players[0];
+      ok(p.cash===cash+11340 && p.assets.savings.length===1,rule+' 点击后立即恢复，第一笔现金和持仓变动已保存，不重放交易');
+      g.pending.impact.options[0].price=11340;q('#modal [data-sell]').click();
+      ok(p.cash===cash+11340 && p.assets.savings.length===1 && q('#modal').textContent.indexOf('¥45,150')>=0,rule+' 串用第一笔金额被拒绝且自动刷新正确报价');
+      q('#modal [data-sell]').click();
+      ok(p.cash===cash+56490 && p.assets.savings.length===0 && !q('#modal [data-sell]'),rule+' 第二笔到账 ¥45,150，总计 ¥56,490，兑付完不残留按钮');
+      ok(g.log.some(function(x){return x.text.indexOf('债权转让项目')>=0 && x.text.indexOf('本金 ¥43,000')>=0 && x.text.indexOf('收益 ¥2,150')>=0;}),rule+' 日志记录实际产品、本金、比例、到账和收益');
+      mb('完成市场结算').click();ok(!g.pending,rule+' 兑付完成后正常结束行情');
+      window.UI.closeModal();q('#toastHost').innerHTML='';
+    });
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

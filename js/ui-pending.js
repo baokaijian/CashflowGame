@@ -529,7 +529,7 @@ function showMarket(g, p, P){
         <div class="rowlist">
           ${opt.map(o=>`<div class="rowlist__row">
             <span>${o.ico} <b>${esc(o.pname)}</b> · ${esc(o.label)}<br><span class="muted">${esc(o.sub)}</span></span>
-            <button class="btn btn--s btn--outline" data-sell="${o.id}">${o.kind==='option'?'行权':(o.kind==='disaster'||o.kind==='land-disaster'?'确认损失':'卖出')}</button>
+            <button class="btn btn--s btn--outline" data-sell="${o.id}">${o.kind==='option'?'行权':o.kind==='savings'?'兑付':(o.kind==='disaster'||o.kind==='land-disaster'?'确认损失':'卖出')}</button>
           </div>`).join('')}
         </div>`:`<p class="muted">本轮没有可交易的资产。</p>`}
       <div class="sec__total" style="margin-top:12px"><span>你的现金</span><span class="money">${money(p.cash)}</span></div>
@@ -538,12 +538,20 @@ function showMarket(g, p, P){
     ${foot(`<button class="btn btn--primary" data-ok>完成市场结算</button>`)}`,
     { onMount(m){
       $$('[data-sell]',m).forEach(b=>b.onclick=()=>{
+        // 重绘或恢复存档后，旧按钮不能再次提交，也不能操作另一局的状态。
+        if(b.disabled || !b.isConnected || G().g!==g || g.pending!==P) return;
         const o = opt.find(x=>String(x.id)===b.dataset.sell);
         if(!o) return;
+        b.disabled=true;
         const r = A.marketSell(g, o);
-        if(!r.ok) return U.toast(r.msg || '操作失败', 'err');
+        if(!r.ok){
+          showMarket(g,p,P);
+          return U.toast(r.msg || '操作失败，本次未执行交易。', 'err');
+        }
         window.UiGame.renderAll();
-        showMarket(g, p, g.pending);
+        showMarket(g, p, P);
+        window.UiGame.saveState();
+        if(o.kind==='savings') U.toast(`已兑付 ${esc(r.label)}，到账 ${money(r.proceeds)}`, 'ok');
       });
       $('[data-ok]',m).onclick = ()=>{ finishTurnAction(); };
     }});

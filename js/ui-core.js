@@ -133,14 +133,14 @@ function renderIncomeFT(p){
   <div class="sec">
     <div class="sec__title">财务自由圈 · 收入<span class="muted">年度 · 一次分红日结算一年</span></div>
     <div class="rowlist">
-      ${line('企业 / 资产分红 <span class="muted">（毛额，未扣支出）</span>', A(ft.income))}
+      ${line('企业 / 资产分红（毛额，未扣支出）', A(ft.income))}
     </div>
     <div class="sec__total"><span>年总收入</span><span class="money">${money(A(ft.income))}</span></div>
   </div>
   <div class="sec">
     <div class="sec__title">支出<span class="muted">年度</span></div>
     <div class="rowlist">
-      ${line(`生活支出 <span class="muted">（自由圈档次 ×${(LB.freeTrackMult||1).toFixed(2)}）</span>`, A(ft.living))}
+      ${line(`生活支出（自由圈档次 ×${(LB.freeTrackMult||1).toFixed(2)}）`, A(ft.living))}
       ${ft.loans ? line('贷款年供', A(ft.loans)) : ''}
     </div>
     <div class="sec__total"><span>年总支出</span><span class="money">${money(A(ft.expense))}</span></div>
