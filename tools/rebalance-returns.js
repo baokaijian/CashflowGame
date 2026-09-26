@@ -166,9 +166,7 @@ function patchPortfolios() {
   const aptCost = 65000, aptDp = Math.round(aptCost * res.down);
   const aptRent = Math.round(aptCost * res.rent / 12);
   const aptCf = Math.round(aptRent - (aptCost - aptDp) * Y.mortgageRate);
-  /* 老破小出租房：显式负债（liabs.other）+ extraPay 已由 applyPortfolio 并入该贷款的月供，
-     所以 cf 保持【毛租金】口径，月供单独由 extraPay 承担 ——
-     不能改成净额，否则同一笔月供会被算两次。 */
+  /* 初始出租房与正常购房共用项目融资：只记房产余额，cf 已扣月息。 */
   const oldCost = 170000, oldDebt = 120000, oldDp = oldCost - oldDebt;
   const oldRent = Math.round(oldCost * res.rent / 12);
   const oldDue = Math.round(oldDebt * Y.mortgageRate);
@@ -200,16 +198,14 @@ function patchPortfolios() {
     return setNote(blk, `首付 ${money(aptDp)} · 出租月收入 ${money(aptRent)}（净现金流 ${sign(aptCf)}）`);
   });
 
-  /* 老破小出租房：cf 存的是【毛租金】，月供由 extraPay 承担（applyPortfolio 会把它
-     并进那笔贷款的还款计划）—— 不能把 cf 改成净额，否则同一笔月供被算两次。 */
   patchEntry('老破小出租房', blk => {
     blk = setNum(blk, 'dp', oldDp);
-    blk = setNum(blk, 'cf', oldRent);
+    blk = setNum(blk, 'cf', oldRent - oldDue);
     blk = setNum(blk, 'rent', oldRent);
-    blk = setNum(blk, 'other', oldDebt);
-    blk = setNum(blk, 'extraPay', oldDue);
+    blk = setNum(blk, 'projectDebt', oldDebt);
+    blk = setNum(blk, 'financingRate', Y.mortgageRate);
     return setNote(blk, `首付 ${money(oldDp)}（${Math.round(oldDp / oldCost * 100)}%）· 出租月收入 ${money(oldRent)}`
-      + ` · 附带房贷 ${money(oldDebt)}（月供 ${money(oldDue)}，另计为支出）`);
+      + ` · 项目融资 ${money(oldDebt)}（月息 ${money(oldDue)}，净现金流 ${sign(oldRent - oldDue)}；出售时还本）`);
   });
 
   patchEntry('朋友公司股权', blk => {

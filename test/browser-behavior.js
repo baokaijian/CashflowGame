@@ -490,6 +490,28 @@ window.addEventListener('load', function(){
     ok(q('#paneFinance [data-living-budget]').textContent.indexOf('已含自由圈生活档次')>=0,'自由圈预算展示已应用生活档次的实际金额');
   });
 
+  step('S 初始房产融资与旧档恢复',function(){return true;},function(){
+    OUT.push('');OUT.push('=== S. 初始房产融资与旧档恢复 ===');
+    window.UI.closeModal();
+    window.startGame({rule:'202',mode:'solo',count:1,names:['融资测试'],seed:20});
+    var E=window.Engine,g=window.Game.g,p=g.players[0],r=p.assets.realEstate[0];
+    ok(p.portfolio.nm==='老破小出租房' && p.liabs.other===0 && r.projectDebt===120000,'新局组合融资只登记在房产名下');
+    window.UiGame.onMenu('finance');q('#modal [data-pid="0"]').click();
+    ok(q('#modal').textContent.indexOf('房租净收入 ¥216/月')>=0 && q('#modal').textContent.indexOf('项目融资')>=0,'财务页显示净租金与对应融资');
+    window.UI.closeModal();
+    p.portfolio={nm:'老破小出租房',realEstate:[{nm:'老破小出租房',cost:170000,dp:50000,cf:708}],liabs:{other:120000},extraPay:492};
+    p.liabs.other=120000;p.loans.other={base:120000,due:492,periods:0};r.cf=708;r.rent=708;
+    E.amortize(g,p);var debt=p.liabs.other,cash=p.cash;
+    window.UiGame.saveState();window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];r=p.assets.realEstate[0];
+    ok(p.liabs.other===0 && r.projectDebt===debt && p.cash===cash,'旧档恢复保留摊还后余额，只移除重复负债，不修改现金');
+    var cf=r.cf;window.UiGame.saveState();window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];
+    ok(p.cash===cash && p.assets.realEstate[0].cf===cf && p.assets.realEstate[0].projectDebt===debt,'再次保存恢复不重复迁移或扣息');
+    delete p.portfolioFinancingMigration;p.liabs.other=125000;p.loans.other={base:125000,due:510,periods:0};
+    window.UiGame.saveState();window.UiGame.tryRestore();p=window.Game.g.players[0];window.UiGame.onMenu('finance');q('#modal [data-pid="0"]').click();
+    ok(p.liabs.other===125000 && !!q('#modal [data-financing-review]'),'来源混合的旧债不自动减记，并在财务页明确提示');
+    window.UI.closeModal();
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

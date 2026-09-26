@@ -264,6 +264,9 @@ function renderAssets(p, g){
      `剩余 0 年`不会出现：还清的那一刻余额即为 0，这一行直接从表里消失。 */
 function renderLiabs(p){
   E.ensureLoans(p);
+  const migration=p.portfolioFinancingMigration;
+  const notice=migration && migration.status==='review'
+    ? `<p class="hint neg" data-financing-review>旧组合融资待核对：${esc(migration.reason)}。已保留原账，可能仍有重复债务；没有自动减债或补发现金。</p>` : '';
   let rows = E.LOAN_KEYS.map(k=>{
     const i = E.loanInfo(p, k);
     if(i.balance <= 0) return '';
@@ -273,7 +276,7 @@ function renderLiabs(p){
     return `<div class="rowlist__row"><span>${i.nm}<br><span class="muted">${sub}</span></span><b class="money">${money(i.balance)}</b></div>`;
   }).filter(Boolean).join('');
   rows += p.assets.realEstate.filter(r=>E.projectDebt(r)>0).map(r=>`<div class="rowlist__row"><span>${esc(r.nm)} · 项目融资<br><span class="muted">持有期付息，已扣在房租净收入中；出售时还本</span></span><b class="money">${money(E.projectDebt(r))}</b></div>`).join('');
-  return rows ? `<div class="rowlist">${rows}</div>` : '<p class="muted">无负债。</p>';
+  return notice+(rows ? `<div class="rowlist">${rows}</div>` : '<p class="muted">无负债。</p>');
 }
 
 /* ------------------------------ 精力与状态 ------------------------------ */

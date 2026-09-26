@@ -910,8 +910,82 @@ function listingPlan(g,listing){
     operating:prop.operating,heldYears:listing.heldYears+Math.max(0,marketAge(g)-numOr(listing.listedAge)),history:prop.history};
 }
 function propertyListings(g){ return assetMarket(g).listings.map(l=>listingPlan(g,l)).filter(Boolean); }
+/* D1：旧初始出租房把同一融资记进 other 和 projectDebt。
+   只迁移可识别的独立贷款；历史现金、已锁定结算和成本不改写。
+   混合债务或无售房凭据时留待核对，绝不按名字直接减掉 12 万。 */
+function migratePortfolioFinancing(g){
+  const name='老破小出租房', original=120000, cost=170000;
+  g.players.forEach(p=>{
+    const pf=p.portfolio;
+    if(!pf || pf.nm!==name || pf.financingVersion===1 || p.portfolioFinancingMigration) return;
+    const review=reason=>{
+      p.portfolioFinancingMigration={version:1,status:'review',reason};
+      log(g,`${p.name} 的旧组合融资需核对：${reason}。保留原账，未自动减债；请查看财务报表。`,'bad',p.name);
+    };
+    const source=pf.realEstate && pf.realEstate[0];
+    if(!source || source.cost!==cost || source.dp!==50000 ||
+       !pf.liabs || pf.liabs.other!==original || pf.extraPay!==492){
+      review('组合的历史融资来源不完整');return;
+    }
+    ensureLoans(p);
+    const balance=p.liabs.other, loan=p.loans.other;
+    if(!Number.isFinite(balance) || balance<0 || balance>original ||
+       numOr(p.job && p.job.liab && p.job.liab.other)!==0 ||
+       loan.base!==original || !Number.isFinite(loan.due) || loan.due<0 || loan.due>492){
+      review('其他负债可能混有新增借款，无法可靠拆分');return;
+    }
+    const props=Object.values((g.assetMarket && g.assetMarket.properties)||{});
+    const matches=props.filter(prop=>{
+      const h=(prop.history||[])[0];
+      return prop.nm===name && h && ['买入','存档登记'].includes(h.type) &&
+        h.player===p.id && h.cost===cost && h.debt===original && h.share===1;
+    });
+    let prop=matches[0], owned, closed=false;
+    if(matches.length>1){review('存在多套同名房产，无法唯一定位初始融资');return;}
+    if(prop){
+      const history=prop.history.slice(1);
+      // 有明确还本的出售凭据：只清理原借款人的重复余额，不碰再次买入的新融资。
+      closed=history.some(h=>['卖出','急售','破产清算'].includes(h.type) && h.share===1 && h.debt===original);
+      if(!closed){
+        if(history.some(h=>!['协议转让（融资随资产转移）','买入'].includes(h.type) || h.debt!==original || h.share!==1)){
+          review('房产历史不足以确认融资当前归属');return;
+        }
+        const holdings=g.players.flatMap(owner=>owner.assets.realEstate.filter(r=>r.propertyId===prop.id).map(item=>({owner,item})));
+        if(holdings.length!==1){review('当前产权无法唯一对应初始融资');return;}
+        owned=holdings[0];
+        const last=prop.history[prop.history.length-1];
+        if(owned.item.holdingId!==last.holdingId || owned.owner.id!==last.player){review('当前持仓编号或所有者不一致');return;}
+      }
+    }else{
+      // 更早的存档没有实体历史，只接受仍由开局玩家持有的唯一开局房产。
+      const holdings=p.assets.realEstate.filter(r=>assetName(r)===name && r.cost===cost && r.dp===50000 && r.buyRound===1);
+      if(holdings.length!==1 || holdings[0].propertyId){review('缺少初始房产或已售房还本记录');return;}
+      owned={owner:p,item:holdings[0]};
+    }
+    if(owned && (holdingShare(owned.item)!==1 || projectDebt(owned.item)!==original ||
+       !Number.isFinite(owned.item.cf))){review('持仓份额或融资余额已发生无法识别的变更');return;}
+    const record={version:1,status:closed?'released':'converted',balance,oldLoan:Object.assign({},loan)};
+    if(owned){
+      const r=owned.item, rate=numOrDef(r.financingRate,window.YIELD.mortgageRate);
+      const gross=r.cf, interest=Math.round(balance*rate);
+      // 旧 cf（及 baseCf）为毛租金；旧 rent 可能被行情路径加过一次利息，不能再拿它推导毛租金。
+      r.projectDebt=balance;r.financingRate=rate;r.rent=gross;r.cf=gross-interest;
+      if(r.baseCf!=null) r.baseCf-=interest;
+      if(prop) prop.rent=gross;
+      record.owner=owned.owner.id;record.propertyId=r.propertyId||null;
+    }
+    p.liabs.other=0;
+    p.loans.other={base:0,due:0,periods:0};
+    p.portfolioFinancingMigration=record;
+    log(g,closed
+      ? `${p.name} 的旧组合融资已核对售房还本记录，移除重复其他负债 ${money(balance)}；不追溯调整现金。`
+      : `${p.name} 的旧组合融资已迁入房产，保留剩余本金 ${money(balance)}，未来租金扣项目利息、出售时还本；历史现金不变。`,'info',p.name);
+  });
+  return g;
+}
 function migrateAssets(g){
   const isLegacy=!g.assetMarket;
+  migratePortfolioFinancing(g);
   assetMarket(g);
   g.players.forEach(p=>{
     ASSET_KINDS.forEach(kind=>(p.assets[kind]||[]).forEach(item=>stampOperation(kind,item)));
