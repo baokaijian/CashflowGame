@@ -153,7 +153,7 @@ function renderIncomeFT(p){
   <p class="hint">出圈后主动收入退出生活：工资不再入账，与工资绑定的个税也一并停征。
     但住房、用车、消费预算与贷款月供照旧 —— <b>顺流层同样会因为开销超过分红而破产</b>。</p>`;
 }
-function renderIncome(p){ return renderIncomeBase(p)+renderLivingBudget(p)+renderFamily(p); }
+function renderIncome(p,g){ return renderIncomeBase(p,g)+renderLivingBudget(p)+renderFamily(p); }
 function renderLivingBudget(p){
   const mult=p.inFT?window.LIFEBASE.freeTrackMult:1,rows=E.livingBudget(p,mult);
   return `<div class="sec" data-living-budget><div class="sec__title">还贷后仍在的生活预算</div>
@@ -177,8 +177,9 @@ function renderFamily(p){
     <p class="hint">每结算一个在职、有工资的年份记 1 年缴费；失业、退休和出圈后不新增。${F.pensionFullYears} 年达到基础工资 ${Math.round(window.SOLO.pensionRatio*100)}% 的养老金上限。游戏只记录缴费年数，不新增一笔缴费扣款。退休医疗按基础工资 ${(F.medicalBaseRate*100).toFixed(1)}% 起，每长一岁增加 ${(F.medicalAnnualStep*100).toFixed(1)} 个百分点，上限 ${(F.medicalMaxRate*100).toFixed(1)}%。</p>
   </div>`;
 }
-function renderIncomeBase(p){
+function renderIncomeBase(p,g){
   if(p.inFT) return renderIncomeFT(p);
+  g=g || (window.Game && window.Game.g);
   const f = E.finance(p);
   const A = v => E.annual(v);
   const L = window.EXP_LABEL, I = window.INC_LABEL;
@@ -222,7 +223,7 @@ function renderIncomeBase(p){
       <span>${f.cashflow >= 0 ? '年结余（发薪日入账）' : '年缺口（入不敷出）'}</span><span class="money">${money(A(f.cashflow))}</span>
     </div>
     <div class="sec__total" style="background:var(--secondary-container);color:var(--secondary)">
-      <span>被动收入（年）</span><span class="money">${money(A(f.passive))} <span class="muted">/ 门槛 ${money(A(f.totalExpenses))}</span></span>
+      <span>被动收入（年）</span><span class="money">${money(A(f.passive))} <span class="muted" data-escape-target>/ 门槛 ${money(A(E.escapeTarget(g,p)))}（须严格超过）</span></span>
     </div>
   </div>`;
 }
@@ -244,7 +245,7 @@ function renderAssets(p, g){
   g=g || (window.Game && window.Game.g);
   const a = p.assets;
   const blocks = [];
-  if(a.stocks.length) blocks.push(a.stocks.map(s=>assetLine(`${s.symbol} ${s.shares} 股`, `成本 ${money(s.cost)}/股 · ${g?`参考市值 ${money(E.appraiseAsset(g,'stocks',s).value)}`:`账面 ${money(s.shares*s.cost)}`}`)).join(''));
+  if(a.stocks.length) blocks.push(a.stocks.map(s=>assetLine(`${s.symbol} ${s.shares} 股`, `取得总成本 ${money(s.shares*s.cost)}（单价约 ¥${Number(s.cost).toLocaleString('en-US',{maximumFractionDigits:6})}/股） · ${g?`参考市值 ${money(E.appraiseAsset(g,'stocks',s).value)}`:`账面 ${money(s.shares*s.cost)}`}`)).join(''));
   if(a.realEstate.length) blocks.push(a.realEstate.map(r=>assetLine(r.nm, `首付 ${money(r.dp)} · 本人购入总价 ${money(r.cost)} · 项目融资余额 ${money(E.projectDebt(r))}${g?` · 本人参考估值 ${money(E.propertyValue(g,r))}`:''} · 房租净收入 ${money(E.assetCashflow(r))}/月 · ${operationMeta('realEstate',r)} · 编号 ${r.propertyId||'待登记'}`)).join(''));
   if(a.business.length) blocks.push(a.business.map(b=>assetLine(b.nm, `投入 ${money(b.cost)} · +${money(b.cf)}/月 · ${operationMeta('business',b)}`)).join(''));
   if(a.ftBusiness.length) blocks.push(a.ftBusiness.map(b=>assetLine(b.nm, `投入 ${money(b.cost)} · +${money(b.cf)}/月 · ${operationMeta('ftBusiness',b)}`)).join(''));
@@ -388,11 +389,11 @@ function renderSetupRules(){
       <div class="rules-col">
         <h4>② 压低总支出 <span class="rules-tag">分母</span></h4>
         <ul>
-          <li><b>提前还清贷款</b>月供立刻从支出里消失</li>
+          <li><b>提前还清贷款</b>减少偿债支出，住房、用车与消费仍保留生活预算</li>
           <li><b>偿还信用贷</b>高息负债越早还越好</li>
           <li><b>控制负债与消费</b>门槛随之下降</li>
         </ul>
-        <p class="rules-note">门槛本身就是「总支出」，所以<b>少花一块钱等于多赚一块钱</b>。</p>
+        <p class="rules-note">门槛 = 总支出 × ${mg}。还款后的实际改善取决于剩余月供与生活预算，详见贷款管家预览。</p>
       </div>
     </div>
 

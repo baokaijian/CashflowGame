@@ -318,7 +318,7 @@ function showPlayerDetail(pid){
           </div>
           <p class="hint">已开启「不显示对手财务明细」，仅显示概览。可在开局设置中调整。</p>
         </div>`
-      : `${U.renderIncome(p)}
+      : `${U.renderIncome(p,g)}
         <div class="sec"><div class="sec__title">资产负债表 · 资产</div>${U.renderAssets(p,g)}</div>
         <div class="sec"><div class="sec__title">资产负债表 · 负债</div>${U.renderLiabs(p)}</div>`}
     </div>
@@ -449,7 +449,7 @@ function renderFinance(){
       ${p.wings>0 ? `<p class="hint" style="margin-top:8px">🪶 持有<b>银翅膀 ×${p.wings}</b>：掷骰时可选择改用 2 粒骰子（走得更快，但落点更难控制）。</p>` : ''}
     </div>
     <div class="fin-cols">
-      <div>${U.renderIncome(p)}</div>
+      <div>${U.renderIncome(p,g)}</div>
       <div>
         <div class="sec"><div class="sec__title">资产</div>${U.renderAssets(p,g)}
           ${(function(){
@@ -502,7 +502,7 @@ function renderRules(){
       <div class="rulelist__row"><div>财务自由圈企业</div><div>${g.rule==='202'?'可开设特许经营':'仅可购买'}</div></div>
       <div class="rulelist__row"><div>初始资产</div><div>${g.rule==='202'?'职业卡 + 随机投资组合':'仅职业卡'}</div></div>
       <div class="rulelist__row"><div>现金约束</div><div>现金<b>不能为负</b>：付不出必须先贷款补足或变卖资产</div></div>
-      <div class="rulelist__row"><div>破产惩罚</div><div>${g.rule==='202'?'退出游戏 + 跳回合与借贷限制':'退出游戏'}</div></div>
+      <div class="rulelist__row"><div>破产惩罚</div><div>退出本局，不再行动或重新入场</div></div>
     </div>
     <h4>轮数与年龄</h4>
     <ul>
@@ -589,9 +589,9 @@ function renderRules(){
       <li>信用贷月息 <b>${(E.loanType('bank').rate*100).toFixed(1)}%</b>（年化约 ${(E.loanType('bank').rate*12*100).toFixed(0)}%），随借随还；财务自由圈投资只能用现金，不允许贷款。</li>
       <li><b>信用贷额度由收入核定</b>：负债收入比须 ≤ <b>${((window.CREDIT&&window.CREDIT.maxDTI||0.55)*100).toFixed(0)}%</b>，
         授信总额不超过<b>年收入的 ${(window.CREDIT&&window.CREDIT.incomeMult||1.2).toFixed(1)} 倍</b>（取较小者再乘信用系数）。
-        失业 / 求职期与破产后的征信恢复期内<b>不予授信</b>；退休后额度折半；白户（从未借过款）也会被谨慎对待。
+        失业 / 求职期会影响收入侧授信，已有抵押资产仍单独评估；退休后收入侧额度折半；缺少还款记录时信用系数较低。破产后退出本局，不再申请借款。
         —— 借钱能撑一时，但最终要靠收入去还。</li>
-      <li>主动变卖资产按账面价 <b>${Math.round(E.SELL_RATE*100)}%</b> 立即变现；破产时银行按 <b>${Math.round(E.BANK_RATE*100)}%</b> 收购全部可变现资产抵债。</li>
+      <li>主动变卖一般按参考估值的 <b>${Math.round(E.SELL_RATE*100)}%</b> 折价；破产时一般按 <b>${Math.round(E.BANK_RATE*100)}%</b> 清算。存款、理财按对应兑现规则处理，房产还须扣除项目融资与费用。</li>
       <li><b>多头借贷会被识别</b>：同时在多个<b>信用类</b>产品上有余额、近期频繁申请信用贷、或额度使用率过高，
         都会触发降额；达到红线时<b>直接拒贷</b>（房贷 / 车贷 / 助学属于正常负债，不计入）。</li>
       <li><b>抵押物按当前市价估值</b>：银行不按你的买入价放贷 —— 房价随 <b>8 年周期 ±15%</b> 波动（各类资产相位错开），
@@ -956,7 +956,7 @@ function openHelp(){
         <div class="rulelist__row"><div>财务自由圈企业</div><div>${view.rule==='202'?'可开设特许经营':'仅购买'}</div></div>
         <div class="rulelist__row"><div>初始资产</div><div>${view.rule==='202'?'职业卡 + 随机投资组合':'仅职业卡'}</div></div>
         <div class="rulelist__row"><div>现金约束</div><div>现金不能为负：付不出必须先贷款补足或变卖资产（80% 急售）</div></div>
-        <div class="rulelist__row"><div>破产惩罚</div><div>${view.rule==='202'?'退出游戏 + 跳回合与借贷限制':'退出游戏'}</div></div>
+        <div class="rulelist__row"><div>破产惩罚</div><div>退出本局，不再行动或重新入场</div></div>
       </div>
       <h4 style="margin:14px 0 6px;font-size:13px;color:var(--primary)">获胜条件</h4>
       <p class="muted">① 第一个在财务自由圈买下自己梦想的玩家；② 第一个在财务自由圈通过购买企业使企业月现金流之和增加 ≥ ${money(E.empireTarget())} 的玩家；③ ${view.rule==='202'?'买断对手资产使其出局，最终存活者获胜。':'破产者退出游戏。'}</p>
@@ -1286,13 +1286,13 @@ function openTrade(){
         const pl = who==='me' ? p : null;
         const items = [];
         if(pl){
-          pl.assets.stocks.forEach((s,i)=>items.push({t:`${s.symbol} ${s.shares} 股`, side:'me', kind:'stock', i, v:s.shares*s.cost}));
-          pl.assets.realEstate.forEach((r,i)=>items.push({t:r.nm, side:'me', kind:'realestate', i, v:r.dp}));
-          pl.assets.business.forEach((b,i)=>items.push({t:b.nm, side:'me', kind:'business', i, v:b.cost}));
+          pl.assets.stocks.forEach(s=>items.push({t:`${s.symbol} ${s.shares} 股`, kind:'stock', id:E.holdingId(g,s), v:s.shares*s.cost}));
+          pl.assets.realEstate.forEach(r=>items.push({t:r.nm, kind:'realestate', id:E.holdingId(g,r), v:r.dp}));
+          pl.assets.business.forEach(b=>items.push({t:b.nm, kind:'business', id:E.holdingId(g,b), v:b.cost}));
         }
         if(!items.length) return '<p class="muted">暂无。</p>';
         return '<div class="rowlist">' + items.map(x=>`<div class="rowlist__row"><span>${esc(x.t)}（成本 ${money(x.v)}）</span>
-          <button class="btn btn--s btn--outline" data-sell="${x.kind}:${x.i}">出售</button></div>`).join('') + '</div>';
+          <button class="btn btn--s btn--outline" data-sell="${x.kind}:${x.id}">出售</button></div>`).join('') + '</div>';
       };
       $('#myAssets',m).innerHTML = list('me');
       $('#otherAssets',m).innerHTML = others.length
@@ -1302,21 +1302,22 @@ function openTrade(){
             <div class="pcard__jet"></div></div>`).join('')
         : '<p class="muted">暂无其他玩家。</p>';
       $$('[data-sell]',m).forEach(b=>b.onclick=()=>{
-        const [kind,i] = b.dataset.sell.split(':');
-        sellAssetDialog(p, kind, +i);
+        const [kind,id] = b.dataset.sell.split(':');
+        sellAssetDialog(p, kind, id);
       });
       $('[data-cash]',m).onclick = ()=> cashTransferDialog();
       $('[data-close]',m).onclick = U.closeModal;
     }});
 }
-function sellAssetDialog(p, kind, i){
+function sellAssetDialog(p, kind, assetId){
   const g = Game.g;
   const others = g.players.filter(x=>x.id!==p.id && !x.out && !x.finished);
   if(!others.length) return U.toast('没有其他玩家可以购买','err');
-  let item, value;
-  if(kind==='stock'){ item = p.assets.stocks[i]; value = item.shares*item.cost; }
-  if(kind==='realestate'){ item = p.assets.realEstate[i]; E.registerProperty(g,p,item); value = Math.max(0,E.propertyValue(g,item)-E.projectDebt(item)); }
-  if(kind==='business'){ item = p.assets.business[i]; value = item.cost; }
+  const key={stock:'stocks',realestate:'realEstate',business:'business'}[kind];
+  const item=key && p.assets[key].find(x=>x.holdingId===assetId);
+  if(!item) return U.toast('原持仓已变更，请重新查看资产','err');
+  let value=kind==='stock'?item.shares*item.cost:item.cost;
+  if(kind==='realestate'){ E.registerProperty(g,p,item); value = Math.max(0,E.propertyValue(g,item)-E.projectDebt(item)); }
   const nm = item.symbol ? `${item.symbol} ${item.shares} 股` : item.nm;
   U.openModal(`
     <div class="modal__head"><h3>出售：${esc(nm)}</h3></div>
@@ -1340,18 +1341,15 @@ function sellAssetDialog(p, kind, i){
       $('[data-close]',m).onclick=U.closeModal;
       $$('[data-oid]',m).forEach(b=>b.onclick=()=>{
         const buyer = g.players[+b.dataset.oid];
-        const price = Math.round(+inp.value||0);
+        const price = inp.value.trim()===''?NaN:Number(inp.value);
+        if(!Number.isSafeInteger(price) || price<0) return U.toast('成交金额须为非负整数','err');
         if(kind==='realestate'){
           const r=A.transferProperty(g,p,buyer,item.holdingId,price);
           if(!r.ok) return U.toast(r.msg,'err');
           U.closeModal();renderAll();U.toast('交易完成，融资与房产一同转移','ok');return;
         }
-        if(price<0) return U.toast('成交价不能为负','err');
-        if(buyer.cash < price) return U.toast(`${buyer.name} 现金不足`,'err');
-        buyer.cash -= price; p.cash += price;
-        if(kind==='stock'){ buyer.assets.stocks.push(item); p.assets.stocks.splice(i,1); }
-        if(kind==='business'){ buyer.assets.business.push(item); p.assets.business.splice(i,1); }
-        E.log(g, `${p.name} 以 ${money(price)} 将 ${nm} 出售给 ${buyer.name}`, 'info');
+        const r=A.transferAsset(g,p,buyer,kind,assetId,price);
+        if(!r.ok) return U.toast(r.msg,'err');
         U.closeModal(); renderAll(); U.toast('交易完成','ok');
       });
     }});

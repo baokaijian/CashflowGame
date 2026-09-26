@@ -287,8 +287,8 @@ function classLevers(g, p, m, cls){
       `按你每月支出 ${money(exp)} 算，目标是 ${money(exp * 3)}；目前现金峰值只有 ${money(m.peakCash)}。` +
       '在攒够之前，不要把钱投入流动性差的资产。');
     add('把「出圈门槛」当成 KPI 来管理',
-      `门槛 = 总支出（现在是 ${money(target)}）。每还清一笔贷款，门槛就降一截 —— ` +
-      '这是唯一能同时「减少支出」和「变相提高被动收入」的动作。');
+      `门槛 = 总支出 × ${E.escapeMargin(g)}（现在是 ${money(target)}/月）。偿债能降低支出，但仍需保留住房、用车和消费预算。` +
+      '比较贷款管家的实际支出改善，再决定还款顺序。');
     add('每轮固定完成一个动作，不要等「合适的时机」',
       '把「买入 1 笔月现金流为正的资产」写进每轮流程。内圈的财富来自「机会 → 资产」的转化率，不是来自等待。');
   }
@@ -319,8 +319,8 @@ function classLevers(g, p, m, cls){
   }
   if(lv === 4){
     add('同时推「两条边」，比只盯被动收入更快',
-      `门槛就是总支出（${money(target)}）。提前还清高息负债 → 支出下降 → 门槛下降，` +
-      '等于被动收入凭空多出一档。这是中产往上走最被低估的一招。');
+      `门槛 = 总支出 × ${E.escapeMargin(g)}（${money(target)}/月）。提前还款可降低偿债支出，` +
+      '但住房、用车与消费仍有预算下限；被动收入须严格超过门槛才能出圈。');
     if(upkeep >= recover){
       add('先解决精力约束，再谈扩张',
         `名下资产每回合要花 ${upkeep} 点精力维护，而你的恢复能力只有 ${recover} 点 —— ` +
@@ -622,7 +622,7 @@ function exportMarkdown(g){
   const L = [];
   L.push('# 现金流游戏 · 本局复盘分析');
   L.push('');
-  L.push(`> 导出时间：${meta.exportedAt}　|　数据来源：整局每一次决策记录与逐轮财富快照，非主观评价`);
+  L.push(`> 导出时间：${meta.exportedAt}　|　数据来源：累计统计、保留的关键决策和最近最多 60 个财富采样点；不是完整交易流水，评级为游戏内模型评价。`);
   L.push('');
   L.push('| 项目 | 内容 |');
   L.push('| --- | --- |');
@@ -862,7 +862,7 @@ function reportHTML(g, pid){
 
   return `
     <div class="modal__head"><h3>📊 本局复盘报告</h3>
-      <p class="muted">数据来自整局的每一次决策与逐轮快照，非主观评价</p></div>
+      <p class="muted">依据累计统计、保留的关键决策和最近最多 60 个财富采样点；不是完整交易流水，评级为游戏内模型评价。</p></div>
     <div class="modal__body">
       <div class="sum-scroll">
         ${switchHTML}

@@ -2093,9 +2093,6 @@ function checkBankruptcy(g, p){
   p.creditBanUntil = numOr(g.round) + numOrDef((window.CREDIT || {}).banTurns, 10);
   milestone(g, p, `第 ${g.round} 轮${p.inFT ? '自由圈 ' : ''}现金流为负（${money(f.cashflow)}）且已无资产可变现，被动破产出局`, 'bad');
   log(g, `${p.name} 月现金流为负且已无偿付能力，出售全部资产后仍无法扭转，宣告破产，退出游戏`, 'bad', p.name);
-  if(g.rule==='202'){
-    log(g, `202 破产惩罚：跳过 3 回合且此后仅能就特定卡牌借贷（该玩家已出局）`, 'bad', p.name);
-  }
   checkLastStanding(g);
   return true;
 }

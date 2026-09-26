@@ -512,6 +512,34 @@ window.addEventListener('load', function(){
     window.UI.closeModal();
   });
 
+  step('T 玩家转让成本与统一门槛',function(){return true;},function(){
+    OUT.push('');OUT.push('=== T. 玩家转让成本与统一门槛 ===');window.UI.closeModal();
+    window.startGame({rule:'202',mode:'age',count:2,names:['卖方','买方'],seed:42,showAll:true});
+    var E=window.Engine,g=window.Game.g,p=g.players[0],buyer=g.players[1];
+    g.players.forEach(function(x){Object.keys(x.assets).forEach(function(k){x.assets[k]=[];});x.cash=100000;});
+    p.assets.stocks=[{symbol:'AUDIT',shares:3,cost:10,heldYears:4}];window.UiGame.renderAll();
+    window.UiGame.onMenu('trade');q('#modal [data-sell^="stock:"]').click();q('#tradePrice').value='1000';
+    var button=q('#modal [data-oid="1"]');q('#tradePrice').value='0.5';button.click();
+    ok(p.cash===100000 && buyer.cash===100000 && buyer.assets.stocks.length===0,'无效小数总价在界面拒绝，不转移现金或持仓');
+    q('#tradePrice').value='1000';button.click();
+    ok(p.cash===101000 && buyer.cash===99000 && Math.abs(buyer.assets.stocks[0].cost*3-1000)<1e-8,'真实股票转让按成交款建立买方成本，保留小数单价');
+    var cash=p.cash;button.click();ok(p.cash===cash && buyer.assets.stocks.length===1,'再次触发旧按钮不会重复付款或转移');
+    window.UiGame.saveState();window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];buyer=g.players[1];
+    window.UiGame.onMenu('finance');q('#modal [data-pid="1"]').click();
+    ok(q('#modal').textContent.indexOf('取得总成本 ¥1,000')>=0 && q('#modal').textContent.indexOf('333.333333')>=0,'恢复后买方财务明细显示总成本与小数单位成本');window.UI.closeModal();
+    p.assets.business=[{nm:'转让企业',cost:1000,cf:100,heldYears:8,opProfile:'self'}];
+    window.UiGame.onMenu('trade');q('#modal [data-sell^="business:"]').click();q('#tradePrice').value='3000';q('#modal [data-oid="1"]').click();
+    ok(buyer.assets.business[0].cost===3000 && buyer.assets.business[0].heldYears===8,'真实企业转让更新成本并保留使用年数');
+    ['101','202'].forEach(function(rule){
+      window.startGame({rule:rule,mode:'solo',count:1,names:['门槛测试'],seed:42});g=window.Game.g;p=g.players[0];window.UiGame.renderAll();
+      var target=E.money(E.annual(E.escapeTarget(g,p)));
+      ok(q('#paneFinance [data-escape-target]').textContent.indexOf(target)>=0,rule+' 财务面板的年门槛与真实判定一致');
+      window.UiGame.onMenu('finance');q('#modal [data-pid="0"]').click();
+      ok(q('#modal [data-escape-target]').textContent.indexOf(target)>=0 && q('#modal [data-escape-target]').textContent.indexOf('严格超过')>=0,rule+' 玩家详情显示同一门槛及严格超过条件');window.UI.closeModal();
+      window.UiGame.onMenu('help');ok(q('#modal').textContent.indexOf('跳回合与借贷限制')<0 && q('#modal').textContent.indexOf('不再行动或重新入场')>=0,rule+' 帮助页不再暗示破产后重新行动');window.UI.closeModal();
+    });
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

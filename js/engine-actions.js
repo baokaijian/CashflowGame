@@ -836,6 +836,40 @@ function transferProperty(g,seller,buyer,holdingId,equityPrice){
 }
 
 /* ------------------------------ 交易：现金/资产互易 ------------------------------ */
+/* 整笔持仓协议转让：以持仓编号定位，买方按成交款建立取得成本。
+   使用年数与经营合同随资产走，买方取得轮次单独更新。 */
+function transferAsset(g,seller,buyer,kind,assetId,price){
+  const key=kind==='stock'?'stocks':kind==='business'?'business':null;
+  if(!g || g.over || !g.players.includes(seller) || !g.players.includes(buyer) ||
+     seller===buyer || seller.out || buyer.out || seller.finished || buyer.finished ||
+     !key || !assetId || !Number.isSafeInteger(price) || price<0)
+    return {ok:false,msg:'交易对象、资产或成交金额无效（金额须为非负整数）。'};
+  const index=seller.assets[key].findIndex(item=>item.holdingId===assetId),item=seller.assets[key][index];
+  if(!item) return {ok:false,msg:'原持仓已变更，请重新查看资产。'};
+  if(!Number.isFinite(buyer.cash) || buyer.cash<price || !Number.isFinite(seller.cash))
+    return {ok:false,msg:'买方现金不足或现金记录无效。'};
+  if(!Number.isFinite(item.cost) || item.cost<0 ||
+     (kind==='stock' && (!Number.isSafeInteger(item.shares) || item.shares<=0)))
+    return {ok:false,msg:'持仓成本或数量无效，无法转让。'};
+  const oldCost=kind==='stock'?item.cost*item.shares:item.cost;
+  if(!Number.isFinite(oldCost)) return {ok:false,msg:'持仓总成本无效，无法转让。'};
+  const acquired=Object.assign({},item,{cost:kind==='stock'?price/item.shares:price,
+    buyRound:g.round,acquiredAge:E.ageOf(g,buyer),acquiredFrom:seller.id});
+  if(item.operating) acquired.operating=Object.assign({},item.operating);
+  if(item.orgContract) acquired.orgContract=Object.assign({},item.orgContract);
+  delete acquired.holdingId;
+  E.stampAsset(g,acquired,key);E.holdingId(g,acquired);
+  buyer.cash-=price;seller.cash+=price;
+  seller.assets[key].splice(index,1);buyer.assets[key].push(acquired);
+  const record={type:'协议转让',kind:key,name:E.assetLabel(item),sourceHoldingId:assetId,holdingId:acquired.holdingId,
+    seller:seller.id,buyer:buyer.id,round:g.round,age:E.ageOf(g,buyer),price,
+    sellerCost:oldCost,gain:price-oldCost,shares:kind==='stock'?item.shares:null};
+  E.assetMarket(g).trades.push(record);
+  E.bump(seller,'marketSells');E.bump(seller,'marketProceeds',price);
+  E.bump(buyer,'dealsBought');E.bump(buyer,'investTotal',price);
+  log(g,`${seller.name} 以 ${money(price)} 向 ${buyer.name} 转让 ${E.assetLabel(item)}；卖方成本 ${money(oldCost)}，买方取得成本 ${money(price)}`,'info');
+  return {ok:true,item:acquired,proceeds:price,record};
+}
 function trade(g, aId, bId, cashFromA, priceLabel){
   const a = g.players[aId], b = g.players[bId];
   if(!a || !b || a.out || b.out || a.finished || b.finished) return { ok:false, msg:'只能与仍在行动的玩家交易。' };
@@ -855,7 +889,7 @@ window.Act = {
   /* 人生模拟：精力校验 / 休假 / 补缺口 / 求职 */
   energyCost, dealEnergy, needEnergy, vacation, payDeficit, huntJob,
   /* 单人模式：机构接盘（投资卡转让）与机构合伙（联合购买的替代） */
-  buyDealWithOrg, orgPartnerPlan, buyPropertyListing, transferProperty,
+  buyDealWithOrg, orgPartnerPlan, buyPropertyListing, transferProperty, transferAsset,
   /* 现金不变式：付不出时的两条出路 + 破产 */
   liquidate: E.liquidate, declareBankruptcy: E.declareBankruptcy
 };
