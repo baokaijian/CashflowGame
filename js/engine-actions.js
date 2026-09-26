@@ -58,6 +58,11 @@ function dealCost(g, card, qty){
   if(card.kind === 'option' || card.kind === 'straddle') return (card.premium||0) * 100;
   return card.dp || card.cost || 0;
 }
+function optionId(g){
+  let id;
+  do{ id='option-'+(++E.assetMarket(g).next); }while(g.players.some(p=>p.options.some(o=>o.id===id)));
+  return id;
+}
 function buyDeal(g, card, exec){
   card=E.priceDeal(g,card);
   const p = E.current(g);
@@ -108,14 +113,14 @@ function buyDeal(g, card, exec){
       break;
     }
     case 'option':
-      p.options.push({ id:'op'+Date.now()+Math.floor(Math.random()*999), symbol:card.symbol, dir:card.dir,
+      p.options.push({ id:optionId(g), symbol:card.symbol, dir:card.dir,
         strike:card.strike, premium:card.premium, shares:100, expiresAt:g.turnNo+3, label:card.nm });
       log(g, `${p.name} 买入 ${card.nm}（权利金 ${money(cost)}，3 回合内有效）`, 'info', p.name);
       break;
     case 'straddle':
-      p.options.push({ id:'op'+Date.now()+Math.floor(Math.random()*999), symbol:card.symbol, dir:'call',
+      p.options.push({ id:optionId(g), symbol:card.symbol, dir:'call',
         strike:card.strike, premium:card.premium/2, shares:100, expiresAt:g.turnNo+3, label:card.symbol+' 跨式·看涨' });
-      p.options.push({ id:'op'+Date.now()+Math.floor(Math.random()*997), symbol:card.symbol, dir:'put',
+      p.options.push({ id:optionId(g), symbol:card.symbol, dir:'put',
         strike:card.strike, premium:card.premium/2, shares:100, expiresAt:g.turnNo+3, label:card.symbol+' 跨式·看跌' });
       log(g, `${p.name} 建立 ${card.symbol} 跨式期权（权利金 ${money(cost)}）`, 'info', p.name);
       break;

@@ -594,6 +594,65 @@ window.addEventListener('load', function(){
     });
   });
 
+  step('W 保存失败、备份与恢复校验',function(){return true;},function(){
+    OUT.push('');OUT.push('=== W. 存档保护 ===');window.UI.closeModal();
+    window.startGame({rule:'101',mode:'solo',count:1,names:['存档验证'],seed:42});
+    var U=window.UiGame,S=window.SaveState,g=window.Game.g,p=g.players[0];
+    U.saveState();var raw=localStorage.getItem(S.KEY),last=U.saveStatus.lastSuccess,original=Storage.prototype.setItem;
+    p.cash+=987;Storage.prototype.setItem=function(key,value){if(key===S.KEY)throw new DOMException('空间不足','QuotaExceededError');return original.call(this,key,value);};
+    try{
+      ok(!U.saveState().ok && localStorage.getItem(S.KEY)===raw && U.saveStatus.lastSuccess===last,'保存配额不足时保留上次好档与成功时间');
+      ok(q('#saveNotice').textContent.indexOf('进度未保存')>=0 && q('#paneSettings [data-save-error]').textContent.indexOf('空间不足')>=0,'常驻状态与设置都明确提示失败');
+      C.backup=U.backupText();ok(S.prepare(C.backup).g.players[0].cash===p.cash,'无法本地保存时仍能生成当前完整备份');
+      var downloaded=null,download=window.UiSummary.download;window.UiSummary.download=function(name,text){downloaded={name:name,text:text};};
+      try{q('#paneSettings [data-save="backup"]').click();ok(downloaded && downloaded.name.indexOf('完整存档')>=0 && S.prepare(downloaded.text).g.players[0].cash===p.cash,'真实备份按钮生成可恢复文件，而非复盘报告');}finally{window.UiSummary.download=download;}
+      var before=JSON.stringify(g);ok(!U.importBackup(C.backup).ok && window.Game.g===g && JSON.stringify(g)===before && localStorage.getItem(S.KEY)===raw,'恢复时写入失败不替换当前游戏或原存档');
+    }finally{Storage.prototype.setItem=original;}
+    q('#paneSettings [data-save="retry"]').click();ok(U.saveStatus.state==='saved' && q('#saveNotice').textContent.indexOf('已保存')>=0,'真实重试按钮成功后清除失败状态');
+    var snapshot=JSON.stringify(window.Game.g),saved=localStorage.getItem(S.KEY);
+    ['{',JSON.stringify({v:99}),window.UiSummary.exportJSON(g)].forEach(function(text){ok(!U.importBackup(text).ok && JSON.stringify(window.Game.g)===snapshot && localStorage.getItem(S.KEY)===saved,'损坏文件、未知版本或复盘报告拒绝恢复，原对局不变');});
+    p.cash+=500;U.previewImport(C.backup,'验证备份.json');
+    ok(title()==='恢复完整存档' && q('#modal').textContent.indexOf('存档验证')>=0,'导入前展示文件、玩家和替换说明');q('#modal [data-cancel]').click();
+    ok(window.Game.g===g && p.cash===S.prepare(C.backup).g.players[0].cash+500,'取消恢复保留当前游戏');
+    U.previewImport(C.backup,'验证备份.json');q('#modal [data-ok]').click();g=window.Game.g;p=g.players[0];
+    ok(p.cash===S.prepare(C.backup).g.players[0].cash && g.rngState.state===S.prepare(C.backup).g.rngState.state,'确认导入恢复备份中的现金与随机进度');
+    var get=Storage.prototype.getItem;Storage.prototype.getItem=function(key){if(key===S.KEY)throw new DOMException('不允许','SecurityError');return get.call(this,key);};
+    try{ok(!U.tryRestore() && window.Game.g===g && U.saveStatus.state==='failed','存储被禁用时有错误状态，内存对局不丢失');}finally{Storage.prototype.getItem=get;}
+    U.saveState();window.UI.closeModal();q('#toastHost').innerHTML='';
+  });
+
+  step('W 从文件选择器读取备份',function(){return true;},function(){
+    var input=q('#paneSettings [data-save-file]'),transfer=new DataTransfer();
+    transfer.items.add(new File([C.backup],'完整备份测试.json',{type:'application/json'}));input.files=transfer.files;input.dispatchEvent(new Event('change'));
+  });
+  step('W 确认文件导入与界面异常回滚',function(){return !q('#modalHost').hidden && q('#modal').textContent.indexOf('完整备份测试.json')>=0;},function(){
+    ok(q('#modal').textContent.indexOf('完整备份测试.json')>=0,'文件选择器读取完整备份后显示预览');q('#modal [data-ok]').click();
+    var U=window.UiGame,S=window.SaveState,g=window.Game.g,raw=localStorage.getItem(S.KEY),snapshot=JSON.stringify(g);
+    ok(g.players[0].cash===S.prepare(C.backup).g.players[0].cash,'通过真实文件读取与确认流程成功恢复');
+    var candidate=JSON.parse(C.backup);candidate.g.pending={type:'rest',p:0};var show=window.UiPending.showPending;
+    window.UiPending.showPending=function(){throw new Error('测试恢复界面异常');};
+    try{ok(!U.importBackup(JSON.stringify(candidate)).ok && window.Game.g===g && JSON.stringify(g)===snapshot && localStorage.getItem(S.KEY)===raw,'恢复界面异常时回滚内存和本机记录，不替换为半恢复状态');}finally{window.UiPending.showPending=show;}
+    U.saveState();window.UI.closeModal();q('#toastHost').innerHTML='';
+  });
+
+  step('X 掷骰动画中保存与恢复',function(){return true;},function(){
+    OUT.push('');OUT.push('=== X. 掷骰中恢复 ===');
+    window.startGame({rule:'101',mode:'solo',count:1,names:['骰子恢复'],seed:42});
+    var E=window.Engine,U=window.UiGame,g=window.Game.g;g.players[0].cash=2000000;
+    var copy=window.SaveState.prepare(U.backupText()).g;C.expectedDice=E.rollDice(copy,E.diceCount(copy,copy.players[0]));
+    U.roll();ok(window.Game.animating && JSON.stringify(window.Game.pendingDice)===JSON.stringify(C.expectedDice),'真实掷骰已确定结果，动画只负责展示');
+    var state=g.rngState.state;ok(U.saveState().ok,'动画中能保存待完成骰子');
+    U.tryRestore();C.restoredRoll=window.Game.g;C.afterRollCash=C.restoredRoll.players[0].cash;C.afterRollPos=C.restoredRoll.players[0].pos;
+    ok(window.Game.rolled && !window.Game.animating && window.Game.pendingDice===null && C.restoredRoll.rngState.state===state,'恢复只完成已掷出的结果，不重新消耗随机数');
+    ok(JSON.stringify(C.restoredRoll.lastDice)===JSON.stringify(C.expectedDice) && C.afterRollPos===C.expectedDice.reduce(function(a,b){return a+b;},0),'恢复的骰子与移动位置保持一致');
+  });
+  step('X 旧动画回调不得重复移动',function(){return !window.Game.animating;},function(){
+    window.UiGame.finishRoll(C.expectedDice);
+    ok(C.restoredRoll.players[0].cash===C.afterRollCash && C.restoredRoll.players[0].pos===C.afterRollPos,'旧完成回调不重复移动或结算');
+    window.UiGame.saveState();window.UiGame.tryRestore();
+    ok(window.Game.rolled && window.Game.g.players[0].cash===C.afterRollCash && window.Game.g.players[0].pos===C.afterRollPos,'再次恢复保留已行动状态，不重放骰子');window.Engine.clearPending(window.Game.g);window.UI.closeModal();
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

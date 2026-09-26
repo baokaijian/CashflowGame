@@ -7,7 +7,7 @@ const U = window.UI, E = window.Engine;
 
 function boot(){
   /* 页面与旧缓存脚本混用时停止启动，不能继续用旧积欠模型处理存档。 */
-  if(!E || E.PAYDAY_RULE !== 'one-year-per-crossing'){
+  if(!E || E.PAYDAY_RULE !== 'one-year-per-crossing' || !E.restoreRandom || !window.SaveState){
     document.getElementById('btnStart').disabled = true;
     document.getElementById('btnRoll').disabled = true;
     const hint = document.getElementById('modeHint');

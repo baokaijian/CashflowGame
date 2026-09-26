@@ -3,10 +3,10 @@
    ========================================================================== */
 (function(){
 'use strict';
-const E = window.Engine, A = window.Act, U = window.UI;
+const E = window.Engine, A = window.Act, U = window.UI, S = window.SaveState;
 const $ = U.$, $$ = U.$$, esc = U.esc, money = U.money;
 
-const Game = { g:null, boardView:'ratrace', peeking:false, rolled:false, animating:false };
+const Game = { g:null, boardView:'ratrace', peeking:false, rolled:false, animating:false, pendingDice:null };
 window.Game = Game;
 
 /* ------------------------------ 棋盘视图 ------------------------------ */
@@ -37,12 +37,12 @@ function resetBoardView(g){
    直接 JSON 序列化进 localStorage；牌堆与弃牌堆一并保存，刷新后卡序不丢。
    写入策略：状态变化时做 180ms 合并写入（避免掷骰动画期间高频落盘），
    并在页面隐藏 / 关闭时强制落盘一次。 */
-const SAVE_KEY = 'cf_save_v1';
+const SAVE_KEY = S.KEY;
 const CFG_KEY  = 'cf_cfg_v1';
 const SAVE_VER = 1;
 
 function store(fn, fallback){
-  try{ return fn(); }catch(e){ return fallback; }   /* 隐私模式 / 配额超限 → 静默降级，不影响对局 */
+  try{ return fn(); }catch(e){ return fallback; }   /* 仅偏好设置允许降级；对局保存使用显式错误反馈。 */
 }
 function saveCfg(cfg){
   store(()=>localStorage.setItem(CFG_KEY, JSON.stringify({
@@ -56,29 +56,127 @@ function loadCfg(){
     return (c && c.v === SAVE_VER) ? c : null;
   }, null);
 }
-function saveState(){
-  if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
-  store(()=>{
-    if(!Game.g){ localStorage.removeItem(SAVE_KEY); return; }
-    /* rng 是函数，不能进 JSON；本作未使用随机种子，置空即可 */
-    const g = JSON.parse(JSON.stringify(Game.g, (k, v)=> k === 'rng' ? undefined : v));
-    g.log = (g.log || []).slice(0, 80);                       /* 日志瘦身，控制存档体积 */
-    localStorage.setItem(SAVE_KEY, JSON.stringify({
-      v:SAVE_VER, at:Date.now(), rolled:Game.rolled, boardView:Game.boardView, g
-    }));
-  });
+const saveStatus={state:'empty',lastSuccess:null,error:'',raw:null};
+let saveTimer=null, failureNotified=false;
+function saveText(){
+  const at=saveStatus.lastSuccess?new Date(saveStatus.lastSuccess).toLocaleTimeString('zh-CN'):'';
+  if(saveStatus.state==='failed')return '进度未保存 · '+(at?'上次成功 '+at:'尚无成功记录');
+  if(saveStatus.state==='dirty')return '有未保存的操作'+(at?' · 上次成功 '+at:'');
+  return at?'已保存 '+at:'尚无本机存档';
 }
-let saveTimer = null;
+function renderSaveStatus(){
+  $$('[data-save-status]').forEach(x=>{x.textContent=saveText();x.classList.toggle('neg',saveStatus.state==='failed');});
+  $$('[data-save-error]').forEach(x=>{x.textContent=saveStatus.error;x.hidden=!saveStatus.error;});
+  $$('[data-save="backup"], [data-save="retry"]').forEach(x=>{x.disabled=!Game.g;});
+  $$('[data-save="raw"]').forEach(x=>{x.hidden=!saveStatus.raw;});
+}
+function saveFailure(e){
+  saveStatus.state='failed';
+  saveStatus.error='保存或读取失败：'+(e.name==='QuotaExceededError'?'浏览器空间不足。':e.name==='SecurityError'?'浏览器不允许本地存储。':e.message)+' 请重试或下载备份，刷新可能丢失未保存操作。';
+  renderSaveStatus();
+  if(!failureNotified){U.toast('进度未保存，请在设置中重试或下载完整备份。','err');failureNotified=true;}
+  return {ok:false,msg:saveStatus.error};
+}
+function saveState(){
+  if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}
+  if(!Game.g)return {ok:false,msg:'当前没有对局'};
+  try{
+    const text=S.encode(Game.g,Game,true);
+    localStorage.setItem(SAVE_KEY,text); // 单次原子替换；失败时保留上一份有效记录。
+    saveStatus.state='saved';saveStatus.lastSuccess=JSON.parse(text).at;saveStatus.error='';saveStatus.raw=null;failureNotified=false;
+    renderSaveStatus();return {ok:true};
+  }catch(e){return saveFailure(e);}
+}
 function scheduleSave(){
-  if(saveTimer) return;
-  saveTimer = setTimeout(()=>{ saveTimer = null; saveState(); }, 180);
+  if(saveTimer)return;
+  if(saveStatus.state!=='failed')saveStatus.state='dirty';renderSaveStatus();
+  saveTimer=setTimeout(()=>{saveTimer=null;saveState();},180);
+}
+function backupText(){return S.encode(Game.g,Game,false);}
+function downloadBackup(){
+  try{window.UiSummary.download('现金流-完整存档-'+Date.now()+'.json',backupText(),'application/json');return {ok:true};}
+  catch(e){U.toast('无法导出备份：'+esc(e.message),'err');return {ok:false,msg:e.message};}
+}
+function saveControls(){
+  return `<div class="sec"><div class="sec__title">进度保存与备份</div>
+    <p data-save-status role="status"></p><p data-save-error class="hint neg" hidden></p>
+    <div class="picklist"><button class="btn btn--tonal" data-save="retry">重试保存</button>
+      <button class="btn btn--tonal" data-save="backup">下载完整存档</button>
+      <button class="btn btn--outline" data-save="import">从备份恢复</button>
+      <button class="btn btn--outline" data-save="raw" hidden>下载无法读取的原记录</button></div>
+    <input type="file" accept=".json,application/json" data-save-file hidden>
+    <p class="hint">完整存档可恢复本局及牌堆；复盘报告仅供阅读，不能恢复对局。备份含本局玩家信息，请自行保管。</p>
+    ${Game.g && Game.g.rngMigrated?'<p class="hint">旧档没有随机历史，从更新后开始保存随机进度。</p>':''}</div>`;
+}
+function bindSaveControls(root){
+  $('[data-save="retry"]',root).onclick=()=>saveState();
+  $('[data-save="backup"]',root).onclick=()=>downloadBackup();
+  $('[data-save="raw"]',root).onclick=()=>{if(saveStatus.raw)window.UiSummary.download('现金流-原记录-'+Date.now()+'.json',saveStatus.raw,'application/json');};
+  const input=$('[data-save-file]',root);
+  $('[data-save="import"]',root).onclick=()=>{input.value='';input.click();};
+  input.onchange=async()=>{
+    const file=input.files[0];if(!file)return;
+    try{
+      if(file.size>S.MAX_CHARS*3)throw new Error('文件过大');
+      previewImport(await file.text(),file.name);
+    }catch(e){U.toast('无法读取备份：'+esc(e.message),'err');}
+  };
+  renderSaveStatus();
+}
+function checkPrepared(data){
+  data.g.players.forEach(p=>{U.renderIncome(p,data.g);U.renderAssets(p,data.g);});
+  return data;
+}
+function importBackup(text){
+  if(Game.animating)return {ok:false,msg:'请等待本次掷骰结束后再恢复备份。'};
+  let data,previousRaw;const previousStatus=Object.assign({},saveStatus);
+  try{
+    previousRaw=localStorage.getItem(SAVE_KEY);
+    data=checkPrepared(S.prepare(text));
+    // 先确保新档可以保存；失败时当前内存对局及原本机记录均不替换。
+    const saved=S.encode(data.g,data,true);localStorage.setItem(SAVE_KEY,saved);
+    if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}
+    saveStatus.lastSuccess=JSON.parse(saved).at;saveStatus.state='saved';saveStatus.error='';saveStatus.raw=null;failureNotified=false;
+  }catch(e){U.toast('恢复失败，原对局保留：'+esc(e.message),'err');return {ok:false,msg:e.message};}
+  try{installSave(data);}catch(e){
+    Object.assign(saveStatus,previousStatus);
+    try{if(previousRaw==null)localStorage.removeItem(SAVE_KEY);else localStorage.setItem(SAVE_KEY,previousRaw);}catch(writeError){saveFailure(writeError);}
+    U.toast('恢复失败，原对局保留：'+esc(e.message),'err');return {ok:false,msg:e.message};
+  }
+  saveState();U.toast('已从完整备份恢复对局','ok');return {ok:true};
+}
+function previewImport(text,name){
+  if(Game.animating){U.toast('请等待本次掷骰结束后再恢复备份。','err');return;}
+  let data;try{data=checkPrepared(S.prepare(text));}catch(e){U.toast('备份无效，原对局保留：'+esc(e.message),'err');return;}
+  U.confirmBox('恢复完整存档',`${esc(name||'备份文件')}<br>${esc(E.modeLabel(data.g))} · ${esc(data.g.rule)} · 第 ${data.g.round} 轮<br>玩家：${data.g.players.map(p=>esc(p.name)).join('、')}<br>将替换当前对局及本机存档。可先取消并下载当前备份。`,
+    '恢复此备份',()=>importBackup(text));
+}
+function installSave(data){
+  const previous=Object.assign({},Game),wasSetup=$('#setupScreen').hidden;
+  try{
+    Game.g=data.g;Game.rolled=!!data.rolled;Game.pendingDice=data.pendingDice||null;Game.animating=!!Game.pendingDice;
+    resetBoardView(Game.g);Game.g.players.forEach(p=>{p.pausedNotified=false;});
+    lastCanEnd=false;healedPending=null;lastEndAt=0;
+    if(handoffTimer){clearTimeout(handoffTimer);handoffTimer=null;}
+    $('#modalHost').hidden=true;$('#scrim').hidden=true;$('#setupScreen').hidden=true;
+    renderAll();
+    if(Game.pendingDice)finishRoll(Game.pendingDice);
+    else if(!Game.g.over){if(Game.g.pending)window.UiPending.showPending();else pauseNotice(Game.g);}
+  }catch(e){
+    if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}
+    Object.assign(Game,previous);$('#setupScreen').hidden=wasSetup;$('#modalHost').hidden=true;$('#scrim').hidden=true;
+    if(Game.g)renderAll();else renderAllReset();
+    throw e;
+  }
 }
 /* 刷新后恢复：优先恢复对局，其次恢复开局表单的上次选择 */
 function tryRestore(){
-  const data = store(()=>{
-    const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
-    return (d && d.v === SAVE_VER && d.g && d.g.players && d.g.players.length) ? d : null;
-  }, null);
+  const setup=$('#setupScreen [data-save-controls]');setup.innerHTML=saveControls();bindSaveControls(setup);
+  let data=null,raw=null;
+  try{
+    raw=localStorage.getItem(SAVE_KEY);
+    if(raw){saveStatus.raw=raw;data=checkPrepared(S.prepare(raw));saveStatus.lastSuccess=data.at||null;saveStatus.state='saved';saveStatus.error='';saveStatus.raw=null;failureNotified=false;}
+  }catch(e){saveFailure(e);}
 
   const cfg = loadCfg();
   if(cfg){                                      /* 开局表单回填上次配置 */
@@ -95,23 +193,16 @@ function tryRestore(){
   }
   if(!data) return false;
 
-  Game.g = E.migrateTime(data.g);
-  Game.g.rng = null;
-  Game.rolled = !!data.rolled;
-  Game.animating = false;
-  resetBoardView(Game.g);   /* 视图按【当前玩家】推导，而不是信任存档里的旧值 */
-  Game.g.players.forEach(p=>{ p.pausedNotified = false; });   /* 弹层不存档，恢复后允许再提示一次 */
-  lastCanEnd = false; healedPending = null;
-  $('#setupScreen').hidden = true;
-  renderAll();
+  try{installSave(data);}catch(e){saveStatus.raw=raw;saveFailure(e);return false;}
+  saveState();
   U.toast(Game.g.over ? '已恢复上次对局（本局已结束）' : '已恢复上次的对局进度', 'ok');
-  if(!Game.g.over) pauseNotice(Game.g);
   return true;
 }
 
 /* ------------------------------ 开局 ------------------------------ */
 function startGame(cfg){
   Game.g = E.newGame(cfg);
+  Game.animating=false;Game.pendingDice=null;
   Game.boardView = 'ratrace';
   Game.peeking = false;
   Game.rolled = false;
@@ -133,12 +224,13 @@ window.startGame = startGame;
 /* 唯一回到开始页面的入口：清空存档 → 清空内存对局 → 回到开局设置 */
 function resetGame(){
   const doReset = ()=>{
-    store(()=>localStorage.removeItem(SAVE_KEY));
+    try{localStorage.removeItem(SAVE_KEY);}catch(e){saveFailure(e);return;}
+    saveStatus.state='empty';saveStatus.lastSuccess=null;saveStatus.error='';saveStatus.raw=null;failureNotified=false;Game.pendingDice=null;
     if(saveTimer){ clearTimeout(saveTimer); saveTimer = null; }
     Game.g = null; Game.rolled = false; Game.animating = false; Game.boardView = 'ratrace'; Game.peeking = false;
     $('#setupScreen').hidden = false;
     $('#die1').textContent = '–'; $('#die2').hidden = true; $('#die3').hidden = true;
-    renderAllReset();
+    renderAllReset();renderSaveStatus();
   };
   U.confirmBox('重置游戏',
     '将清空当前对局与本地存档，并回到开始页面。<br><span class="muted">此操作不可撤销。</span>',
@@ -608,7 +700,7 @@ function renderRules(){
 }
 function renderSettings(){
   const g = Game.g, p = E.current(g);
-  $('#paneSettings').innerHTML = `
+  $('#paneSettings').innerHTML = `${saveControls()}
     <div class="sec">
       <div class="sec__title">游戏信息</div>
       <div class="rowlist">
@@ -635,6 +727,7 @@ function renderSettings(){
       <button class="btn btn--outline btn--block" data-act="surrender" style="margin-bottom:8px">🏳️ 主动认输</button>
       <button class="btn btn--outline btn--block" data-act="restart">重新开始</button>
     </div>`;
+  bindSaveControls($('#paneSettings'));
   $$('#paneSettings [data-act]').forEach(b=> b.onclick = ()=>onMenu(b.dataset.act));
 }
 
@@ -815,7 +908,7 @@ function roll(){
   if(n === window.WINGS.dice) E.useWing(p);    /* 掷出即消耗：用了才有成本，不用就不会丢 */
   const dice = E.rollDice(g, n);
   g.lastDice = dice;
-  Game.animating = true;
+  Game.animating = true;Game.pendingDice=dice;
   updateActions();
   const ds = [$('#die1'), $('#die2'), $('#die3')];
   ds.forEach((d,i)=>{ if(!d) return; d.hidden = i >= n; d.classList.add('die--roll'); });
@@ -823,6 +916,7 @@ function roll(){
   const fast = U.Setup.fast === false ? false : true;
   const maxTicks = fast ? 6 : 14;
   const timer = setInterval(()=>{
+    if(Game.g!==g || !Game.animating || Game.pendingDice!==dice){clearInterval(timer);return;}
     for(let i=0;i<n;i++) if(ds[i]) ds[i].textContent = 1 + Math.floor(Math.random()*6);
     if(++ticks > maxTicks){
       clearInterval(timer);
@@ -838,7 +932,7 @@ function finishRoll(dice){
   const sum = dice.reduce((a,b)=>a+b,0);
   const res = E.movePlayer(g, p, sum);
   Game.rolled = true;
-  Game.animating = false;
+  Game.animating = false;Game.pendingDice=null;
   /* ★ 发薪提示：现金已在这里进账（movePlayer 内完成结算），
      所以提示必须紧随其后 —— 落在 resolveSpace 之前，玩家先看到「已发薪」，
      随后才是所在格子的面板。停在结算格与纯入不敷出时 paydayNoticeOf 返回 null，
@@ -853,7 +947,7 @@ function finishRoll(dice){
     }
     window.UiPending.showPending();
   }
-  renderAll();
+  renderAll();saveState();
 }
 function endTurn(){
   const g = Game.g;
@@ -1657,6 +1751,7 @@ function surrenderFlow(){
 
 /* ------------------------------ 绑定 ------------------------------ */
 function bind(){
+  $('#btnSaveDetails').onclick=()=>{if(Game.g){U.activeTab('settings');$('#paneSettings').scrollIntoView({block:'start',behavior:'smooth'});}};
   /* 主/次按钮的语义随局面切换（掷骰 / 结束回合 / 再来一局 / 查看战绩），这里按状态分发 */
   $('#btnRoll').onclick = ()=>{ if(Game.g && Game.g.over) return resetGame(); roll(); };
   $('#btnEndTurn').onclick = ()=>{ if(Game.g && Game.g.over) return winnerModal(); endTurn(); };
@@ -1685,5 +1780,5 @@ function bind(){
 window.UiGame = { Game, startGame, resetGame, tryRestore, saveState, renderAll, roll, endTurn, onMenu, bind, finishRoll, renderCenter,
   showPlayerDetail, openHelp, openLoan, openLoanCenter, updateActions, openShortPanel, winnerModal, bizOfSpace, p_inFT,
   syncBoardView, resetBoardView, curCircle, bothCircles, pauseNotice, crisisNotice,
-  reportIfNeeded, surrenderFlow, retireNotice };
+  reportIfNeeded, surrenderFlow, retireNotice, backupText, importBackup, previewImport, downloadBackup, saveStatus };
 })();

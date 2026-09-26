@@ -31,10 +31,12 @@
 .name-grid__item input{border:0;background:transparent;color:var(--on-surface);font-size:14px;outline:none;width:100%;}
 
 /* ================= 主框架 ================= */
+.save-notice{min-height:30px;padding:4px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;background:var(--surface);position:sticky;top:56px;z-index:29;}
+.save-notice button{border:0;background:none;color:var(--primary);font:inherit;cursor:pointer;white-space:nowrap;padding:2px 4px;}
 .shell{
   display:grid;grid-template-columns:250px minmax(0,1fr) 356px;gap:16px;
   padding:16px;align-items:stretch;max-width:1780px;margin:0 auto;
-  height:calc(100vh - 56px);
+  height:calc(100vh - 86px);
 }
 .rail{
   background:var(--surface);border-radius:var(--r-l);border:1px solid var(--sep);

@@ -14,6 +14,28 @@ function shuffle(a, rnd){
   return arr;
 }
 function pick(arr, rnd){ return arr[Math.floor((rnd?rnd():Math.random())*arr.length)]; }
+/* 保留原有种子算法和开局顺序；状态本身可序列化，闭包在恢复时重新绑定。 */
+function randomState(seed){
+  return {version:1,state:seed==null?Math.floor(Math.random()*0x80000000):(Number(seed)&0x7fffffff)};
+}
+function randomSource(state){
+  return function(){
+    state.state=(state.state*1103515245+12345)&0x7fffffff;
+    return state.state/0x80000000;
+  };
+}
+function restoreRandom(g){
+  if(!g.rngState){
+    g.rngState=randomState();g.rngMigrated=true;
+    log(g,'旧存档没有随机历史：从本次恢复起保存随机进度，无法还原过去的种子序列。','info');
+  }
+  const s=g.rngState;
+  if(s.version!==1 || !Number.isInteger(s.state) || s.state<0 || s.state>0x7fffffff)
+    throw new Error('随机状态无效或版本不支持');
+  g.rng=randomSource(s);
+  Object.values(g.decks).forEach(deck=>{deck.rnd=g.rng;});
+  return g;
+}
 
 /* ------------------------------ 卡组 ------------------------------ */
 /* ★ 牌堆必须记住自己的随机源：牌抽完重洗时若退回 Math.random()，
@@ -1301,10 +1323,8 @@ function newGame(cfg){
   /* ★ 随机源必须在洗牌【之前】建好，并贯穿到牌堆与掷骰 ——
      否则 `cfg.seed` 只决定了掷骰，而「谁是什么职业」「先抽到哪张卡」仍走 Math.random()，
      于是同一份 seed 两次开局会得到完全不同的对局（存档重放、复盘与回归都失去意义）。
-     不传 seed 时 rng 为 null，各处会退回 Math.random()，行为与改造前一致。 */
-  const rng = cfg.seed
-    ? (function(s){ return function(){ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; })(cfg.seed)
-    : null;
+     不传 seed 时只在开局生成随机初值，此后所有业务随机都推进同一份可保存状态。 */
+  const rngState=randomState(cfg.seed),rng=randomSource(rngState);
   const careers = shuffle(CAREERS.slice(), rng);
   const portfolios = shuffle(PORTFOLIOS.slice(), rng);
   const g = {
@@ -1322,7 +1342,7 @@ function newGame(cfg){
     /* 退休突变点的结算结果（UI 据此提示「为什么收入突然少了一半」）*/
     lastRetire: null, finalSettled: null,
     log: [], pending: null, lastDice: [], lastPath: [],
-    rng,
+    rng, rngState,
     decks: {
       small:  makeDeck(DECK_SMALL, rng),
       big:    makeDeck(DECK_BIG, rng),
@@ -1941,7 +1961,7 @@ function drawDeal(g, deckName){
 function drawMarket(g){
   const deck = g.decks.market;
   if(deck.draw.length === 0){
-    deck.draw = shuffle(deck.disc.concat(g.rule==='202'?[]:[]));
+    deck.draw = shuffle(deck.disc,g.rng);
     deck.disc = [];
     if(g.rule==='202'){ g.marketDrawn = 0; log(g,'202 行情卡已抽满，重新洗牌 42 张','sys'); }
   }
@@ -1950,7 +1970,7 @@ function drawMarket(g){
   g.marketDrawn++;
   /* 202：抽满 25 张后重新洗牌（不保证所有行情卡都出现） */
   if(g.rule==='202' && g.marketDrawn >= 25 && deck.draw.length>0){
-    deck.draw = shuffle(deck.draw.concat(deck.disc)); deck.disc=[]; g.marketDrawn = 0;
+    deck.draw = shuffle(deck.draw.concat(deck.disc),g.rng); deck.disc=[]; g.marketDrawn = 0;
     log(g, '202 规则：行情卡抽满 25 张，重新洗牌','sys');
   }
   return card;
@@ -2293,7 +2313,7 @@ function doodadCost(g, p, card){
 
 window.Engine = {
   PAYDAY_RULE: 'one-year-per-crossing',
-  money, moneyK, shuffle, pick, finance, escapeMargin, empireTarget, escapeTarget, escapeProgress, ftMonthly, netWorth,
+  money, moneyK, shuffle, pick, restoreRandom, finance, escapeMargin, empireTarget, escapeTarget, escapeProgress, ftMonthly, netWorth,
   newGame, current, alivePlayers, beginTurn, nextPlayer, endTurn, diceCount, rollDice,
   movePlayer, resolveSpace, paydayNoticeOf, clearPending, setPending, drawDeal, drawMarket, drawCard,
   log, expireOptions, checkBankruptcy, settleNegativeCash, checkLastStanding, win, ftMonthlyIncome: ftMonthly,
