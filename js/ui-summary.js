@@ -8,7 +8,7 @@
      · 随时可通过菜单「本局复盘报告」查看阶段性总结
    数据来源：engine.js 在整局过程中采集的三份原始数据 ——
      stats       决策计数（买入 / 放弃 / 贷款 / 变现 / 强制支出 …）
-     track       每完成一整轮为所有玩家拍的财富快照（现金 / 被动收入 / 净资产）
+     track       每轮观察、按玩家年龄聚合的财富快照（保留首个已知点及同龄最新点）
      milestones  关键决策节点（时间线）
    报告的每一条结论都由这三份数据推导，不做主观臆测。
    ========================================================================== */
@@ -528,12 +528,12 @@ function planOf(g, p, m){
 /* ------------------------------ 迷你走势图 ------------------------------ */
 function sparkline(track, key, label, fmt){
   const arr = track.map(t=>num(t[key]));
-  if(arr.length < 2) return `<div class="sum-chart"><div class="sum-chart__hd"><span>${label}</span></div><p class="muted">对局轮数过少，暂无走势。</p></div>`;
+  if(arr.length < 2) return `<div class="sum-chart"><div class="sum-chart__hd"><span>${label}</span></div><p class="muted">采样不足，暂无走势。</p></div>`;
   const W = 300, H = 56;
   const min = Math.min.apply(null, arr), max = Math.max.apply(null, arr);
   const span = (max - min) || 1;
-  const step = W / (arr.length - 1);
-  const pts = arr.map((v, i)=>[i * step, H - ((v - min) / span) * (H - 10) - 5]);
+  const startAge=num(track[0].age),endAge=num(track[track.length-1].age);
+  const pts = arr.map((v, i)=>[endAge>startAge?(num(track[i].age)-startAge)/(endAge-startAge)*W:i*W/(arr.length-1), H - ((v - min) / span) * (H - 10) - 5]);
   const line = pts.map((c, i)=>(i ? 'L' : 'M') + c[0].toFixed(1) + ' ' + c[1].toFixed(1)).join(' ');
   const area = line + ` L ${W} ${H} L 0 ${H} Z`;
   return `<div class="sum-chart">
@@ -542,7 +542,7 @@ function sparkline(track, key, label, fmt){
       <path d="${area}" style="fill:var(--accent);opacity:.12"/>
       <path d="${line}" style="fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round"/>
     </svg>
-    <div class="sum-chart__ft"><span>第 ${track[0].round} 轮 · ${fmt(min)}</span><span>第 ${track[track.length-1].round} 轮 · ${fmt(arr[arr.length-1])}</span></div>
+    <div class="sum-chart__ft"><span>${startAge} 岁 · ${fmt(arr[0])}</span><span>${endAge} 岁 · ${fmt(arr[arr.length-1])}</span></div>
   </div>`;
 }
 
@@ -622,7 +622,7 @@ function exportMarkdown(g){
   const L = [];
   L.push('# 现金流游戏 · 本局复盘分析');
   L.push('');
-  L.push(`> 导出时间：${meta.exportedAt}　|　数据来源：累计统计、保留的关键决策和最近最多 60 个财富采样点；不是完整交易流水，评级为游戏内模型评价。`);
+  L.push(`> 导出时间：${meta.exportedAt}　|　数据来源：累计统计、保留的关键决策和最多 60 个财富采样点（按年龄聚合，保留首个已知点）；旧档缺失历史不补造，不是完整交易流水，评级为游戏内模型评价。`);
   L.push('');
   L.push('| 项目 | 内容 |');
   L.push('| --- | --- |');
@@ -862,7 +862,7 @@ function reportHTML(g, pid){
 
   return `
     <div class="modal__head"><h3>📊 本局复盘报告</h3>
-      <p class="muted">依据累计统计、保留的关键决策和最近最多 60 个财富采样点；不是完整交易流水，评级为游戏内模型评价。</p></div>
+      <p class="muted">依据累计统计、保留的关键决策和最多 60 个财富采样点（按年龄聚合，保留首个已知点）；旧档缺失历史不补造，不是完整交易流水，评级为游戏内模型评价。</p></div>
     <div class="modal__body">
       <div class="sum-scroll">
         ${switchHTML}
@@ -912,7 +912,8 @@ function reportHTML(g, pid){
         </div>
 
         <div class="sec">
-          <div class="sec__title">财富走势（每完成一整轮采样一次）</div>
+          <div class="sec__title">财富走势（按年龄聚合回合采样）</div>
+          ${p.trackLegacy?'<p class="hint">含旧档保留的历史采样；丢失的早年记录无法补回，历史现金流保持原记录。</p>':''}
           <div class="sum-charts">
             ${sparkline(m.track, 'net', '净资产', v=>money(v))}
             ${sparkline(m.track, 'passive', '被动收入', v=>money(v))}

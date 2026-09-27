@@ -140,6 +140,22 @@ function patchFile(rel, ids) {
   if (!DRY) fs.writeFileSync(path.join(ROOT, rel), s);
 }
 
+/* 新增房产报价与来源首付联动：单次资本利得比例，不是年化回报。 */
+function patchPropertyOffers(){
+  const rel='js/data-cards-202.js';
+  let s=fs.readFileSync(path.join(ROOT,rel),'utf8');
+  for(const m of global.DECK_MARKET_202.filter(x=>x.sourceCard)){
+    const c=[...global.DECK_CAPGAIN,...global.DECK_CASHFLOW].find(x=>x.id===m.sourceCard);
+    if(!c || c.kind!=='realestate' || c.nm!==m.prop || !Number.isFinite(m.equityGain))throw Error('房产报价来源无效：'+m.id);
+    const price=Math.round(c.cost+compute(c).dp*m.equityGain);
+    const re=new RegExp("(\\{ id:'"+m.id+"',[^\\n]+)");
+    if(!re.test(s))throw Error('未找到行情卡：'+m.id);
+    s=s.replace(re,block=>block.replace(/\bprice:\s*[\d.]+/,'price:'+price)
+      .replace(/note:'[^']*'/,"note:'买家整套报价 "+money(price)+' 收购'+c.nm+"；出售时扣除本人份额对应的项目融资。'"));
+  }
+  if(!DRY)fs.writeFileSync(path.join(ROOT,rel),s);
+}
+
 /* ---------- 自由圈企业：只有 cost 与 cf ---------- */
 function patchFt() {
   const rel = 'js/data-board.js';
@@ -243,6 +259,7 @@ function withCf(list) {
 const SMALL_BIG = withCf([...global.DECK_SMALL, ...global.DECK_BIG]);
 patchFile('js/data-cards-101.js', SMALL_BIG);
 patchFile('js/data-cards-202.js', withCf([...global.DECK_CAPGAIN, ...global.DECK_CASHFLOW]));
+patchPropertyOffers();
 patchFt();
 patchPortfolios();
 

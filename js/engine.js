@@ -488,7 +488,7 @@ function spendEnergy(p, n){
 /* 回合结束时的精力结算：自然恢复 − 持有维护。归零即触发健康危机。 */
 function tickEnergy(g, p){
   if(!p || p.out) return null;
-  p.energy = Math.min(energyMax(g, p), numOr(p.energy) + energyRecover(g, p) - energyUpkeep(p));
+  p.energy = Math.max(0, Math.min(energyMax(g, p), numOr(p.energy) + energyRecover(g, p) - energyUpkeep(p)));
   if(numOr(p.crisisTurns) > 0){
     p.crisisTurns--;
     if(p.crisisTurns <= 0){
@@ -496,7 +496,9 @@ function tickEnergy(g, p){
       log(g, `${p.name} 身体康复，医疗支出恢复正常`, 'good', p.name);
     }
   }
-  if(p.energy <= 0) return healthCrisis(g, p);
+  // 已被禁止行动的休养回合不能再次续上休养期，否则高维护组合会永久无法掷骰。
+  // 维护照扣、精力最低为零；恢复行动后仍可能再次过劳，不豁免经营负担。
+  if(p.energy <= 0 && !p.pausedThisTurn) return healthCrisis(g, p);
   return null;
 }
 /* 健康危机：强制休养 + 持续医疗支出 + 精力只恢复一半。
@@ -1306,7 +1308,7 @@ function newPlayer(i, name, job, color, icon){
     out: false, outReason: '',
     franchise: [],
     /* 复盘数据：决策计数 / 关键节点 / 逐轮财富快照（随整局状态一起被存档持久化） */
-    stats: null, track: [], milestones: [],
+    stats: null, track: [], trackVersion:1, milestones: [],
     escaped: false, escapeRound: null, escapePassive: 0,
     reportShown: false
   };
@@ -1450,7 +1452,7 @@ function lifeComplete(g, p){ return isAgeMode(g) && ageOf(g, p) >= g.endAge; }
 
 /* 旧档保留已经发生的现金和年龄，从恢复点开始按发薪日推进，绝不重发历史收入。 */
 function migrateTime(g){
-  if(g.timeVersion === 2) return migrateFTIncome(migrateFamily(migrateAssets(g)));
+  if(g.timeVersion === 2) return migrateTrack(migrateFTIncome(migrateFamily(migrateAssets(g))));
   const legacyAge = g.startAge + Math.max(0, numOr(g.round) - 1);
   g.players.forEach(p=>{
     p.age = isAgeMode(g) ? Math.min(g.endAge, legacyAge) : legacyAge;
@@ -1466,7 +1468,7 @@ function migrateTime(g){
   g.lastRetire = null;
   g.timeVersion = 2;
   log(g, '已更新结算规则：从现在起，每经过一个发薪日或分红日只结算一年并长一岁。历史现金保留，旧记录不重新入账。', 'info');
-  return migrateFTIncome(migrateFamily(migrateAssets(g)));
+  return migrateTrack(migrateFTIncome(migrateFamily(migrateAssets(g))));
 }
 /* 只切换未来收入来源。旧快照保留供核对，不改现金、出圈奖励及已锁定的年度缺口。 */
 function migrateFTIncome(g){
@@ -1546,13 +1548,35 @@ function milestone(g, p, text, kind){
   p.milestones.push({ round:g.round, age:ageOf(g, p), text, kind:kind || 'info' });
   if(p.milestones.length > 60) p.milestones.shift();
 }
-/* 每完成一整轮给所有玩家拍一张快照：现金 / 被动收入 / 月现金流 / 净资产 */
+/* 保留首个已知点，其后同龄回合只留最新采样；60 点上限仅裁剪中间历史。
+   旧档不补造已丢失的早年记录，也不按当前收入重算过去的现金流。 */
+function appendTrack(p,row){
+  const last=p.track[p.track.length-1];
+  if(p.track.length>1 && last.age===row.age)p.track[p.track.length-1]=row;
+  else p.track.push(row);
+  if(p.track.length>60)p.track.splice(1,p.track.length-60);
+}
+function migrateTrack(g){
+  g.players.forEach(p=>{
+    if(p.trackVersion===1)return;
+    initTrack(p);
+    const old=p.track;p.track=[];
+    // 聚合不能丢掉旧档仅存于采样中的峰值，社会等级也读取这些统计。
+    for(const [stat,key] of [['peakCash','cash'],['peakPassive','passive'],['peakNetWorth','net']]){
+      old.forEach(row=>{if(Number.isFinite(row[key]) && (p.stats[stat]===null || row[key]>p.stats[stat]))p.stats[stat]=row[key];});
+    }
+    old.forEach(row=>appendTrack(p,row));
+    p.trackVersion=1;p.trackLegacy=true;
+  });
+  return g;
+}
+/* 每轮观察，按各玩家年龄聚合。首个点保留；未来现金流与实际所在圈同源。 */
 function trackRound(g){
+  migrateTrack(g);
   g.players.forEach(p=>{
     initTrack(p);
     const f = finance(p), nw = netWorth(p);
-    p.track.push({ round:g.round, age:ageOf(g, p), cash:p.cash, passive:f.passive, cf:f.cashflow, net:nw });
-    if(p.track.length > 60) p.track.shift();
+    appendTrack(p,{ round:g.round, age:ageOf(g, p), cash:p.cash, passive:f.passive, cf:settleCashflow(p), net:nw });
     const st = p.stats;
     if(st.peakPassive === null || f.passive > st.peakPassive) st.peakPassive = f.passive;
     if(st.peakCash === null || p.cash > st.peakCash) st.peakCash = p.cash;

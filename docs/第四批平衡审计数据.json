@@ -1,0 +1,5275 @@
+{
+  "method": "500-turn cap reported separately; 6 natural-opening seeds per career, 12 careers, 101/202, hold/realize; reserve 6 months or 20000; no options/shorts, no optimal-play claim",
+  "samples": [
+    {
+      "career": "三甲医院医生",
+      "seed": 20260937
+    },
+    {
+      "career": "三甲医院医生",
+      "seed": 20260946
+    },
+    {
+      "career": "三甲医院医生",
+      "seed": 20260954
+    },
+    {
+      "career": "三甲医院医生",
+      "seed": 20260959
+    },
+    {
+      "career": "三甲医院医生",
+      "seed": 20260968
+    },
+    {
+      "career": "三甲医院医生",
+      "seed": 20260972
+    },
+    {
+      "career": "民航机长",
+      "seed": 20260944
+    },
+    {
+      "career": "民航机长",
+      "seed": 20260958
+    },
+    {
+      "career": "民航机长",
+      "seed": 20260963
+    },
+    {
+      "career": "民航机长",
+      "seed": 20260971
+    },
+    {
+      "career": "民航机长",
+      "seed": 20260987
+    },
+    {
+      "career": "民航机长",
+      "seed": 20260991
+    },
+    {
+      "career": "执业律师",
+      "seed": 20260921
+    },
+    {
+      "career": "执业律师",
+      "seed": 20260950
+    },
+    {
+      "career": "执业律师",
+      "seed": 20260975
+    },
+    {
+      "career": "执业律师",
+      "seed": 20261006
+    },
+    {
+      "career": "执业律师",
+      "seed": 20261007
+    },
+    {
+      "career": "执业律师",
+      "seed": 20261013
+    },
+    {
+      "career": "软件工程师",
+      "seed": 20260920
+    },
+    {
+      "career": "软件工程师",
+      "seed": 20260922
+    },
+    {
+      "career": "软件工程师",
+      "seed": 20260947
+    },
+    {
+      "career": "软件工程师",
+      "seed": 20260952
+    },
+    {
+      "career": "软件工程师",
+      "seed": 20260964
+    },
+    {
+      "career": "软件工程师",
+      "seed": 20260974
+    },
+    {
+      "career": "企业中层管理",
+      "seed": 20260931
+    },
+    {
+      "career": "企业中层管理",
+      "seed": 20260935
+    },
+    {
+      "career": "企业中层管理",
+      "seed": 20260943
+    },
+    {
+      "career": "企业中层管理",
+      "seed": 20260960
+    },
+    {
+      "career": "企业中层管理",
+      "seed": 20260969
+    },
+    {
+      "career": "企业中层管理",
+      "seed": 20260983
+    },
+    {
+      "career": "小学教师",
+      "seed": 20260923
+    },
+    {
+      "career": "小学教师",
+      "seed": 20260924
+    },
+    {
+      "career": "小学教师",
+      "seed": 20260929
+    },
+    {
+      "career": "小学教师",
+      "seed": 20260933
+    },
+    {
+      "career": "小学教师",
+      "seed": 20260961
+    },
+    {
+      "career": "小学教师",
+      "seed": 20260967
+    },
+    {
+      "career": "护士",
+      "seed": 20260927
+    },
+    {
+      "career": "护士",
+      "seed": 20260934
+    },
+    {
+      "career": "护士",
+      "seed": 20260945
+    },
+    {
+      "career": "护士",
+      "seed": 20260953
+    },
+    {
+      "career": "护士",
+      "seed": 20260970
+    },
+    {
+      "career": "护士",
+      "seed": 20260973
+    },
+    {
+      "career": "民警",
+      "seed": 20260928
+    },
+    {
+      "career": "民警",
+      "seed": 20260936
+    },
+    {
+      "career": "民警",
+      "seed": 20260957
+    },
+    {
+      "career": "民警",
+      "seed": 20260979
+    },
+    {
+      "career": "民警",
+      "seed": 20260994
+    },
+    {
+      "career": "民警",
+      "seed": 20261000
+    },
+    {
+      "career": "公司文员",
+      "seed": 20260926
+    },
+    {
+      "career": "公司文员",
+      "seed": 20260938
+    },
+    {
+      "career": "公司文员",
+      "seed": 20260940
+    },
+    {
+      "career": "公司文员",
+      "seed": 20260977
+    },
+    {
+      "career": "公司文员",
+      "seed": 20260981
+    },
+    {
+      "career": "公司文员",
+      "seed": 20260986
+    },
+    {
+      "career": "货运司机",
+      "seed": 20260930
+    },
+    {
+      "career": "货运司机",
+      "seed": 20260939
+    },
+    {
+      "career": "货运司机",
+      "seed": 20260942
+    },
+    {
+      "career": "货运司机",
+      "seed": 20260948
+    },
+    {
+      "career": "货运司机",
+      "seed": 20260949
+    },
+    {
+      "career": "货运司机",
+      "seed": 20260955
+    },
+    {
+      "career": "汽修技师",
+      "seed": 20260956
+    },
+    {
+      "career": "汽修技师",
+      "seed": 20260962
+    },
+    {
+      "career": "汽修技师",
+      "seed": 20260999
+    },
+    {
+      "career": "汽修技师",
+      "seed": 20261001
+    },
+    {
+      "career": "汽修技师",
+      "seed": 20261024
+    },
+    {
+      "career": "汽修技师",
+      "seed": 20261026
+    },
+    {
+      "career": "小区保安",
+      "seed": 20260925
+    },
+    {
+      "career": "小区保安",
+      "seed": 20260932
+    },
+    {
+      "career": "小区保安",
+      "seed": 20260941
+    },
+    {
+      "career": "小区保安",
+      "seed": 20260951
+    },
+    {
+      "career": "小区保安",
+      "seed": 20260966
+    },
+    {
+      "career": "小区保安",
+      "seed": 20260976
+    }
+  ],
+  "cappedCases": [],
+  "offers": [
+    {
+      "rule": "101",
+      "id": "mk6",
+      "property": "小区车位",
+      "price": 290250,
+      "buyCard": "sm5",
+      "cost": 139800,
+      "down": 55920,
+      "equityReturn": 2.6905
+    },
+    {
+      "rule": "101",
+      "id": "mk7",
+      "property": "单身公寓",
+      "price": 290250,
+      "buyCard": "sm6",
+      "cost": 161300,
+      "down": 48390,
+      "equityReturn": 2.6648
+    },
+    {
+      "rule": "101",
+      "id": "mk8",
+      "property": "地铁口小商铺",
+      "price": 430000,
+      "buyCard": "sm7",
+      "cost": 236500,
+      "down": 106425,
+      "equityReturn": 1.8182
+    },
+    {
+      "rule": "101",
+      "id": "mk9",
+      "property": "三居室住宅",
+      "price": 860000,
+      "buyCard": "bg1",
+      "cost": 645000,
+      "down": 193500,
+      "equityReturn": 1.1111
+    },
+    {
+      "rule": "101",
+      "id": "mk10",
+      "property": "学区房",
+      "price": 1182500,
+      "buyCard": "bg2",
+      "cost": 967500,
+      "down": 290250,
+      "equityReturn": 0.7407
+    },
+    {
+      "rule": "202",
+      "id": "m22",
+      "property": "郊区小地块",
+      "price": 81915,
+      "buyCard": "cg15",
+      "cost": 64500,
+      "down": 29025,
+      "equityReturn": 0.6
+    },
+    {
+      "rule": "202",
+      "id": "m23",
+      "property": "郊区小地块",
+      "price": 99330,
+      "buyCard": "cg15",
+      "cost": 64500,
+      "down": 29025,
+      "equityReturn": 1.2
+    },
+    {
+      "rule": "202",
+      "id": "m24",
+      "property": "商业综合体商铺",
+      "price": 3276600,
+      "buyCard": "cf3",
+      "cost": 2580000,
+      "down": 1161000,
+      "equityReturn": 0.6
+    },
+    {
+      "rule": "202",
+      "id": "m25",
+      "property": "法拍房",
+      "price": 301000,
+      "buyCard": "cg14",
+      "cost": 172000,
+      "down": 172000,
+      "equityReturn": 0.75
+    },
+    {
+      "rule": "202",
+      "id": "m26",
+      "property": "仓储物流园",
+      "price": 2114525,
+      "buyCard": "cf8",
+      "cost": 1505000,
+      "down": 677250,
+      "equityReturn": 0.9
+    },
+    {
+      "rule": "202",
+      "id": "m27",
+      "property": "长租公寓整栋",
+      "price": 1935000,
+      "buyCard": "cf1",
+      "cost": 1290000,
+      "down": 387000,
+      "equityReturn": 1.6667
+    },
+    {
+      "rule": "202",
+      "id": "m28",
+      "property": "写字楼整层",
+      "price": 2795000,
+      "buyCard": "cf2",
+      "cost": 1720000,
+      "down": 774000,
+      "equityReturn": 1.3889
+    }
+  ],
+  "summary": [
+    {
+      "rule": "101",
+      "policy": "hold",
+      "games": 72,
+      "escapes": 56,
+      "medianEscapeAge": 52,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 1105189,
+      "medianReward": 256800,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "games": 72,
+      "escapes": 62,
+      "medianEscapeAge": 52,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 64,
+      "medianNet": 1403049,
+      "medianReward": 290700,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "rule": "202",
+      "policy": "hold",
+      "games": 72,
+      "escapes": 11,
+      "medianEscapeAge": 61,
+      "bankrupt": 30,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 1,
+      "propertySales": 0,
+      "medianNet": 452893,
+      "medianReward": 1136300,
+      "rewardCoversDream": 6,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "games": 72,
+      "escapes": 22,
+      "medianEscapeAge": 55,
+      "bankrupt": 30,
+      "capped": 0,
+      "dreams": 1,
+      "empires": 3,
+      "propertySales": 62,
+      "medianNet": 930008,
+      "medianReward": 988600,
+      "rewardCoversDream": 8,
+      "negativeFTAtEscape": 0
+    }
+  ],
+  "comparison": {
+    "baseline": "6c4282b",
+    "games": 288,
+    "careers": [
+      {
+        "career": "三甲医院医生",
+        "before": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1251566,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 1,
+            "medianEscapeAge": 52,
+            "bankrupt": 0,
+            "capped": 1,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 10,
+            "medianNet": 2624780,
+            "medianReward": 736400,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 1,
+            "medianEscapeAge": 61,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 3645537,
+            "medianReward": 1828100,
+            "rewardCoversDream": 1,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 1,
+            "medianEscapeAge": 57,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 1,
+            "empires": 0,
+            "propertySales": 7,
+            "medianNet": 4455093,
+            "medianReward": 1447500,
+            "rewardCoversDream": 1,
+            "negativeFTAtEscape": 0
+          }
+        ],
+        "after": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1251566,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 1,
+            "medianEscapeAge": 52,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 10,
+            "medianNet": 2624780,
+            "medianReward": 736400,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 1,
+            "medianEscapeAge": 61,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 3645537,
+            "medianReward": 1828100,
+            "rewardCoversDream": 1,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 2,
+            "medianEscapeAge": 61,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 1,
+            "empires": 0,
+            "propertySales": 11,
+            "medianNet": 4566383,
+            "medianReward": 1906700,
+            "rewardCoversDream": 2,
+            "negativeFTAtEscape": 0
+          }
+        ]
+      },
+      {
+        "career": "民航机长",
+        "before": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 1,
+            "medianEscapeAge": 61,
+            "bankrupt": 0,
+            "capped": 1,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1812899,
+            "medianReward": 611400,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 3,
+            "medianEscapeAge": 54,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 6,
+            "medianNet": 2723600,
+            "medianReward": 804300,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 61,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 1,
+            "propertySales": 0,
+            "medianNet": 4594943,
+            "medianReward": 1199200,
+            "rewardCoversDream": 4,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 55,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 1,
+            "propertySales": 4,
+            "medianNet": 4195628,
+            "medianReward": 1435200,
+            "rewardCoversDream": 4,
+            "negativeFTAtEscape": 0
+          }
+        ],
+        "after": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 2,
+            "medianEscapeAge": 63,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 2248247,
+            "medianReward": 718900,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 3,
+            "medianEscapeAge": 52,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 5,
+            "medianNet": 2494406,
+            "medianReward": 804300,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 4,
+            "medianEscapeAge": 61,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 4052279,
+            "medianReward": 1199200,
+            "rewardCoversDream": 3,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 4,
+            "medianEscapeAge": 57,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 7,
+            "medianNet": 5025090,
+            "medianReward": 1435200,
+            "rewardCoversDream": 3,
+            "negativeFTAtEscape": 0
+          }
+        ]
+      },
+      {
+        "career": "执业律师",
+        "before": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 4,
+            "medianEscapeAge": 61,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1463497,
+            "medianReward": 491200,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 52,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 10,
+            "medianNet": 2341856,
+            "medianReward": 386500,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 4,
+            "medianEscapeAge": 62,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 3041369,
+            "medianReward": 1136300,
+            "rewardCoversDream": 2,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 4,
+            "medianEscapeAge": 54,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 4,
+            "medianNet": 3074430,
+            "medianReward": 1757700,
+            "rewardCoversDream": 2,
+            "negativeFTAtEscape": 0
+          }
+        ],
+        "after": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 4,
+            "medianEscapeAge": 59,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1463497,
+            "medianReward": 491200,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 58,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 9,
+            "medianNet": 2877600,
+            "medianReward": 577800,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 4,
+            "medianEscapeAge": 62,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 3041369,
+            "medianReward": 1136300,
+            "rewardCoversDream": 2,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 52,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 1,
+            "propertySales": 6,
+            "medianNet": 3945145,
+            "medianReward": 959500,
+            "rewardCoversDream": 1,
+            "negativeFTAtEscape": 0
+          }
+        ]
+      },
+      {
+        "career": "软件工程师",
+        "before": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 43,
+            "bankrupt": 0,
+            "capped": 1,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1614713,
+            "medianReward": 332900,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 49,
+            "bankrupt": 0,
+            "capped": 1,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 7,
+            "medianNet": 1754023,
+            "medianReward": 362700,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1276594,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 53,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 1,
+            "propertySales": 7,
+            "medianNet": 3462084,
+            "medianReward": 735600,
+            "rewardCoversDream": 1,
+            "negativeFTAtEscape": 0
+          }
+        ],
+        "after": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 49,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1614713,
+            "medianReward": 332900,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 49,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 7,
+            "medianNet": 1803893,
+            "medianReward": 362700,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1276594,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 60,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 12,
+            "medianNet": 3328742,
+            "medianReward": 735600,
+            "rewardCoversDream": 1,
+            "negativeFTAtEscape": 0
+          }
+        ]
+      },
+      {
+        "career": "企业中层管理",
+        "before": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 52,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1594633,
+            "medianReward": 425200,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 53,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 3,
+            "medianNet": 1870859,
+            "medianReward": 399200,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 2,
+            "medianEscapeAge": 61,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 1,
+            "propertySales": 0,
+            "medianNet": 2148411,
+            "medianReward": 871600,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 2,
+            "medianEscapeAge": 50,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 1,
+            "propertySales": 2,
+            "medianNet": 1979133,
+            "medianReward": 670400,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ],
+        "after": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 52,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1480937,
+            "medianReward": 425200,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 52,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 4,
+            "medianNet": 2260722,
+            "medianReward": 399200,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 2,
+            "medianEscapeAge": 61,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 1,
+            "propertySales": 0,
+            "medianNet": 2148411,
+            "medianReward": 871600,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 4,
+            "medianEscapeAge": 58,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 1,
+            "propertySales": 5,
+            "medianNet": 2912080,
+            "medianReward": 914800,
+            "rewardCoversDream": 1,
+            "negativeFTAtEscape": 0
+          }
+        ]
+      },
+      {
+        "career": "小学教师",
+        "before": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 46,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1390659,
+            "medianReward": 247700,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 46,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 4,
+            "medianNet": 1925723,
+            "medianReward": 247700,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 598878,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 1,
+            "medianEscapeAge": 52,
+            "bankrupt": 1,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 2,
+            "medianNet": 1138220,
+            "medianReward": 452800,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ],
+        "after": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 46,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1390659,
+            "medianReward": 247700,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 46,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 4,
+            "medianNet": 1925723,
+            "medianReward": 247700,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 598878,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 1,
+            "medianEscapeAge": 52,
+            "bankrupt": 1,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 8,
+            "medianNet": 1138220,
+            "medianReward": 452800,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ]
+      },
+      {
+        "career": "护士",
+        "before": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 54,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1179042,
+            "medianReward": 380800,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 52,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 4,
+            "medianNet": 1314814,
+            "medianReward": 298400,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 4,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 7173,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 3,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 111422,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ],
+        "after": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 54,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1179042,
+            "medianReward": 380800,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 52,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 4,
+            "medianNet": 1314814,
+            "medianReward": 298400,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 4,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 7173,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 3,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 5,
+            "medianNet": 128837,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ]
+      },
+      {
+        "career": "民警",
+        "before": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 46,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1413824,
+            "medianReward": 265400,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 46,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 5,
+            "medianNet": 1413824,
+            "medianReward": 265400,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 3,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 20547,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 1,
+            "medianEscapeAge": 32,
+            "bankrupt": 2,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 1,
+            "propertySales": 0,
+            "medianNet": 124232,
+            "medianReward": 413100,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ],
+        "after": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 46,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 1365404,
+            "medianReward": 265400,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 46,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 5,
+            "medianNet": 1365404,
+            "medianReward": 252300,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 3,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 20547,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 1,
+            "medianEscapeAge": 32,
+            "bankrupt": 3,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 1,
+            "propertySales": 3,
+            "medianNet": 53515,
+            "medianReward": 413100,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ]
+      },
+      {
+        "career": "公司文员",
+        "before": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 58,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 824453,
+            "medianReward": 218200,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 54,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 7,
+            "medianNet": 1461458,
+            "medianReward": 237800,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 6,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 6,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ],
+        "after": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 58,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 824453,
+            "medianReward": 218200,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 54,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 7,
+            "medianNet": 1461458,
+            "medianReward": 237800,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 6,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 6,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 4,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ]
+      },
+      {
+        "career": "货运司机",
+        "before": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 55,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 809424,
+            "medianReward": 251600,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 49,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 4,
+            "medianNet": 1151455,
+            "medianReward": 263900,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 6,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 6,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 882,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ],
+        "after": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 55,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 809424,
+            "medianReward": 251600,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 49,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 4,
+            "medianNet": 1151455,
+            "medianReward": 263900,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 6,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 6,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 1,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ]
+      },
+      {
+        "career": "汽修技师",
+        "before": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 61,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 541161,
+            "medianReward": 138600,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 55,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 1,
+            "medianNet": 377772,
+            "medianReward": 133400,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 5,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 5,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ],
+        "after": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 5,
+            "medianEscapeAge": 61,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 468443,
+            "medianReward": 116100,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 55,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 1,
+            "medianNet": 377772,
+            "medianReward": 133400,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 5,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 5,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ]
+      },
+      {
+        "career": "小区保安",
+        "before": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 51,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 571415,
+            "medianReward": 172900,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 52,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 4,
+            "medianNet": 1076281,
+            "medianReward": 186000,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 6,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 6,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ],
+        "after": [
+          {
+            "rule": "101",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 51,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 571415,
+            "medianReward": 172900,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "101",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 6,
+            "medianEscapeAge": 52,
+            "bankrupt": 0,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 4,
+            "medianNet": 1076281,
+            "medianReward": 186000,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "hold",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 6,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          },
+          {
+            "rule": "202",
+            "policy": "realize",
+            "games": 6,
+            "escapes": 0,
+            "medianEscapeAge": null,
+            "bankrupt": 6,
+            "capped": 0,
+            "dreams": 0,
+            "empires": 0,
+            "propertySales": 0,
+            "medianNet": 0,
+            "medianReward": null,
+            "rewardCoversDream": 0,
+            "negativeFTAtEscape": 0
+          }
+        ]
+      }
+    ],
+    "changedOutcomes": 84,
+    "summary": [
+      {
+        "rule": "101",
+        "policy": "hold",
+        "games": 72,
+        "escapes": 54,
+        "medianEscapeAge": 52,
+        "bankrupt": 0,
+        "capped": 2,
+        "dreams": 0,
+        "empires": 0,
+        "propertySales": 0,
+        "medianNet": 1113342,
+        "medianReward": 252500,
+        "rewardCoversDream": 0,
+        "negativeFTAtEscape": 0
+      },
+      {
+        "rule": "101",
+        "policy": "realize",
+        "games": 72,
+        "escapes": 60,
+        "medianEscapeAge": 52,
+        "bankrupt": 0,
+        "capped": 2,
+        "dreams": 0,
+        "empires": 0,
+        "propertySales": 65,
+        "medianNet": 1413824,
+        "medianReward": 290700,
+        "rewardCoversDream": 0,
+        "negativeFTAtEscape": 0
+      },
+      {
+        "rule": "202",
+        "policy": "hold",
+        "games": 72,
+        "escapes": 12,
+        "medianEscapeAge": 61,
+        "bankrupt": 30,
+        "capped": 0,
+        "dreams": 0,
+        "empires": 2,
+        "propertySales": 0,
+        "medianNet": 452893,
+        "medianReward": 1146900,
+        "rewardCoversDream": 7,
+        "negativeFTAtEscape": 0
+      },
+      {
+        "rule": "202",
+        "policy": "realize",
+        "games": 72,
+        "escapes": 19,
+        "medianEscapeAge": 52,
+        "bankrupt": 29,
+        "capped": 0,
+        "dreams": 1,
+        "empires": 4,
+        "propertySales": 26,
+        "medianNet": 672966,
+        "medianReward": 985400,
+        "rewardCoversDream": 8,
+        "negativeFTAtEscape": 0
+      }
+    ],
+    "lostOpeningBefore": 262,
+    "lostOpeningAfter": 0
+  },
+  "careers": [
+    {
+      "career": "三甲医院医生",
+      "rule": "101",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 1251566,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "三甲医院医生",
+      "rule": "101",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 1,
+      "medianEscapeAge": 52,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 10,
+      "medianNet": 2624780,
+      "medianReward": 736400,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "三甲医院医生",
+      "rule": "202",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 1,
+      "medianEscapeAge": 61,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 3645537,
+      "medianReward": 1828100,
+      "rewardCoversDream": 1,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "三甲医院医生",
+      "rule": "202",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 2,
+      "medianEscapeAge": 61,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 1,
+      "empires": 0,
+      "propertySales": 11,
+      "medianNet": 4566383,
+      "medianReward": 1906700,
+      "rewardCoversDream": 2,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "民航机长",
+      "rule": "101",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 2,
+      "medianEscapeAge": 63,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 2248247,
+      "medianReward": 718900,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "民航机长",
+      "rule": "101",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 3,
+      "medianEscapeAge": 52,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 5,
+      "medianNet": 2494406,
+      "medianReward": 804300,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "民航机长",
+      "rule": "202",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 4,
+      "medianEscapeAge": 61,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 4052279,
+      "medianReward": 1199200,
+      "rewardCoversDream": 3,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "民航机长",
+      "rule": "202",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 4,
+      "medianEscapeAge": 57,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 7,
+      "medianNet": 5025090,
+      "medianReward": 1435200,
+      "rewardCoversDream": 3,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "执业律师",
+      "rule": "101",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 4,
+      "medianEscapeAge": 59,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 1463497,
+      "medianReward": 491200,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "执业律师",
+      "rule": "101",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 58,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 9,
+      "medianNet": 2877600,
+      "medianReward": 577800,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "执业律师",
+      "rule": "202",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 4,
+      "medianEscapeAge": 62,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 3041369,
+      "medianReward": 1136300,
+      "rewardCoversDream": 2,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "执业律师",
+      "rule": "202",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 5,
+      "medianEscapeAge": 52,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 1,
+      "propertySales": 6,
+      "medianNet": 3945145,
+      "medianReward": 959500,
+      "rewardCoversDream": 1,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "软件工程师",
+      "rule": "101",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 49,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 1614713,
+      "medianReward": 332900,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "软件工程师",
+      "rule": "101",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 49,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 7,
+      "medianNet": 1803893,
+      "medianReward": 362700,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "软件工程师",
+      "rule": "202",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 1276594,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "软件工程师",
+      "rule": "202",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 5,
+      "medianEscapeAge": 60,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 12,
+      "medianNet": 3328742,
+      "medianReward": 735600,
+      "rewardCoversDream": 1,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "企业中层管理",
+      "rule": "101",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 52,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 1480937,
+      "medianReward": 425200,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "企业中层管理",
+      "rule": "101",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 52,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 4,
+      "medianNet": 2260722,
+      "medianReward": 399200,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "企业中层管理",
+      "rule": "202",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 2,
+      "medianEscapeAge": 61,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 1,
+      "propertySales": 0,
+      "medianNet": 2148411,
+      "medianReward": 871600,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "企业中层管理",
+      "rule": "202",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 4,
+      "medianEscapeAge": 58,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 1,
+      "propertySales": 5,
+      "medianNet": 2912080,
+      "medianReward": 914800,
+      "rewardCoversDream": 1,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "小学教师",
+      "rule": "101",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 46,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 1390659,
+      "medianReward": 247700,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "小学教师",
+      "rule": "101",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 46,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 4,
+      "medianNet": 1925723,
+      "medianReward": 247700,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "小学教师",
+      "rule": "202",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 598878,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "小学教师",
+      "rule": "202",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 1,
+      "medianEscapeAge": 52,
+      "bankrupt": 1,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 8,
+      "medianNet": 1138220,
+      "medianReward": 452800,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "护士",
+      "rule": "101",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 54,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 1179042,
+      "medianReward": 380800,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "护士",
+      "rule": "101",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 52,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 4,
+      "medianNet": 1314814,
+      "medianReward": 298400,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "护士",
+      "rule": "202",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 4,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 7173,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "护士",
+      "rule": "202",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 3,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 5,
+      "medianNet": 128837,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "民警",
+      "rule": "101",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 5,
+      "medianEscapeAge": 46,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 1365404,
+      "medianReward": 265400,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "民警",
+      "rule": "101",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 5,
+      "medianEscapeAge": 46,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 5,
+      "medianNet": 1365404,
+      "medianReward": 252300,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "民警",
+      "rule": "202",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 3,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 20547,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "民警",
+      "rule": "202",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 1,
+      "medianEscapeAge": 32,
+      "bankrupt": 3,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 1,
+      "propertySales": 3,
+      "medianNet": 53515,
+      "medianReward": 413100,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "公司文员",
+      "rule": "101",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 5,
+      "medianEscapeAge": 58,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 824453,
+      "medianReward": 218200,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "公司文员",
+      "rule": "101",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 54,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 7,
+      "medianNet": 1461458,
+      "medianReward": 237800,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "公司文员",
+      "rule": "202",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 6,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 0,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "公司文员",
+      "rule": "202",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 6,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 4,
+      "medianNet": 0,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "货运司机",
+      "rule": "101",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 5,
+      "medianEscapeAge": 55,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 809424,
+      "medianReward": 251600,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "货运司机",
+      "rule": "101",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 5,
+      "medianEscapeAge": 49,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 4,
+      "medianNet": 1151455,
+      "medianReward": 263900,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "货运司机",
+      "rule": "202",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 6,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 0,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "货运司机",
+      "rule": "202",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 6,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 1,
+      "medianNet": 0,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "汽修技师",
+      "rule": "101",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 5,
+      "medianEscapeAge": 61,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 468443,
+      "medianReward": 116100,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "汽修技师",
+      "rule": "101",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 55,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 1,
+      "medianNet": 377772,
+      "medianReward": 133400,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "汽修技师",
+      "rule": "202",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 5,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 0,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "汽修技师",
+      "rule": "202",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 5,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 0,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "小区保安",
+      "rule": "101",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 51,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 571415,
+      "medianReward": 172900,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "小区保安",
+      "rule": "101",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 6,
+      "medianEscapeAge": 52,
+      "bankrupt": 0,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 4,
+      "medianNet": 1076281,
+      "medianReward": 186000,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "小区保安",
+      "rule": "202",
+      "policy": "hold",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 6,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 0,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    },
+    {
+      "career": "小区保安",
+      "rule": "202",
+      "policy": "realize",
+      "games": 6,
+      "escapes": 0,
+      "medianEscapeAge": null,
+      "bankrupt": 6,
+      "capped": 0,
+      "dreams": 0,
+      "empires": 0,
+      "propertySales": 0,
+      "medianNet": 0,
+      "medianReward": null,
+      "rewardCoversDream": 0,
+      "negativeFTAtEscape": 0
+    }
+  ],
+  "witnesses": [
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "三甲医院医生",
+      "seed": 20260937,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 39,
+          "heldYears": 17,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "三甲医院医生",
+      "seed": 20260946,
+      "trades": [
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 39,
+          "heldYears": 3,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        },
+        {
+          "card": "mk10",
+          "property": "学区房",
+          "age": 64,
+          "heldYears": 11,
+          "cost": 967500,
+          "down": 290250,
+          "price": 1182500,
+          "debt": 677250,
+          "proceeds": 505250,
+          "gain": 215000,
+          "equityReturn": 0.7407
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "三甲医院医生",
+      "seed": 20260954,
+      "trades": [
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 46,
+          "heldYears": 21,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        },
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 58,
+          "heldYears": 29,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        },
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 58,
+          "heldYears": 7,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "三甲医院医生",
+      "seed": 20260959,
+      "trades": [
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 42,
+          "heldYears": 5,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        },
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 64,
+          "heldYears": 17,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "三甲医院医生",
+      "seed": 20260968,
+      "trades": [
+        {
+          "card": "mk10",
+          "property": "学区房",
+          "age": 38,
+          "heldYears": 6,
+          "cost": 967500,
+          "down": 290250,
+          "price": 1182500,
+          "debt": 677250,
+          "proceeds": 505250,
+          "gain": 215000,
+          "equityReturn": 0.7407
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "三甲医院医生",
+      "seed": 20260972,
+      "trades": [
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 54,
+          "heldYears": 29,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "民航机长",
+      "seed": 20260963,
+      "trades": [
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 35,
+          "heldYears": 3,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "民航机长",
+      "seed": 20260971,
+      "trades": [
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 48,
+          "heldYears": 4,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "民航机长",
+      "seed": 20260991,
+      "trades": [
+        {
+          "card": "mk10",
+          "property": "学区房",
+          "age": 46,
+          "heldYears": 5,
+          "cost": 967500,
+          "down": 290250,
+          "price": 1182500,
+          "debt": 677250,
+          "proceeds": 505250,
+          "gain": 215000,
+          "equityReturn": 0.7407
+        },
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 49,
+          "heldYears": 19,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        },
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 52,
+          "heldYears": 29,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "执业律师",
+      "seed": 20260921,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 47,
+          "heldYears": 21,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        },
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 51,
+          "heldYears": 26,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "执业律师",
+      "seed": 20260950,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 37,
+          "heldYears": 12,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        },
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 47,
+          "heldYears": 17,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "执业律师",
+      "seed": 20261006,
+      "trades": [
+        {
+          "card": "mk8",
+          "property": "地铁口小商铺",
+          "age": 51,
+          "heldYears": 25,
+          "cost": 236500,
+          "down": 106425,
+          "price": 430000,
+          "debt": 130075,
+          "proceeds": 299925,
+          "gain": 193500,
+          "equityReturn": 1.8182
+        },
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 52,
+          "heldYears": 15,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "执业律师",
+      "seed": 20261007,
+      "trades": [
+        {
+          "card": "mk10",
+          "property": "学区房",
+          "age": 40,
+          "heldYears": 2,
+          "cost": 967500,
+          "down": 290250,
+          "price": 1182500,
+          "debt": 677250,
+          "proceeds": 505250,
+          "gain": 215000,
+          "equityReturn": 0.7407
+        },
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 56,
+          "heldYears": 8,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        },
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 58,
+          "heldYears": 28,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "软件工程师",
+      "seed": 20260920,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 38,
+          "heldYears": 13,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "软件工程师",
+      "seed": 20260922,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 34,
+          "heldYears": 10,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        },
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 47,
+          "heldYears": 5,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "软件工程师",
+      "seed": 20260947,
+      "trades": [
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 34,
+          "heldYears": 9,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        },
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 58,
+          "heldYears": 35,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "软件工程师",
+      "seed": 20260952,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 29,
+          "heldYears": 6,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "软件工程师",
+      "seed": 20260964,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 52,
+          "heldYears": 26,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "企业中层管理",
+      "seed": 20260931,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 54,
+          "heldYears": 28,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        },
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 61,
+          "heldYears": 4,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "企业中层管理",
+      "seed": 20260935,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 43,
+          "heldYears": 20,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "企业中层管理",
+      "seed": 20260983,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 46,
+          "heldYears": 19,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "小学教师",
+      "seed": 20260924,
+      "trades": [
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 31,
+          "heldYears": 6,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "小学教师",
+      "seed": 20260933,
+      "trades": [
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 43,
+          "heldYears": 9,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "小学教师",
+      "seed": 20260961,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 46,
+          "heldYears": 18,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "小学教师",
+      "seed": 20260967,
+      "trades": [
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 54,
+          "heldYears": 25,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "护士",
+      "seed": 20260953,
+      "trades": [
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 49,
+          "heldYears": 7,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        },
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 58,
+          "heldYears": 30,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "护士",
+      "seed": 20260970,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 46,
+          "heldYears": 16,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "护士",
+      "seed": 20260973,
+      "trades": [
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 40,
+          "heldYears": 14,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "民警",
+      "seed": 20260957,
+      "trades": [
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 43,
+          "heldYears": 12,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        },
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 49,
+          "heldYears": 2,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        },
+        {
+          "card": "mk10",
+          "property": "学区房",
+          "age": 53,
+          "heldYears": 5,
+          "cost": 967500,
+          "down": 290250,
+          "price": 1182500,
+          "debt": 677250,
+          "proceeds": 505250,
+          "gain": 215000,
+          "equityReturn": 0.7407
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "民警",
+      "seed": 20261000,
+      "trades": [
+        {
+          "card": "mk8",
+          "property": "地铁口小商铺",
+          "age": 47,
+          "heldYears": 12,
+          "cost": 236500,
+          "down": 106425,
+          "price": 430000,
+          "debt": 130075,
+          "proceeds": 299925,
+          "gain": 193500,
+          "equityReturn": 1.8182
+        },
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 48,
+          "heldYears": 15,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "公司文员",
+      "seed": 20260926,
+      "trades": [
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 41,
+          "heldYears": 8,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        },
+        {
+          "card": "mk10",
+          "property": "学区房",
+          "age": 43,
+          "heldYears": 1,
+          "cost": 967500,
+          "down": 290250,
+          "price": 1182500,
+          "debt": 677250,
+          "proceeds": 505250,
+          "gain": 215000,
+          "equityReturn": 0.7407
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "公司文员",
+      "seed": 20260938,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 35,
+          "heldYears": 0,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "公司文员",
+      "seed": 20260977,
+      "trades": [
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 49,
+          "heldYears": 16,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "公司文员",
+      "seed": 20260981,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 45,
+          "heldYears": 16,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        },
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 54,
+          "heldYears": 14,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "公司文员",
+      "seed": 20260986,
+      "trades": [
+        {
+          "card": "mk9",
+          "property": "三居室住宅",
+          "age": 58,
+          "heldYears": 18,
+          "cost": 645000,
+          "down": 193500,
+          "price": 860000,
+          "debt": 451500,
+          "proceeds": 408500,
+          "gain": 215000,
+          "equityReturn": 1.1111
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "货运司机",
+      "seed": 20260939,
+      "trades": [
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 41,
+          "heldYears": 10,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "货运司机",
+      "seed": 20260942,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 42,
+          "heldYears": 2,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "货运司机",
+      "seed": 20260948,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 49,
+          "heldYears": 19,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "货运司机",
+      "seed": 20260955,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 37,
+          "heldYears": 6,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "汽修技师",
+      "seed": 20260962,
+      "trades": [
+        {
+          "card": "mk8",
+          "property": "地铁口小商铺",
+          "age": 43,
+          "heldYears": 2,
+          "cost": 236500,
+          "down": 106425,
+          "price": 430000,
+          "debt": 130075,
+          "proceeds": 299925,
+          "gain": 193500,
+          "equityReturn": 1.8182
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "小区保安",
+      "seed": 20260932,
+      "trades": [
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 55,
+          "heldYears": 22,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        },
+        {
+          "card": "mk7",
+          "property": "单身公寓",
+          "age": 55,
+          "heldYears": 6,
+          "cost": 161300,
+          "down": 48390,
+          "price": 290250,
+          "debt": 112910,
+          "proceeds": 177340,
+          "gain": 128950,
+          "equityReturn": 2.6648
+        }
+      ]
+    },
+    {
+      "rule": "101",
+      "policy": "realize",
+      "career": "小区保安",
+      "seed": 20260976,
+      "trades": [
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 48,
+          "heldYears": 14,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        },
+        {
+          "card": "mk6",
+          "property": "小区车位",
+          "age": 48,
+          "heldYears": 3,
+          "cost": 139800,
+          "down": 55920,
+          "price": 290250,
+          "debt": 83880,
+          "proceeds": 206370,
+          "gain": 150450,
+          "equityReturn": 2.6905
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "三甲医院医生",
+      "seed": 20260937,
+      "trades": [
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 32,
+          "heldYears": 4,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        },
+        {
+          "card": "m26",
+          "property": "仓储物流园",
+          "age": 35,
+          "heldYears": 0,
+          "cost": 1505000,
+          "down": 677250,
+          "price": 2114525,
+          "debt": 827750,
+          "proceeds": 1286775,
+          "gain": 609525,
+          "equityReturn": 0.9
+        },
+        {
+          "card": "m28",
+          "property": "写字楼整层",
+          "age": 52,
+          "heldYears": 16,
+          "cost": 1720000,
+          "down": 774000,
+          "price": 2795000,
+          "debt": 946000,
+          "proceeds": 1849000,
+          "gain": 1075000,
+          "equityReturn": 1.3889
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "三甲医院医生",
+      "seed": 20260946,
+      "trades": [
+        {
+          "card": "m28",
+          "property": "写字楼整层（与机构共有）",
+          "age": 44,
+          "heldYears": 0,
+          "cost": 860000,
+          "down": 387000,
+          "price": 1397500,
+          "debt": 473000,
+          "proceeds": 924500,
+          "gain": 537500,
+          "equityReturn": 1.3889
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "三甲医院医生",
+      "seed": 20260954,
+      "trades": [
+        {
+          "card": "m28",
+          "property": "写字楼整层（与机构共有）",
+          "age": 56,
+          "heldYears": 19,
+          "cost": 860000,
+          "down": 387000,
+          "price": 1397500,
+          "debt": 473000,
+          "proceeds": 924500,
+          "gain": 537500,
+          "equityReturn": 1.3889
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "三甲医院医生",
+      "seed": 20260959,
+      "trades": [
+        {
+          "card": "m27",
+          "property": "长租公寓整栋",
+          "age": 43,
+          "heldYears": 4,
+          "cost": 1290000,
+          "down": 387000,
+          "price": 1935000,
+          "debt": 903000,
+          "proceeds": 1032000,
+          "gain": 645000,
+          "equityReturn": 1.6667
+        },
+        {
+          "card": "m28",
+          "property": "写字楼整层",
+          "age": 47,
+          "heldYears": 9,
+          "cost": 1720000,
+          "down": 774000,
+          "price": 2795000,
+          "debt": 946000,
+          "proceeds": 1849000,
+          "gain": 1075000,
+          "equityReturn": 1.3889
+        },
+        {
+          "card": "m26",
+          "property": "仓储物流园（与机构共有）",
+          "age": 49,
+          "heldYears": 13,
+          "cost": 752500,
+          "down": 338625,
+          "price": 1057263,
+          "debt": 413875,
+          "proceeds": 643388,
+          "gain": 304763,
+          "equityReturn": 0.9
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "三甲医院医生",
+      "seed": 20260968,
+      "trades": [
+        {
+          "card": "m28",
+          "property": "写字楼整层（与机构共有）",
+          "age": 48,
+          "heldYears": 8,
+          "cost": 860000,
+          "down": 387000,
+          "price": 1397500,
+          "debt": 473000,
+          "proceeds": 924500,
+          "gain": 537500,
+          "equityReturn": 1.3889
+        },
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 50,
+          "heldYears": 15,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "三甲医院医生",
+      "seed": 20260972,
+      "trades": [
+        {
+          "card": "m26",
+          "property": "仓储物流园（与机构共有）",
+          "age": 60,
+          "heldYears": 9,
+          "cost": 752500,
+          "down": 338625,
+          "price": 1057263,
+          "debt": 413875,
+          "proceeds": 643388,
+          "gain": 304763,
+          "equityReturn": 0.9
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "民航机长",
+      "seed": 20260944,
+      "trades": [
+        {
+          "card": "m24",
+          "property": "商业综合体商铺",
+          "age": 39,
+          "heldYears": 0,
+          "cost": 2580000,
+          "down": 1161000,
+          "price": 3276600,
+          "debt": 1419000,
+          "proceeds": 1857600,
+          "gain": 696600,
+          "equityReturn": 0.6
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "民航机长",
+      "seed": 20260958,
+      "trades": [
+        {
+          "card": "m26",
+          "property": "仓储物流园",
+          "age": 47,
+          "heldYears": 8,
+          "cost": 1505000,
+          "down": 677250,
+          "price": 2114525,
+          "debt": 827750,
+          "proceeds": 1286775,
+          "gain": 609525,
+          "equityReturn": 0.9
+        },
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 50,
+          "heldYears": 23,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        },
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 50,
+          "heldYears": 16,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        },
+        {
+          "card": "m24",
+          "property": "商业综合体商铺（与机构共有）",
+          "age": 55,
+          "heldYears": 8,
+          "cost": 1290000,
+          "down": 580500,
+          "price": 1638300,
+          "debt": 709500,
+          "proceeds": 928800,
+          "gain": 348300,
+          "equityReturn": 0.6
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "民航机长",
+      "seed": 20260971,
+      "trades": [
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 36,
+          "heldYears": 5,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "民航机长",
+      "seed": 20260991,
+      "trades": [
+        {
+          "card": "m23",
+          "property": "郊区小地块",
+          "age": 39,
+          "heldYears": 15,
+          "cost": 64500,
+          "down": 29025,
+          "price": 99330,
+          "debt": 35475,
+          "proceeds": 63855,
+          "gain": 34830,
+          "equityReturn": 1.2
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "执业律师",
+      "seed": 20260921,
+      "trades": [
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 36,
+          "heldYears": 9,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        },
+        {
+          "card": "m26",
+          "property": "仓储物流园",
+          "age": 46,
+          "heldYears": 1,
+          "cost": 1505000,
+          "down": 677250,
+          "price": 2114525,
+          "debt": 827750,
+          "proceeds": 1286775,
+          "gain": 609525,
+          "equityReturn": 0.9
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "执业律师",
+      "seed": 20260950,
+      "trades": [
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 36,
+          "heldYears": 2,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        },
+        {
+          "card": "m28",
+          "property": "写字楼整层",
+          "age": 40,
+          "heldYears": 2,
+          "cost": 1720000,
+          "down": 774000,
+          "price": 2795000,
+          "debt": 946000,
+          "proceeds": 1849000,
+          "gain": 1075000,
+          "equityReturn": 1.3889
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "执业律师",
+      "seed": 20260975,
+      "trades": [
+        {
+          "card": "m23",
+          "property": "郊区小地块",
+          "age": 28,
+          "heldYears": 6,
+          "cost": 64500,
+          "down": 29025,
+          "price": 99330,
+          "debt": 35475,
+          "proceeds": 63855,
+          "gain": 34830,
+          "equityReturn": 1.2
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "执业律师",
+      "seed": 20261013,
+      "trades": [
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 42,
+          "heldYears": 10,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "软件工程师",
+      "seed": 20260920,
+      "trades": [
+        {
+          "card": "m23",
+          "property": "郊区小地块",
+          "age": 46,
+          "heldYears": 19,
+          "cost": 64500,
+          "down": 29025,
+          "price": 99330,
+          "debt": 35475,
+          "proceeds": 63855,
+          "gain": 34830,
+          "equityReturn": 1.2
+        },
+        {
+          "card": "m28",
+          "property": "写字楼整层（与机构共有）",
+          "age": 51,
+          "heldYears": 1,
+          "cost": 860000,
+          "down": 387000,
+          "price": 1397500,
+          "debt": 473000,
+          "proceeds": 924500,
+          "gain": 537500,
+          "equityReturn": 1.3889
+        },
+        {
+          "card": "m27",
+          "property": "长租公寓整栋",
+          "age": 54,
+          "heldYears": 0,
+          "cost": 1290000,
+          "down": 387000,
+          "price": 1935000,
+          "debt": 903000,
+          "proceeds": 1032000,
+          "gain": 645000,
+          "equityReturn": 1.6667
+        },
+        {
+          "card": "m26",
+          "property": "仓储物流园",
+          "age": 55,
+          "heldYears": 3,
+          "cost": 1505000,
+          "down": 677250,
+          "price": 2114525,
+          "debt": 827750,
+          "proceeds": 1286775,
+          "gain": 609525,
+          "equityReturn": 0.9
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "软件工程师",
+      "seed": 20260922,
+      "trades": [
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 35,
+          "heldYears": 0,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "软件工程师",
+      "seed": 20260947,
+      "trades": [
+        {
+          "card": "m23",
+          "property": "郊区小地块",
+          "age": 28,
+          "heldYears": 4,
+          "cost": 64500,
+          "down": 29025,
+          "price": 99330,
+          "debt": 35475,
+          "proceeds": 63855,
+          "gain": 34830,
+          "equityReturn": 1.2
+        },
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 45,
+          "heldYears": 11,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "软件工程师",
+      "seed": 20260952,
+      "trades": [
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 49,
+          "heldYears": 15,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "软件工程师",
+      "seed": 20260964,
+      "trades": [
+        {
+          "card": "m27",
+          "property": "长租公寓整栋",
+          "age": 50,
+          "heldYears": 8,
+          "cost": 1290000,
+          "down": 387000,
+          "price": 1935000,
+          "debt": 903000,
+          "proceeds": 1032000,
+          "gain": 645000,
+          "equityReturn": 1.6667
+        },
+        {
+          "card": "m26",
+          "property": "仓储物流园（与机构共有）",
+          "age": 52,
+          "heldYears": 5,
+          "cost": 752500,
+          "down": 338625,
+          "price": 1057263,
+          "debt": 413875,
+          "proceeds": 643388,
+          "gain": 304763,
+          "equityReturn": 0.9
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "软件工程师",
+      "seed": 20260974,
+      "trades": [
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 30,
+          "heldYears": 5,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        },
+        {
+          "card": "m26",
+          "property": "仓储物流园",
+          "age": 60,
+          "heldYears": 6,
+          "cost": 1505000,
+          "down": 677250,
+          "price": 2114525,
+          "debt": 827750,
+          "proceeds": 1286775,
+          "gain": 609525,
+          "equityReturn": 0.9
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "企业中层管理",
+      "seed": 20260931,
+      "trades": [
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 43,
+          "heldYears": 18,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "企业中层管理",
+      "seed": 20260960,
+      "trades": [
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 24,
+          "heldYears": 2,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "企业中层管理",
+      "seed": 20260969,
+      "trades": [
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 50,
+          "heldYears": 16,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "企业中层管理",
+      "seed": 20260983,
+      "trades": [
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 49,
+          "heldYears": 11,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        },
+        {
+          "card": "m23",
+          "property": "郊区小地块",
+          "age": 51,
+          "heldYears": 29,
+          "cost": 64500,
+          "down": 29025,
+          "price": 99330,
+          "debt": 35475,
+          "proceeds": 63855,
+          "gain": 34830,
+          "equityReturn": 1.2
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "小学教师",
+      "seed": 20260924,
+      "trades": [
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 47,
+          "heldYears": 1,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        },
+        {
+          "card": "m23",
+          "property": "郊区小地块",
+          "age": 47,
+          "heldYears": 14,
+          "cost": 64500,
+          "down": 29025,
+          "price": 99330,
+          "debt": 35475,
+          "proceeds": 63855,
+          "gain": 34830,
+          "equityReturn": 1.2
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "小学教师",
+      "seed": 20260933,
+      "trades": [
+        {
+          "card": "m23",
+          "property": "郊区小地块",
+          "age": 40,
+          "heldYears": 6,
+          "cost": 64500,
+          "down": 29025,
+          "price": 99330,
+          "debt": 35475,
+          "proceeds": 63855,
+          "gain": 34830,
+          "equityReturn": 1.2
+        },
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 62,
+          "heldYears": 2,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "小学教师",
+      "seed": 20260961,
+      "trades": [
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 55,
+          "heldYears": 1,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        },
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 64,
+          "heldYears": 11,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "小学教师",
+      "seed": 20260967,
+      "trades": [
+        {
+          "card": "m27",
+          "property": "长租公寓整栋（与机构共有）",
+          "age": 51,
+          "heldYears": 8,
+          "cost": 645000,
+          "down": 193500,
+          "price": 967500,
+          "debt": 451500,
+          "proceeds": 516000,
+          "gain": 322500,
+          "equityReturn": 1.6667
+        },
+        {
+          "card": "m23",
+          "property": "郊区小地块",
+          "age": 52,
+          "heldYears": 27,
+          "cost": 64500,
+          "down": 29025,
+          "price": 99330,
+          "debt": 35475,
+          "proceeds": 63855,
+          "gain": 34830,
+          "equityReturn": 1.2
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "护士",
+      "seed": 20260927,
+      "trades": [
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 57,
+          "heldYears": 2,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "护士",
+      "seed": 20260934,
+      "trades": [
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 40,
+          "heldYears": 1,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "护士",
+      "seed": 20260945,
+      "trades": [
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 53,
+          "heldYears": 13,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        },
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 53,
+          "heldYears": 10,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "护士",
+      "seed": 20260973,
+      "trades": [
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 48,
+          "heldYears": 7,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "民警",
+      "seed": 20260979,
+      "trades": [
+        {
+          "card": "m23",
+          "property": "郊区小地块",
+          "age": 35,
+          "heldYears": 7,
+          "cost": 64500,
+          "down": 29025,
+          "price": 99330,
+          "debt": 35475,
+          "proceeds": 63855,
+          "gain": 34830,
+          "equityReturn": 1.2
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "民警",
+      "seed": 20260994,
+      "trades": [
+        {
+          "card": "m23",
+          "property": "郊区小地块",
+          "age": 64,
+          "heldYears": 29,
+          "cost": 64500,
+          "down": 29025,
+          "price": 99330,
+          "debt": 35475,
+          "proceeds": 63855,
+          "gain": 34830,
+          "equityReturn": 1.2
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "民警",
+      "seed": 20261000,
+      "trades": [
+        {
+          "card": "m23",
+          "property": "郊区小地块",
+          "age": 37,
+          "heldYears": 3,
+          "cost": 64500,
+          "down": 29025,
+          "price": 99330,
+          "debt": 35475,
+          "proceeds": 63855,
+          "gain": 34830,
+          "equityReturn": 1.2
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "公司文员",
+      "seed": 20260977,
+      "trades": [
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 50,
+          "heldYears": 20,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        },
+        {
+          "card": "m23",
+          "property": "郊区小地块",
+          "age": 55,
+          "heldYears": 4,
+          "cost": 64500,
+          "down": 29025,
+          "price": 99330,
+          "debt": 35475,
+          "proceeds": 63855,
+          "gain": 34830,
+          "equityReturn": 1.2
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "公司文员",
+      "seed": 20260981,
+      "trades": [
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 53,
+          "heldYears": 8,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        },
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 53,
+          "heldYears": 6,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        }
+      ]
+    },
+    {
+      "rule": "202",
+      "policy": "realize",
+      "career": "货运司机",
+      "seed": 20260939,
+      "trades": [
+        {
+          "card": "m22",
+          "property": "郊区小地块",
+          "age": 54,
+          "heldYears": 10,
+          "cost": 64500,
+          "down": 29025,
+          "price": 81915,
+          "debt": 35475,
+          "proceeds": 46440,
+          "gain": 17415,
+          "equityReturn": 0.6
+        }
+      ]
+    }
+  ]
+}

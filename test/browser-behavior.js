@@ -653,6 +653,48 @@ window.addEventListener('load', function(){
     ok(window.Game.rolled && window.Game.g.players[0].cash===C.afterRollCash && window.Game.g.players[0].pos===C.afterRollPos,'再次恢复保留已行动状态，不重放骰子');window.Engine.clearPending(window.Game.g);window.UI.closeModal();
   });
 
+  step('Y 可达房产报价与年度复盘',function(){return true;},function(){
+    OUT.push('');OUT.push('=== Y. 行情对应与复盘轨迹 ===');
+    var E=window.Engine,A=window.Act,U=window.UiGame;
+    ['m22','m23','m24','m26'].forEach(function(id){
+      window.UI.closeModal();window.startGame({rule:'202',mode:'solo',seed:42,names:['报价核对']});
+      var g=window.Game.g,p=g.players[0],card=window.DECK_MARKET_202.find(function(x){return x.id===id;}),deal=window.DECK_CAPGAIN.concat(window.DECK_CASHFLOW).find(function(x){return x.id===card.sourceCard;});
+      Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});p.cash=10000000;p.energy=100;
+      A.buyDeal(g,deal);var cash=p.cash;E.setPending(g,{type:'market',card:card});window.UiPending.showPending();
+      ok(!!q('#modal [data-sell]') && q('#modal').textContent.indexOf(card.prop)>=0 && q('#modal').textContent.indexOf(E.money(card.price))>=0,id+' 报价卡与已购房产对应，能显示出售按钮');
+      q('#modal [data-sell]').click();
+      ok(p.assets.realEstate.length===0 && p.cash-cash===card.price-(deal.cost-deal.dp),id+' 真实卖出按整套报价扣项目融资');
+      mb('完成市场结算').click();
+    });
+    var g=window.Game.g,p=g.players[0];p.inFT=true;p.cash=100000;p.track=[];p.age=20;E.trackRound(g);
+    for(var age=21;age<=65;age++){p.age=age;p.cash=age*100;for(var j=0;j<3;j++){g.round++;E.trackRound(g);}}
+    ok(p.track.length===46 && p.track[0].age===20 && p.track[0].cash===100000,'135轮采样后仍保留20岁起点，按年龄合并');
+    ok(p.track[p.track.length-1].cf===E.ftFinance(p).cashflow,'自由圈轨迹现金流与实际分红账本一致');
+    window.UiSummary.openSummary(0);
+    ok(q('#modal').textContent.indexOf('按年龄聚合回合采样')>=0 && q('#modal').textContent.indexOf('20 岁 · '+E.money(p.track[0].net))>=0,'真实复盘显示年龄横轴和正确起点金额');
+    window.UI.closeModal();U.saveState();U.tryRestore();p=window.Game.g.players[0];
+    ok(p.track.length===46 && p.track[0].cash===100000,'存档恢复保留聚合轨迹，不补造或重复采样');
+    E.clearPending(window.Game.g);window.UI.closeModal();
+  });
+
+  step('Z 高维护休养恢复',function(){return true;},function(){
+    OUT.push('');OUT.push('=== Z. 强制休养可恢复行动 ===');
+    window.UI.closeModal();window.startGame({rule:'101',mode:'solo',seed:42,names:['休养回归']});
+    var E=window.Engine,U=window.UiGame,g=window.Game.g,p=g.players[0];p.age=61;p.cash=100000000;p.energy=1;p.pos=1;
+    p.assets.business=Array.from({length:30},function(_,i){return {nm:'维护企业'+i,cost:1000,cf:0};});
+    E.endTurn(g);U.renderAll();ok(p.pausedThisTurn && q('#btnRoll').disabled,'危机后的强制休养禁用掷骰');
+    U.saveState();U.tryRestore();g=window.Game.g;p=g.players[0];window.UI.closeModal();
+    ok(p.pausedThisTurn && p.skipTurns===1,'刷新保留已进入第一轮休养及剩余轮次');
+    var crises=p.stats.crises;E.endTurn(g);E.endTurn(g);U.renderAll();
+    ok(!p.pausedThisTurn && !q('#btnRoll').disabled,'两轮休养结束后真实掷骰按钮重新可用');
+    ok(p.stats.crises===crises && p.energy===0,'休养仍扣维护精力，但不会重复续期');
+    C.recoveryAge=p.age;q('#btnRoll').click();
+  });
+  step('Z 恢复后的实际掷骰',function(){return !window.Game.animating && window.Game.rolled;},function(){
+    ok(window.Game.g.players[0].age===C.recoveryAge+1,'恢复后真实掷骰跨过发薪日，年龄能继续推进');
+    window.Engine.clearPending(window.Game.g);window.UI.closeModal();
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){
