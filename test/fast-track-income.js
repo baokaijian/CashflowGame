@@ -41,8 +41,8 @@ test('共有产权出售只移除本人收益，另一位持有人的现金流�
 test('租金涨跌和机构管理费实时影响净收益，不重复扣费且允许亏损',()=>{
  const g=game(),p=g.players[0],r=property(g,p,1,{fee:.2,upkeep:.55});escape(g);
  assert.equal(E.ftMonthly(p),80000);A.marketImpact(g,{kind:'rentDelta',pct:-.2});
- assert.equal(r.cf,80000);assert.equal(E.ftMonthly(p),64000);
- A.marketImpact(g,{kind:'rentDelta',pct:.1});assert.equal(r.cf,110000);assert.equal(E.ftMonthly(p),88000);
+ assert.equal(r.rent,82296);assert.equal(r.cf,79426);assert.equal(E.ftMonthly(p),63541);
+ A.marketImpact(g,{kind:'rentDelta',pct:.1});assert.equal(r.rent,90526);assert.equal(r.cf,87656);assert.equal(E.ftMonthly(p),70125);
  r.cf=-500;assert.equal(E.ftMonthly(p),-500);assert.equal(E.managementFee(r),0);
 });
 test('协议转让房产及企业后，卖方停止收益、买方只新增一次',()=>{

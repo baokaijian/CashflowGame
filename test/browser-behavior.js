@@ -695,6 +695,34 @@ window.addEventListener('load', function(){
     window.Engine.clearPending(window.Game.g);window.UI.closeModal();
   });
 
+  step('AA 毛租金与自由圈复盘',function(){return true;},function(){
+    OUT.push('');OUT.push('=== AA. 毛租金逐次调整与复盘口径 ===');
+    var E=window.Engine,U=window.UiGame;
+    window.UI.closeModal();window.startGame({rule:'202',mode:'solo',seed:42,names:['租金核对']});
+    var g=window.Game.g,p=g.players[0];Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});p.cash=1000000;
+    var r={nm:'租金测试商铺',cost:200000,dp:100000,projectDebt:100000,financingRate:.006,rent:1000,cf:400,orgContract:{fee:.2,upkeep:.55}};
+    p.assets.realEstate.push(r);E.registerProperty(g,p,r);E.setPending(g,{type:'market',card:{kind:'rentDelta',pct:.2}});window.UiPending.showPending();
+    ok(r.rent===1200 && r.cf===600 && E.finance(p).passive===480,'租金涨20%后为1200，扣利息600与管理费120，净收入480');
+    window.UiPending.showPending();ok(r.rent===1200 && r.cf===600,'重复显示同次行情不会再次调整租金');
+    mb('完成市场结算').click();E.setPending(g,{type:'market',card:{kind:'rentDelta',pct:-.2}});window.UiPending.showPending();
+    ok(r.rent===960 && r.cf===360,'后续跌20%按1200继续调整，不回到首次净现金流基准');
+    U.saveState();U.tryRestore();g=window.Game.g;p=g.players[0];r=p.assets.realEstate[0];
+    ok(r.rent===960 && r.cf===360,'行情中保存恢复不重复调整或重算已发生现金');mb('完成市场结算').click();
+    p.inFT=true;E.refreshLife(g,p);U.renderAll();var ft=E.ftFinance(p),out=JSON.parse(window.UiSummary.exportJSON(g)).players[0].metrics;
+    ok(out.totalIncome===ft.income && out.totalExpenses===ft.expense && out.monthlyCashflow===ft.cashflow,'自由圈复盘导出收入、支出、现金流与实际账本一致');
+    window.UiSummary.openSummary(0);ok(q('#modal').textContent.indexOf(E.money(ft.cashflow))>=0,'真实复盘显示当前自由圈现金流');window.UI.closeModal();
+  });
+  step('AA 旧机会卡的无租金属性',function(){return true;},function(){
+    window.startGame({rule:'202',mode:'solo',seed:42,names:['无租金核对']});
+    var E=window.Engine,g=window.Game.g,p=g.players[0];Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});p.cash=1000000;p.energy=100;
+    var card=Object.assign({},window.DECK_CAPGAIN.find(function(x){return x.id==='cg14';}),{rent:717});
+    E.setPending(g,{type:'opportunity202',deal:card,deckName:'capgain'});window.UiPending.showPending();
+    ok(q('#modal').textContent.indexOf('无租金收入')>=0 && q('#modal').textContent.indexOf('¥717 / 月')<0,'旧卡缓存有租金字段时，界面仍明确无租金');
+    q('#modal [data-buy]').click();var r=p.assets.realEstate[0];ok(r.capital && r.rent===0 && r.cf===0,'真实买入纯资本利得房产保持零租金');
+    E.setPending(g,{type:'market',card:{kind:'rentDelta',pct:.3}});window.UiPending.showPending();
+    ok(r.rent===0 && r.cf===0,'租金上涨行情不会让无租金房产产生收入');mb('完成市场结算').click();window.UI.closeModal();
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

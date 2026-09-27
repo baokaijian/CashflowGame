@@ -32,9 +32,9 @@ window.DECK_CAPGAIN = [
     note:'金价 ¥258/克，可买 10—100 克。' },
   { id:'cg13',kind:'collectible', nm:'白银积存', unit:true, price:13, min:100, max:2000,
     note:'银价 ¥13/克，可买 100—2,000 克。' },
-  { id:'cg14', opProfile:'housing',kind:'realestate', tier:'res', nm:'法拍房', dp:172000, cost:172000, cf:0, rent:717, capital:true,
+  { id:'cg14', opProfile:'housing',kind:'realestate', tier:'res', nm:'法拍房', dp:172000, cost:172000, cf:0, rent:0, capital:true,
     note:'总价 ¥172,000，首付 ¥172,000（100%），无租金收入。等待行情回升后出售赚取差价。' },
-  { id:'cg15', opProfile:'commercial',kind:'realestate', tier:'com', nm:'郊区小地块', dp:29025, cost:64500, cf:0, rent:323, capital:true,
+  { id:'cg15', opProfile:'commercial',kind:'realestate', tier:'com', nm:'郊区小地块', dp:29025, cost:64500, cf:0, rent:0, capital:true,
     note:'总价 ¥64,500，首付 ¥29,025（45%），无租金收入。博取土地升值。' },
   { id:'cg16',kind:'stock', symbol:'600666',  price:4,  range:true, min:100, max:2000, nm:'白酒龙头（恐慌抛售）',
     note:'每股 ¥4，可买 100—2,000 股。市场恐慌，注意仓位。' }

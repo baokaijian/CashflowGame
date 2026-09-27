@@ -80,8 +80,8 @@ function compute(c) {
     const downRate = sp.down !== undefined ? sp.down : t.down;
     out.downRate = downRate;
     out.dp = Math.round(c.cost * downRate);
-    out.rent = Math.round(c.cost * rentRate / 12);
-    out.cf = Math.round(out.rent - (c.cost - out.dp) * Y.mortgageRate);
+    out.rent = c.capital ? 0 : Math.round(c.cost * rentRate / 12);
+    out.cf = c.capital ? 0 : Math.round(out.rent - (c.cost - out.dp) * Y.mortgageRate);
     out.yield = out.cf * 12 / out.dp;
   } else {
     const v = Math.round(c.cost * t.net / 12);

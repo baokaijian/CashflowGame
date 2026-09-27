@@ -147,7 +147,8 @@ sec('⑤ 行情冲击：可累乘 + 有上下限 + 影响抵押额度');
 {
   const { g, p } = solo('软件工程师');
   g.round = 10;
-  p.assets.realEstate.push(E.stampAsset(g, { nm:'房', dp:100000, cost:500000, cf:3000, rent:6000 }));
+  // 毛租金 6000 − 项目融资 400000 × 0.0041 = 净现金流 4360。
+  p.assets.realEstate.push(E.stampAsset(g, { nm:'房', dp:100000, cost:500000, cf:4360, rent:6000 }));
   E.refreshLife(g, p);
   const before = E.collateralValue(g, p);
   const cpBefore = E.creditProfile(g, p);

@@ -107,7 +107,7 @@ function buyDeal(g, card, exec){
       break;
     case 'realestate':{
       const share = 1; // 份额买入走机构 / 联合购买 / 再挂牌专用入口。
-      p.assets.realEstate.push({ nm:card.nm, opProfile:card.opProfile, tier:card.tier, dp:cost, cost:card.cost, cf:Math.round(card.cf*share), rent:card.rent||0, share, joint:!!(exec.partners&&exec.partners.length) });
+      p.assets.realEstate.push({ nm:card.nm, capital:!!card.capital, opProfile:card.opProfile, tier:card.tier, dp:cost, cost:card.cost, cf:Math.round(card.cf*share), rent:card.capital?0:(card.rent||0), share, joint:!!(exec.partners&&exec.partners.length) });
       E.registerProperty(g,p,p.assets.realEstate[p.assets.realEstate.length-1]);
       log(g, `${p.name} 买入 ${card.nm}，首付 ${money(cost)}，月现金流 +${money(Math.round(card.cf*share))}`, 'good', p.name);
       break;
@@ -197,6 +197,7 @@ function marketImpact(g, card){
   }
   /* 2) 租金随市场波动（202） */
   if(card.kind === 'rentDelta'){
+    if(!Number.isFinite(card.pct)||card.pct < -1){out.note='租金调整比例无效，本次未执行。';return out;}
     g.players.forEach(p=>p.assets.realEstate.forEach(re=>E.registerProperty(g,p,re)));
     /* ★ 租金与估值联动：租金下行通常意味着片区需求走弱，估值也会跟着下调 ——
        现实中这两者的相关性很强（这也是「租金回报率」能作为估值锚的原因）。
@@ -204,20 +205,17 @@ function marketImpact(g, card){
        租金跌 20% 时房价通常不会立刻跌 20%，因为房价里还含预期与稀缺性）。 */
     const k = (window.MARKET && window.MARKET.rentToValue) || 0.8;
     E.bumpMarket(g, 'realEstate', 1 + card.pct * k);
+    // 每个实体只调整一次毛租金；已售待挂牌部分也使用同一租金，不按持有人重复乘。
+    Object.values(E.assetMarket(g).properties).forEach(prop=>{
+      prop.rent=prop.capital?0:Math.max(0,Math.round(prop.rent*(1+card.pct)));
+    });
     g.players.forEach(p=>{
       if(p.out || p.finished) return;
       p.assets.realEstate.forEach(re=>{
-        re.baseCf = (re.baseCf===undefined? re.cf : re.baseCf);
-        re.cf = Math.round(re.baseCf * (1 + card.pct));
-        const prop=E.registerProperty(g,p,re);
-        re.rent=Math.max(0,Math.round(re.cf+E.projectDebt(re)*re.financingRate));
-        prop.rent=Math.max(0,Math.round((re.cf+E.projectDebt(re)*re.financingRate)/Math.max(E.holdingShare(re),1e-9)));
+        const prop=E.assetMarket(g).properties[re.propertyId];
+        re.rent=re.capital?0:Math.round(prop.rent*E.holdingShare(re));
+        re.cf=re.capital?0:re.rent-Math.round(E.projectDebt(re)*re.financingRate);
       });
-    });
-    // 空置待售份额也经历租金行情，不能在卖出期间冻结经营条件。
-    Object.values(E.assetMarket(g).properties).forEach(prop=>{
-      const held=g.players.some(p=>p.assets.realEstate.some(r=>r.propertyId===prop.id));
-      if(!held) prop.rent=Math.max(0,Math.round(prop.rent*(1+card.pct)));
     });
     out.note = `全体出租房产租金收入 ${card.pct>0?'+':''}${Math.round(card.pct*100)}%`
              + `，房产估值联动 ${card.pct>0?'+':''}${Math.round(card.pct*k*100)}%`;
@@ -803,7 +801,7 @@ function buyDealWithOrg(g, card, partnerId='balanced'){
   const en=needEnergy(p,plan.energy,`与${plan.contract.name}合伙买入「${card.nm}」`);
   if(!en.ok) return {ok:false,msg:en.msg};
   p.cash-=mine;
-  const item={nm:card.nm+'（与机构共有）',opProfile:card.opProfile,tier:card.tier,dp:mine,
+  const item={nm:card.nm+'（与机构共有）',capital:!!card.capital,opProfile:card.opProfile,tier:card.tier,dp:mine,
     cost:Math.round((card.cost||0)*share),cf:plan.grossCf,rent:Math.round((card.rent||0)*share),
     share,joint:true,partner:'机构',orgContract:plan.contract};
   E.stampAsset(g,item,'realEstate');E.registerProperty(g,p,item);p.assets.realEstate.push(item);
@@ -828,7 +826,7 @@ function buyPropertyListing(g,listingId,expected){
   if(!en.ok) return en;
   const item={nm:plan.nm,propertyId:plan.propertyId,share:plan.share,joint:plan.share<1,
     cost:plan.cost,dp:plan.dp,projectDebt:plan.debt,financingRate:plan.rate,rent:plan.rent,acquisitionFee:plan.fee,
-    cf:plan.cf,operating:plan.operating&&Object.assign({},plan.operating),heldYears:plan.heldYears};
+    cf:plan.cf,capital:plan.capital,operating:plan.operating&&Object.assign({},plan.operating),heldYears:plan.heldYears};
   E.stampAsset(g,item);E.registerProperty(g,p,item,plan.propertyId);
   p.cash-=plan.need;p.assets.realEstate.push(item);
   listing.status='sold';listing.buyer=p.id;listing.boughtTurn=g.turnNo;

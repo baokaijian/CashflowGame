@@ -67,6 +67,10 @@ function collect(g, p){
   E.initTrack(p);
   const st = p.stats, track = p.track;
   const f = E.finance(p);
+  if(p.inFT){
+    const ft=E.ftFinance(p);
+    f.totalIncome=ft.income;f.totalExpenses=ft.expense;f.cashflow=ft.cashflow;
+  }
   const escp = E.escapeProgress(g, p);
   const alive = !p.out;
   /* 峰值取「stats 记录值」「走势采样值」「当前值」三者的最大，旧存档缺 stats 也能算。
@@ -517,8 +521,8 @@ function planOf(g, p, m){
   }
   if(m.escaped){
     list.push(`出圈后立刻把重心从「买小资产」切到 <b>企业现金流 ≥ ${money(E.empireTarget())}</b>，并优先开设特许经营。`);
-  } else if(num(m.f.passive) >= m.target){
-    list.push(`你已满足出圈条件（被动收入 ${money(m.f.passive)} ≥ 门槛 ${money(m.target)}），下一局的重点是 <b>更早达标</b>：把达标轮数从第 ${num(m.rounds) || num(g.round)} 轮继续往前压。`);
+  } else if(num(m.f.passive) > m.target){
+    list.push(`你已满足出圈条件（被动收入 ${money(m.f.passive)} ＞ 门槛 ${money(m.target)}），下一局的重点是 <b>更早达标</b>：把达标轮数从第 ${num(m.rounds) || num(g.round)} 轮继续往前压。`);
   } else {
     list.push(`盯住出圈线：把被动收入从 ${money(m.f.passive)} 推到 <b>${money(m.target)}</b> 以上，达标当轮就立刻出圈拿资金。`);
   }

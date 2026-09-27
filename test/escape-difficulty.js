@@ -62,7 +62,7 @@ for (const [deckNm, list] of Object.entries(DECKS)) {
       const downRate = sp.down !== undefined ? sp.down : t.down;
       const rentRate = sp.rentRate !== undefined ? sp.rentRate : t.rent;
       const wantDp = Math.round(c.cost * downRate);
-      const wantRent = Math.round(c.cost * rentRate / 12);
+      const wantRent = c.capital ? 0 : Math.round(c.cost * rentRate / 12);
       const wantCf = c.capital ? 0 : Math.round(wantRent - (c.cost - wantDp) * Y.mortgageRate);
       if (c.dp !== wantDp) { dpBad++; OUT.push(`   ⚠️ ${c.id} 首付 ${c.dp} ≠ cost × ${downRate} = ${wantDp}`); }
       if (c.rent !== wantRent) { rentBad++; OUT.push(`   ⚠️ ${c.id} 租金 ${c.rent} ≠ cost × ${rentRate}/12 = ${wantRent}`); }

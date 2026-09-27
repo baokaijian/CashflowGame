@@ -870,6 +870,11 @@ function holdingId(g,item){
 function marketAge(g){ return Math.max(0,...g.players.map(p=>ageOf(g,p)-g.startAge)); }
 function projectDebt(item){ return Math.max(0, numOrDef(item.projectDebt, assetBookOf('realEstate',item) - numOr(item.dp))); }
 function holdingShare(item){ return Math.max(0, Math.min(1, numOrDef(item.share,1))); }
+/* 纯资本利得房产沿用零持有现金流规则；旧档仅按可识别原卡恢复此属性。 */
+function capitalProperty(item){
+  if(typeof item.capital==='boolean') return item.capital;
+  return [...(window.DECK_CAPGAIN||[]),...(window.DECK_CASHFLOW||[])].some(c=>c.capital && c.nm===assetName(item));
+}
 function registerProperty(g, p, item, propertyId){
   stampOperation('realEstate',item);
   const m=assetMarket(g), share=holdingShare(item);
@@ -881,6 +886,11 @@ function registerProperty(g, p, item, propertyId){
   holdingId(g,item);
   if(item.projectDebt == null) item.projectDebt=projectDebt(item);
   if(item.financingRate == null) item.financingRate=numOrDef(window.YIELD && window.YIELD.mortgageRate,0.0041);
+  const restoredCapital=item.capital==null && capitalProperty(item);
+  if(restoredCapital && (numOr(item.rent)!==0 || numOr(item.cf)!==0))
+    log(g,`${p.name} 的「${assetName(item)}」已恢复为纯资本利得房产：未来租金及持有现金流为零，历史现金和已发生结算不改写。`,'info',p.name);
+  item.capital=capitalProperty(item);
+  if(item.capital){item.rent=0;item.cf=0;}
   if(!m.properties[item.propertyId]){
     const whole=share>0 ? Math.round(assetBookOf('realEstate',item)/share) : 0;
     m.properties[item.propertyId]={id:item.propertyId,nm:assetName(item),referencePrice:whole,
@@ -891,6 +901,8 @@ function registerProperty(g, p, item, propertyId){
       operating:Object.assign({},item.operating),createdAge:ageOf(g,p)-numOr(item.heldYears),history:[]};
   }
   const prop=m.properties[item.propertyId];
+  prop.capital=item.capital;
+  if(prop.capital)prop.rent=0;
   if(!prop.operating) prop.operating=Object.assign({},item.operating);
   if(!prop.history.some(h=>h.holdingId===item.holdingId)){
     const record={type:item.legacyAsset?'存档登记':'买入',propertyId:prop.id,
@@ -931,9 +943,10 @@ function listingPlan(g,listing){
   const sample={nm:prop.nm,propertyId:prop.id,share:listing.share,cost:prop.referencePrice*listing.share};
   const cost=propertyValue(g,sample), down=Math.max(0,Math.min(1,prop.downRate));
   const dp=Math.round(cost*down),debt=cost-dp,fee=Math.round(cost*Math.max(0,numOr(assetMarket(g).feeRate)));
-  const rent=Math.round(prop.rent*listing.share),rate=numOrDef(window.YIELD && window.YIELD.mortgageRate,0.0041);
+  const capital=capitalProperty(prop);
+  const rent=capital?0:Math.round(prop.rent*listing.share),rate=numOrDef(window.YIELD && window.YIELD.mortgageRate,0.0041);
   return {listingId:listing.id,propertyId:prop.id,nm:prop.nm,share:listing.share,cost,dp,debt,fee,
-    need:dp+fee,rent,cf:rent-Math.round(debt*rate),rate,
+    need:dp+fee,rent,cf:capital?0:rent-Math.round(debt*rate),rate,capital,
     operating:prop.operating,heldYears:listing.heldYears+Math.max(0,marketAge(g)-numOr(listing.listedAge)),history:prop.history};
 }
 function propertyListings(g){ return assetMarket(g).listings.map(l=>listingPlan(g,l)).filter(Boolean); }
@@ -1028,6 +1041,10 @@ function migrateAssets(g){
   g.players.forEach(p=>p.assets.stocks.forEach(item=>{
     if(!quoteOf(g,'stocks',item)) recordQuote(g,'stocks',item,item.cost,isLegacy?'存档取得价参考':'开局取得价参考');
   }));
+  // 无持有人但仍在挂牌池的旧实体也保留无租金属性，不能等待买回后才修正预览。
+  Object.values(assetMarket(g).properties).forEach(prop=>{
+    prop.capital=capitalProperty(prop);if(prop.capital)prop.rent=0;
+  });
   return g;
 }
 function priceDeal(g,card){

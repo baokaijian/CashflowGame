@@ -97,7 +97,7 @@ function dealFace(deckName, card, solo){
       break;
     case 'realestate':
       rows = r('买价', money(card.cost)) + r('首付', money(card.dp))
-           + r('月现金流', sign(card.cf)) + (card.rent? r('租金', money(card.rent)+' / 月'):'')
+           + r('月现金流', sign(card.cf)) + (card.capital? r('租金','无租金收入') : card.rent? r('租金', money(card.rent)+' / 月'):'')
            + rateRow(card.dp, card.cf)
            + (card.joint? r('202 规则', solo ? '可与机构合伙购买' : '可多人联合购买'):'')
            + (card.capital? r('类型','资本利得型 · 无现金流'):'');
@@ -466,7 +466,7 @@ function showDealCard(g, p, card, P){
           const total = A.dealCost(g, card, 1);
           const myShare = mine/total;
           p.cash -= mine;
-          p.assets.realEstate.push({ opProfile:card.opProfile,tier:card.tier,nm:card.nm+(mine<total?'（共有）':''), dp:mine, cost:Math.round(card.cost*myShare), cf:Math.round(card.cf*myShare), rent:Math.round((card.rent||0)*myShare), share:myShare, joint:parts.length>0 });
+          p.assets.realEstate.push({ capital:!!card.capital,opProfile:card.opProfile,tier:card.tier,nm:card.nm+(mine<total?'（共有）':''), dp:mine, cost:Math.round(card.cost*myShare), cf:Math.round(card.cf*myShare), rent:Math.round((card.rent||0)*myShare), share:myShare, joint:parts.length>0 });
           const sharedProperty=E.registerProperty(g,p,E.stampAsset(g,p.assets.realEstate[p.assets.realEstate.length-1]));
           E.bump(p, 'dealsBought'); E.bump(p, 'investTotal', mine);
           E.bump(p, 'cfGained', Math.round(card.cf*myShare));
@@ -476,7 +476,7 @@ function showDealCard(g, p, card, P){
             const o = g.players[x.id];
             const sh = x.amt/total;
             o.cash -= x.amt;
-            o.assets.realEstate.push({ opProfile:card.opProfile,tier:card.tier,nm:card.nm+'（共有）', dp:x.amt, cost:Math.round(card.cost*sh), cf:Math.round(card.cf*sh), rent:Math.round((card.rent||0)*sh), share:sh, joint:true });
+            o.assets.realEstate.push({ capital:!!card.capital,opProfile:card.opProfile,tier:card.tier,nm:card.nm+'（共有）', dp:x.amt, cost:Math.round(card.cost*sh), cf:Math.round(card.cf*sh), rent:Math.round((card.rent||0)*sh), share:sh, joint:true });
             E.registerProperty(g,o,E.stampAsset(g,o.assets.realEstate[o.assets.realEstate.length-1]),sharedProperty.id);
             E.log(g, `${o.name} 参与联合购买 ${card.nm}，出资 ${money(x.amt)}（占比 ${Math.round(sh*100)}%），月现金流 +${money(Math.round(card.cf*sh))}`, 'good', o.name);
           });
