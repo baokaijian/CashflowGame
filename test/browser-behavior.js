@@ -479,11 +479,11 @@ window.addEventListener('load', function(){
     ['car','credit'].forEach(function(key){
       window.UiGame.onMenu('loan');q('#modal [data-pick='+key+']').click();q('#modal [data-quick=all]').click();
       var plan=E.prepayPlan(p,key,p.liabs[key],'settle');
-      ok(q('#ppPreview').textContent.indexOf('实际年支出减少')>=0 && q('#ppPreview').textContent.indexOf(E.money(E.annual(plan.budget.saving)))>=0,key+' 还款预览显示持续预算后的实际改善');
+      ok(q('#ppPreview').textContent.indexOf('未来一年支出减少')>=0 && q('#ppPreview').textContent.indexOf(E.money(plan.budget.yearSaving))>=0,key+' 还款预览显示持续预算后的实际改善');
       q('#modal [data-do]').click();mb('关闭').click();window.UiGame.renderAll();
       ok(p.liabs[key]===0 && E.finance(p).totalExpenses===plan.budget.after,key+' 真实结清后仍有对应生活预算，支出与预览一致');
     });
-    ok(q('#paneFinance [data-budget=car]').textContent.indexOf('补足')>=0 && q('#paneFinance [data-budget=credit]').textContent.indexOf('补足')>=0,'财务面板显示用车和消费补足明细');
+    ok(q('#paneFinance [data-budget=car]').textContent.indexOf('生活费用')>=0 && q('#paneFinance [data-budget=credit]').textContent.indexOf('生活费用')>=0,'财务面板显示独立的用车和消费费用');
     var cash=p.cash,total=E.finance(p).totalExpenses;window.UiGame.saveState();window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];
     ok(p.cash===cash && E.finance(p).totalExpenses===total,'恢复存档不补扣历史费用，预算保持一致');
     p.inFT=true;p.assets.business.push({nm:'分红测试企业',cost:100000,cf:10000});window.UiGame.renderAll();
@@ -721,6 +721,36 @@ window.addEventListener('load', function(){
     q('#modal [data-buy]').click();var r=p.assets.realEstate[0];ok(r.capital && r.rent===0 && r.cf===0,'真实买入纯资本利得房产保持零租金');
     E.setPending(g,{type:'market',card:{kind:'rentDelta',pct:.3}});window.UiPending.showPending();
     ok(r.rent===0 && r.cf===0,'租金上涨行情不会让无租金房产产生收入');mb('完成市场结算').click();window.UI.closeModal();
+  });
+
+  step('AB 月净现金流与还贷真实交互',function(){return true;},function(){
+    OUT.push('');OUT.push('=== AB. 贷款月供与净现金流 ===');
+    var E=window.Engine,U=window.UiGame;
+    [false,true].forEach(function(free){
+      window.UI.closeModal();window.startGame({rule:'101',mode:'solo',seed:42,names:['月供核对']});
+      var g=window.Game.g,p=g.players[0];p.cash=1000000;p.inFT=free;
+      E.LOAN_KEYS.forEach(function(k){p.liabs[k]=0;p.loans[k]={base:0,due:0,periods:24};});
+      p.assets.business.push({nm:'月供测试企业',cost:100000,cf:20000});E.refreshLife(g,p);U.renderAll();
+      var monthly=E.settleCashflow(p),cash=p.cash;
+      U.onMenu('loan');q('#loanAmt').value='10000';q('#modal [data-loan]').click();
+      ok(p.cash===cash+10000 && E.settleCashflow(p)===monthly-100,(free?'自由圈':'内圈')+' 真实借款到账10000，月净额减少100');
+      ok(q('#paneFinance [data-monthly-cashflow]').textContent.indexOf(E.money(monthly-100))>=0,'借款关闭面板后月净额立即刷新');
+      U.onMenu('loan');q('#modal [data-pick=bank]').click();q('#modal [data-quick=all]').click();
+      ok(q('#ppPreview').textContent.indexOf('未来一年支出减少')>=0 && q('#ppPreview').textContent.indexOf(E.money(1200))>=0,'结清预览显示未来一年少扣1200');
+      q('#modal [data-do]').click();mb('关闭').click();
+      ok(p.liabs.bank===0 && E.settleCashflow(p)===monthly && p.cash===cash,'真实结清恢复原月净额，生活费用不吞掉收益');
+      ok(q('#paneFinance [data-monthly-cashflow]').textContent.indexOf(E.money(monthly))>=0,'结清后财务面板立即刷新');
+      U.saveState();U.tryRestore();g=window.Game.g;p=g.players[0];
+      ok(p.liabs.bank===0 && E.settleCashflow(p)===monthly,'保存恢复不恢复已结清的月供');
+    });
+    var g=window.Game.g,p=g.players[0];p.liabs.car=250;p.loans.car={base:250,due:100,periods:24};
+    var plan=E.settlementPlan(p);U.renderAll();U.onMenu('loan');
+    ok(q('#modal').textContent.indexOf(E.money(252))>=0,'只剩三期时贷款管家显示实际一年还款252');window.UI.closeModal();
+    ok(q('#paneFinance').textContent.indexOf(E.money(plan.amount))>=0,'财务页年度净额包含年中结清，未按月初净额重复扣全年');
+    var cash=p.cash;p.ftPos=0;var landed=E.movePlayer(g,p,1);E.resolveSpace(g,p,landed);window.UiPending.showPending();
+    ok(p.cash-cash===plan.amount && p.liabs.car===0,'分红日实际入账与逐月预览一致，贷款同步结清');
+    ok(q('#modal').textContent.indexOf(E.money(plan.amount))>=0,'结算弹窗显示实际全年净额');
+    E.clearPending(g);window.UI.closeModal();
   });
 
   /* ---------------- 状态机驱动 ---------------- */

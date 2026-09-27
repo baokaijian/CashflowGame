@@ -62,18 +62,18 @@ ok(LB && typeof LB.housingRate === 'number' && LB.housingRate > 0,
 ok(window.EXP_LABEL.housingGap, `支出科目里有「${window.EXP_LABEL.housingGap}」一项`);
 
 {
-  /* 有房贷时：缺口必须为 0（否则就是与房贷月供「双算」，会污染改造前的平衡） */
+  /* 有房贷时住房持续费用照常列支；还贷前后费用基准不变。 */
   let dualCount = 0;
   const rows = [];
   for (let i = 0; i < global.CAREERS.length; i++) {
     const { g, p } = mk(i);
     const f = E.finance(p);
-    if (f.exp.home > LB.housingRate * p.baseSalary && f.exp.housingGap > 0) dualCount++;
+    if (f.exp.housingGap !== f.housingBase) dualCount++;
     rows.push({ nm: global.CAREERS[i].name, home: f.exp.home, base: f.housingBase,
                 gap: f.exp.housingGap, tot: f.totalExpenses, cf: f.cashflow });
   }
   ok(dualCount === 0,
-    `12 个职业在【有房贷】时住房缺口全为 0（不双算，平衡与改造前一致）`);
+    `12 个职业有房贷时仍独立计住房费用，月供另列`);
 
   const withDebt = mk(9);                      // 货运司机
   const fb = E.finance(withDebt.p);
@@ -103,12 +103,12 @@ ok(window.EXP_LABEL.housingGap, `支出科目里有「${window.EXP_LABEL.housing
     `出圈门槛 = 总支出 × ${marg} = ${money(tNew)}（含住房基线，且留了 ${Math.round((marg - 1) * 100)}% 安全边际）`);
   ok(marg > 1, `安全边际 ${marg} > 1 —— 门槛不再是「刚好覆盖」`);
 
-  /* 现金流也不会因还清贷款而暴涨：跌幅小于房贷月供 */
+  /* 清空全部贷款后月净额增加全部月供，生活费用不变。 */
   const homesDue = fb.exp.home;
   const cfGain = fa.cashflow - fb.cashflow;
-  ok(cfGain < homesDue,
-    `结清房贷后月结余只增加 ${money(cfGain)}，小于房贷月供 ${money(homesDue)}`
-    + ' —— 住房成本只是换了形态，不是消失了');
+  ok(cfGain === fb.loanTotal,
+    `结清房贷后月结余只增加 ${money(cfGain)}，等于全部月供 ${money(fb.loanTotal)}`
+    + ' —— 住房费用不变，全部月供停止扣除');
 
   /* 基线随人生阶段浮动（与房贷月供同口径，用 lifeCoef）：
      换一个年龄看基线是否跟着 lifeCoef 一起变 */
@@ -152,7 +152,8 @@ sec('② 财务自由圈 —— 顺流层同样有账本');
   /* 支出构成：生活 × freeTrackMult + 贷款月供，且【不含工资薪金个税】 */
   const f = E.finance(p);
   const expectLiving = Math.round((f.exp.retail + f.exp.other + f.exp.elder + f.exp.medical
-    + f.exp.children + f.exp.extra + f.exp.housingGap) * LB.freeTrackMult);
+    + f.exp.children + f.exp.extra) * LB.freeTrackMult)
+    + E.livingBudget(p,LB.freeTrackMult).reduce((s,r)=>s+r.gap,0);
   ok(ft.living === expectLiving,
     `生活支出 ${money(ft.living)} = 生活性支出 × ${LB.freeTrackMult}（自由圈档次）`);
   ok(ft.expense === ft.living + f.loanTotal,

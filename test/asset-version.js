@@ -7,10 +7,10 @@ const vm = require('node:vm');
 const {execFileSync} = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 process.stdout.write(execFileSync(process.execPath, [path.join(root,'tools/version-assets.js'),'--check']));
-for(const engine of [undefined, {}]){
+for(const engine of [undefined, {}, {PAYDAY_RULE:'one-year-per-crossing',restoreRandom(){}}]){
   const elements={btnStart:{},btnRoll:{},modeHint:{after(button){ this.button=button; }}};
   const context={
-    window:{Engine:engine,location:{href:'https://example.com/CashflowGame/',replace(url){ this.replaced=url; }}},
+    window:{Engine:engine,SaveState:{},location:{href:'https://example.com/CashflowGame/',replace(url){ this.replaced=url; }}},
     document:{readyState:'complete',getElementById(id){return elements[id];},createElement(){return {};}}
   };
   vm.runInNewContext(fs.readFileSync(path.join(root,'js/main.js'),'utf8'), {...context, URL});

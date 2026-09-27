@@ -32,6 +32,6 @@ test('恢复与医疗倒计时仍生效，精力从不为负且不凭空增资',
 });
 test('固定种子的原61岁循环案例能在观察上限内结束',()=>{
  const audit=require('../tools/audit-balance'),ctx=audit.load();
- const r=audit.run(ctx,{career:'民航机长',seed:20260958},'101','hold');assert(!r.capped);assert.equal(r.endAge,65);
+ const r=audit.run(ctx,{career:'民航机长',seed:20260958},'101','hold');assert(!r.capped);assert(r.endAge===65 || r.bankrupt,'可以提前破产结束，但不能陷入休养循环');
 });
 console.log(n+' 组健康休养回归通过');

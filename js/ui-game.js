@@ -339,7 +339,7 @@ function renderCenter(){
           <b>${esc(st.nm)}<i>${esc(st.range)} · ${esc(st.tag)}</i></b></div>`; })() : ''}
       <div class="bc-stat"><span class="bc-stat__k">当前玩家</span><b style="color:${cur.color}">${esc(cur.name)}</b></div>
       <div class="bc-stat"><span class="bc-stat__k">手头现金</span><b>${money(cur.cash)}</b></div>
-      <div class="bc-stat"><span class="bc-stat__k">年结余</span><b class="${E.settleCashflow(cur)<0?'neg':''}">${money(E.annual(E.settleCashflow(cur)))}</b></div>
+      <div class="bc-stat"><span class="bc-stat__k">年结余</span><b class="${E.settlementPlan(cur).amount<0?'neg':''}">${money(E.settlementPlan(cur).amount)}</b></div>
       ${cur.inFT
         ? `<div class="bc-stat"><span class="bc-stat__k">分红收入（年·毛额）</span><b>${money(E.annual(E.ftMonthly(cur)))}</b></div>
            <div class="bc-stat"><span class="bc-stat__k">企业累计增加</span><b>${money(cur.ftGain||0)}<i> / ${money(E.empireTarget())}</i></b></div>`
@@ -376,7 +376,7 @@ function renderPlayers(){
         p.joblessNeed > 0 && p.joblessProgress < p.joblessNeed ? ' · <b class="warn">失业求职中</b>' : ''}</div>
       <div class="pcard__grid">
         <div>现金 <b>${money(p.cash)}</b></div>
-        <div>年结余 <b class="${E.settleCashflow(p)<0?'neg':''}">${money(E.annual(E.settleCashflow(p)))}</b></div>
+        <div>年结余 <b class="${E.settlementPlan(p).amount<0?'neg':''}">${money(E.settlementPlan(p).amount)}</b></div>
         <div>被动收入 <b>${money(E.annual(f.passive))}</b></div>
         <div>净资产 <b>${money(E.netWorth(p))}</b></div>
       </div>
@@ -403,7 +403,7 @@ function showPlayerDetail(pid){
             <div class="rowlist__row"><span>房产</span><b>${p.assets.realEstate.length} 处</b></div>
             <div class="rowlist__row"><span>企业</span><b>${p.assets.business.length + p.assets.ftBusiness.length} 家</b></div>
             <div class="rowlist__row"><span>股票</span><b>${p.assets.stocks.reduce((s,x)=>s+x.shares,0)} 股</b></div>
-            <div class="rowlist__row"><span>年结余</span><b>${money(E.annual(E.settleCashflow(p)))}</b></div>
+            <div class="rowlist__row"><span>年结余</span><b>${money(E.settlementPlan(p).amount)}</b></div>
             <div class="rowlist__row"><span>被动收入（年）</span><b>${money(E.annual(E.finance(p).passive))}</b></div>
             <div class="rowlist__row"><span>账面净资产（排名口径）</span><b>${money(E.netWorth(p))}</b></div>
             <div class="rowlist__row"><span>参考估值净资产（已扣项目融资与其他负债）</span><b>${money(E.valuedNetWorth(g,p))}</b></div>
@@ -464,7 +464,7 @@ function renderFinance(){
     </div>
     <div class="sec">
       <div class="sec__total"><span>手头现金</span><span class="money">${money(p.cash)}</span></div>
-      <div class="sec__total"><span>年结余</span><span class="money ${E.settleCashflow(p)<0?'neg':''}">${money(E.annual(E.settleCashflow(p)))}</span></div>
+      <div class="sec__total"><span>年结余</span><span class="money ${E.settlementPlan(p).amount<0?'neg':''}">${money(E.settlementPlan(p).amount)}</span></div>
       ${p.inFT
         ? `<div class="sec__total" style="background:var(--secondary-container);color:var(--secondary)"><span>分红收入（年·毛额）</span><span class="money">${money(E.annual(E.ftMonthly(p)))} <span class="muted">净额见上方年结余</span></span></div>
            <div class="esc-block">
@@ -1003,7 +1003,7 @@ function onMenu(act){
             <div class="pcard__top"><span class="token" style="background:${p.color}">${p.icon}</span>
             <span class="pcard__name">${esc(p.name)}</span>
             <span class="pcard__tag">${p.out?'出局':p.finished?'已完成人生':(p.inFT?'财务自由圈':'老鼠赛跑')}</span></div>
-            <div class="pcard__job">${p.job.ico} ${esc(p.job.name)} · 现金 ${money(p.cash)} · 年结余 ${money(E.annual(E.settleCashflow(p)))}</div>
+            <div class="pcard__job">${p.job.ico} ${esc(p.job.name)} · 现金 ${money(p.cash)} · 年结余 ${money(E.settlementPlan(p).amount)}</div>
           </div>`).join('')}</div>
         <div class="modal__foot"><button class="btn btn--text" data-close>关闭</button></div>`,
         { onMount(m){ $('[data-close]',m).onclick = U.closeModal;
@@ -1155,7 +1155,7 @@ function paintPreview(m, g, p){
   if(msgEl) msgEl.hidden = true;
   if(btn){ btn.disabled = false; btn.textContent = plan.cleared ? `确认结清（支付 ${money(plan.need)}）` : `确认提前还款（支付 ${money(plan.need)}）`; }
   const balBefore = money(plan.before.balance), balAfter = money(plan.after.balance);
-  const dueRow = `<p class="hint">这里比较贷款还款额；住房、用车和消费预算不足的部分仍会计入生活支出，实际结余改善可能小于减少的月供。</p><div class="rowlist__row"><span>每年还款</span><b>${money(E.annual(plan.before.due))} → ${plan.after.due ? money(E.annual(plan.after.due)) : '—'}</b></div>`;
+  const dueRow = `<p class="hint">月供减少多少，月净现金流就增加多少；生活费用不变。未来一年按逐月本息计算，贷款结清后停止扣款。</p><div class="rowlist__row"><span>当前月供折合年供</span><b>${money(E.annual(plan.before.due))} → ${plan.after.due ? money(E.annual(plan.after.due)) : '—'}</b></div>`;
   const remRow = plan.info.revolving
     ? '<div class="rowlist__row"><span>还款计划</span><b>随借随还 · 无固定期数</b></div>'
     : `<div class="rowlist__row"><span>剩余期限</span><b>${E.toYears(plan.before.remaining)} 年 → ${E.toYears(plan.after.remaining)} 年</b></div>`;
@@ -1164,8 +1164,8 @@ function paintPreview(m, g, p){
     : `<div class="rowlist__row"><span>剩余利息</span><b>${money(plan.before.interestLeft)} → ${money(plan.after.interestLeft || 0)}</b></div>`;
   box.innerHTML =
       row('本次还本', money(plan.amt))
-      + row('生活与还贷总支出（年）',`${money(E.annual(plan.budget.before))} → ${money(E.annual(plan.budget.after))}`)
-      + row('实际年支出减少',money(E.annual(plan.budget.saving)),'pos')
+      + row('未来一年生活与还贷总支出',`${money(plan.budget.yearBefore)} → ${money(plan.budget.yearAfter)}`)
+      + row('未来一年支出减少',money(plan.budget.yearSaving),'pos')
     + row(`违约金${info.prepayRate ? `（${(info.prepayRate*100).toFixed(0)}%）` : '（免收）'}`, money(plan.fee), plan.fee ? 'neg' : 'pos')
     + row('本次应付现金', money(plan.need), 'money')
     + row('剩余本金', `${balBefore} → ${balAfter}`)
@@ -1201,13 +1201,13 @@ function openLoanCenter(key, preset){
     grade:{key:'—',label:'—'}, monthlyIncome:0, dtiNow:0, maxDTI:0.55, reasons:['无法评估授信。'] };
   const loans = E.LOAN_KEYS.map(k=>E.loanInfo(p, k)).filter(i=>i.balance > 0);
   const debt = loans.reduce((s2,i)=>s2+i.balance, 0);
-  const dueSum = E.finance(p).loanTotal || 0;
+  const dueSum = E.settlementPlan(p).loanTotal;
   const rows = loans.length ? loans.map(i=>`
       <div class="rowlist__row">
         <span><b>${esc(i.nm)}</b> · 剩余 <b class="money">${money(i.balance)}</b>
           <br><span class="muted">${i.revolving
             ? `月息 ${money(i.due)}（${(i.rate*100).toFixed(2)}% / 月，年化约 ${(i.rateAnnual*100).toFixed(1)}%）· 随借随还`
-            : `年供 ${money(i.dueYear)} · 月利率 ${(i.rate*100).toFixed(2)}%（年化约 ${(i.rateAnnual*100).toFixed(1)}%）· <b>剩余 ${i.remainingYears} 年</b> · 剩余利息 ${money(i.interestLeft)} · 已还 ${i.paidYears} 年`}</span></span>
+            : `未来一年还款 ${money(i.dueYear)} · 月利率 ${(i.rate*100).toFixed(2)}%（年化约 ${(i.rateAnnual*100).toFixed(1)}%）· <b>剩余 ${i.remainingYears} 年</b> · 剩余利息 ${money(i.interestLeft)} · 已还 ${i.paidYears} 年`}</span></span>
         <button class="btn btn--s btn--tonal" data-pick="${i.key}">${i.canPrepay ? '提前还款' : `满 ${i.minPeriod} 期后可还`}</button>
       </div>`).join('') : '';
   U.openModal(`
@@ -1217,7 +1217,7 @@ function openLoanCenter(key, preset){
       <div class="rowlist">
         <div class="rowlist__row"><span>手头现金</span><b class="money">${money(p.cash)}</b></div>
         <div class="rowlist__row"><span>负债合计</span><b class="money">${money(debt)}</b></div>
-        <div class="rowlist__row"><span>每年还款合计</span><b class="money">${money(E.annual(dueSum))}</b></div>
+        <div class="rowlist__row"><span>未来一年实际还款合计</span><b class="money">${money(dueSum)}</b></div>
       </div>
 
       <div class="sec__title" style="margin-top:16px">贷款明细</div>
@@ -1348,7 +1348,7 @@ function openLoanCenter(key, preset){
           if(!r.ok) return U.toast(r.msg, 'err');
           renderAll();
           U.toast(r.cleared
-            ? `${E.loanType(r.key||LoanUI.key).nm}已结清，每年还款减少 ${money(E.annual(r.before.due))}；扣除持续生活预算后，年总支出减少 ${money(E.annual(plan.budget.saving))}`
+            ? `${E.loanType(r.key||LoanUI.key).nm}已结清，月净现金流增加 ${money(plan.budget.saving)}；未来一年支出减少 ${money(plan.budget.yearSaving)}`
             : `已提前还款 ${money(r.principal)}${r.fee ? `（含违约金 ${money(r.fee)}）` : ''}，${r.mode === 'reduce' ? `年还款降至 ${money(E.annual(r.after.due))}` : `剩余期限缩短至 ${E.toYears(r.after.remaining)} 年`}`
             + (r.savedInterest ? `，节省利息 ${money(r.savedInterest)}` : ''), 'ok');
           openLoanCenter(LoanUI.key);
@@ -1609,7 +1609,7 @@ function soloResultModal(g){
         <div class="rowlist__row"><span>社会等级</span><b>L${S.lv} · ${esc(S.levelName)}</b></div>
         <div class="rowlist__row"><span>被动收入覆盖度</span><b>${Math.round(S.cover * 100)}%（年被动 ${money(E.annual(S.passive))} / 年门槛 ${money(E.annual(S.target))}）</b></div>
         <div class="rowlist__row"><span>净资产</span><b>${money(S.netWorth)}</b></div>
-        <div class="rowlist__row"><span>年结余</span><b class="${E.settleCashflow(p) < 0 ? 'neg' : ''}">${money(E.annual(E.settleCashflow(p)))}</b></div>
+        <div class="rowlist__row"><span>年结余</span><b class="${E.settlementPlan(p).amount < 0 ? 'neg' : ''}">${money(E.settlementPlan(p).amount)}</b></div>
         <div class="rowlist__row"><span>退休状态</span><b>${p.retired ? '已退休 · 领取养老金' : '尚未退休'}</b></div>
         <div class="rowlist__row"><span>健康危机 / 失业</span><b>${num(p.stats.crises)} 次 / ${num(p.stats.downsized)} 次</b></div>
       </div>

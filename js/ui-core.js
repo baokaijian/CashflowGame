@@ -120,13 +120,13 @@ function line(k, v, cls){
   return `<div class="kv"><span class="kv__k">${esc(k)}</span><span class="kv__v ${cls||''}">${money(v)}</span></div>`;
 }
 /* 收支表：★ 一律按【年度】呈现 —— 一次发薪日结算的就是这一年的收支。
-   金额由 E.annual() 统一换算（唯一真源是 window.TIME.monthsPerPayday），
+   固定收入、生活费用由 E.annual 换算，贷款与实际净额由 E.settlementPlan 逐月计算，
    界面绝不自己写 ×12，否则改口径时必然漏掉几处。 */
 /* 财务自由圈用的是另一套账本（分红 − 自由圈生活支出 − 仍在还的贷款），
    所以收支表要整块换掉，而不是在老鼠赛跑的表上加两行 ——
    否则玩家会看到「工资收入」与「分红」并列，误以为自由圈还领工资。 */
 function renderIncomeFT(p){
-  const ft = E.ftFinance(p);
+  const ft = E.ftFinance(p), plan=E.settlementPlan(p);
   const A = v => E.annual(v);
   const LB = window.LIFEBASE || {};
   const labels={interest:'理财利息',dividend:'基金分红',realEstate:'房产净收入（已扣项目利息与机构管理费）',
@@ -146,24 +146,31 @@ function renderIncomeFT(p){
     <div class="sec__title">支出<span class="muted">年度</span></div>
     <div class="rowlist">
       ${line(`生活支出（自由圈档次 ×${(LB.freeTrackMult||1).toFixed(2)}）`, A(ft.living))}
-      ${ft.loans ? line('贷款年供', A(ft.loans)) : ''}
+      ${ft.loans ? line('未来一年实际月供合计', plan.loanTotal) : ''}
     </div>
-    <div class="sec__total"><span>年总支出</span><span class="money">${money(A(ft.expense))}</span></div>
+    <div class="sec__total"><span>年总支出</span><span class="money">${money(plan.expense)}</span></div>
   </div>
   <div class="sec">
-    <div class="sec__total" style="background:${ft.cashflow >= 0 ? 'var(--primary-container);color:var(--on-primary-container)' : 'var(--error-container, #ffdad6);color:var(--red)'}">
-      <span>${ft.cashflow >= 0 ? '年结余（分红日入账）' : '年缺口（入不敷出）'}</span><span class="money">${money(A(ft.cashflow))}</span>
+    <div class="sec__total" style="background:${plan.amount >= 0 ? 'var(--primary-container);color:var(--on-primary-container)' : 'var(--error-container, #ffdad6);color:var(--red)'}">
+      <span>${plan.amount >= 0 ? '年结余（分红日入账）' : '年缺口（入不敷出）'}</span><span class="money">${money(plan.amount)}</span>
     </div>
   </div>
   <p class="hint">出圈后主动收入退出生活：工资不再入账，与工资绑定的个税也一并停征。
     但住房、用车、消费预算与贷款月供照旧 —— <b>顺流层同样会因为开销超过分红而破产</b>。</p>`;
 }
-function renderIncome(p,g){ return renderIncomeBase(p,g)+renderLivingBudget(p)+renderFamily(p); }
+function renderIncome(p,g){ return renderMonthlyCashflow(p)+renderIncomeBase(p,g)+renderLivingBudget(p)+renderFamily(p); }
+function renderMonthlyCashflow(p){
+  const plan=E.settlementPlan(p),m=plan.months[0];
+  return `<div class="sec" data-monthly-cashflow><div class="sec__title">当前月净现金流</div>
+    <div class="rowlist">${line('全部收入',m.income)}${line('生活及其他支出（不含月供）',m.living)}${line('贷款月供',m.loans)}${line('月净现金流',m.net,m.net<0?'neg':'pos')}</div>
+    <p class="hint">月净现金流 = 收入 − 生活及其他支出 − 月供。还清贷款后停止扣款，生活费用不会因还贷增加。房产收入已扣项目融资利息，不重复扣除。</p>
+    <p class="hint">每经过一次发薪日或分红日仍结算一年、长一岁。下方年度金额为未来 12 个月净额合计；若贷款年中结清，之后月份不再扣月供，尾期只付剩余本息。</p></div>`;
+}
 function renderLivingBudget(p){
   const mult=p.inFT?window.LIFEBASE.freeTrackMult:1,rows=E.livingBudget(p,mult);
   return `<div class="sec" data-living-budget><div class="sec__title">还贷后仍在的生活预算</div>
-    <p class="hint">月度金额${p.inFT?'，已含自由圈生活档次':''}。现有月供和日常消费先抵扣预算，只有不足部分计入支出；结清贷款仍能减少偿债负担。</p>
-    <div class="rowlist">${rows.map(r=>`<div class="rowlist__row" data-budget="${r.key}"><span>${r.name}<br><small>预算 ${money(r.base)} · 已计月供及消费 ${money(r.covered)}</small></span><b>补足 ${money(r.gap)}/月</b></div>`).join('')}</div>
+    <p class="hint">月度金额${p.inFT?'，已含自由圈生活档次':''}。生活费用与月供独立列支；只抵扣已经列出的日常消费，不用月供抵扣生活费用。</p>
+    <div class="rowlist">${rows.map(r=>`<div class="rowlist__row" data-budget="${r.key}"><span>${r.name}<br><small>生活预算 ${money(r.base)} · 已列日常消费 ${money(r.covered)}</small></span><b>生活费用 ${money(r.gap)}/月</b></div>`).join('')}</div>
     <p class="hint">用车预算包含养护与更新准备；消费预算包含持续消费与用品更新。属于游戏预算，不是新增借款或历史欠款。</p></div>`;
 }
 function renderFamily(p){
@@ -185,7 +192,7 @@ function renderFamily(p){
 function renderIncomeBase(p,g){
   if(p.inFT) return renderIncomeFT(p);
   g=g || (window.Game && window.Game.g);
-  const f = E.finance(p);
+  const f = E.finance(p), plan=E.settlementPlan(p);
   const A = v => E.annual(v);
   const L = window.EXP_LABEL, I = window.INC_LABEL;
   return `
@@ -205,27 +212,27 @@ function renderIncomeBase(p,g){
     <div class="sec__title">支出<span class="muted">年度</span></div>
     <div class="rowlist">
       ${line(L.taxes, A(f.exp.taxes))}
-      ${line(L.home, A(f.exp.home))}
+      ${line(L.home, plan.loanPayments.home)}
       ${f.exp.housingGap ? line(L.housingGap, A(f.exp.housingGap)) : ''}
-      ${line(L.school, A(f.exp.school))}
-      ${line(L.car, A(f.exp.car))}
+      ${line(L.school, plan.loanPayments.school)}
+      ${line(L.car, plan.loanPayments.car)}
       ${f.exp.carGap ? line(L.carGap,A(f.exp.carGap)) : ''}
-      ${line(L.credit, A(f.exp.credit))}
+      ${line(L.credit, plan.loanPayments.credit)}
       ${f.exp.consumptionGap ? line(L.consumptionGap,A(f.exp.consumptionGap)) : ''}
       ${line(L.retail, A(f.exp.retail))}
       ${line(L.other, A(f.exp.other))}
-      ${f.exp.otherLoan ? line(L.otherLoan, A(f.exp.otherLoan)) : ''}
+      ${f.exp.otherLoan ? line(L.otherLoan, plan.loanPayments.other) : ''}
       ${f.exp.extra ? line(L.extra, A(f.exp.extra)) : ''}
       ${line(`${L.children}（需支持 ${E.familySummary(p).dependentCount} / 共 ${p.children} 个）`, A(f.exp.children))}
       ${f.exp.elder   ? line(L.elder, A(f.exp.elder))     : ''}
       ${f.exp.medical ? line(L.medical, A(f.exp.medical), 'neg') : ''}
-      ${f.exp.bank ? line(L.bank, A(f.exp.bank)) : ''}
+      ${f.exp.bank ? line(L.bank, plan.loanPayments.bank) : ''}
     </div>
-    <div class="sec__total"><span>年总支出</span><span class="money">${money(A(f.totalExpenses))}</span></div>
+    <div class="sec__total"><span>年总支出</span><span class="money">${money(plan.expense)}</span></div>
   </div>
   <div class="sec">
     <div class="sec__total" style="background:var(--primary-container);color:var(--on-primary-container)">
-      <span>${f.cashflow >= 0 ? '年结余（发薪日入账）' : '年缺口（入不敷出）'}</span><span class="money">${money(A(f.cashflow))}</span>
+      <span>${plan.amount >= 0 ? '年结余（发薪日入账）' : '年缺口（入不敷出）'}</span><span class="money">${money(plan.amount)}</span>
     </div>
     <div class="sec__total" style="background:var(--secondary-container);color:var(--secondary)">
       <span>被动收入（年）</span><span class="money">${money(A(f.passive))} <span class="muted" data-escape-target>/ 门槛 ${money(A(E.escapeTarget(g,p)))}（须严格超过）</span></span>
@@ -278,7 +285,7 @@ function renderLiabs(p){
     if(i.balance <= 0) return '';
     const sub = i.revolving
       ? `月息 ${money(i.due)} · 随借随还`
-      : `年供 ${money(i.dueYear)} · 剩余 ${i.remainingYears} 年`;
+      : `未来一年还款 ${money(i.dueYear)} · 剩余 ${i.remainingYears} 年`;
     return `<div class="rowlist__row"><span>${i.nm}<br><span class="muted">${sub}</span></span><b class="money">${money(i.balance)}</b></div>`;
   }).filter(Boolean).join('');
   rows += p.assets.realEstate.filter(r=>E.projectDebt(r)>0).map(r=>`<div class="rowlist__row"><span>${esc(r.nm)} · 项目融资<br><span class="muted">持有期付息，已扣在房租净收入中；出售时还本</span></span><b class="money">${money(E.projectDebt(r))}</b></div>`).join('');

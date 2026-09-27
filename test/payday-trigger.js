@@ -29,7 +29,9 @@ for(const rule of ['101','202']) for(const inFT of [false,true]) {
       st.years.forEach((row,i)=>{
         assert.equal(row.since,20+i);
         assert.equal(row.through,21+i);
-        assert.equal(row.amount,E.annual(row.monthly));
+        assert.equal(row.months.length,12);
+        assert.equal(row.amount,row.months.reduce((s,m)=>s+m.income-m.living-m.loans,0));
+        assert.equal(row.amount,row.income-row.expense);
       });
       const notice=E.paydayNoticeOf(g,ld,inFT);
       if(ld.space.t===type || (ld.deficit>0 && ld.collected===0)) assert.equal(notice,null);

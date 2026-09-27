@@ -159,7 +159,8 @@ function loanDue(p, key){
   const t = loanType(key);
   if(t.kind === 'revolving') return Math.round(bal * t.rate);
   const m = p.loans[key];
-  return numOr(m && m.due) || cardDue(p, key) || Math.round(bal * t.rate);
+  const due = numOr(m && m.due) || cardDue(p, key) || Math.round(bal * t.rate);
+  return Math.min(due, bal + Math.round(bal * t.rate));
 }
 /* 单笔贷款的全貌：贷款管家面板与复盘报告都用它 */
 function loanInfo(p, key){
@@ -174,7 +175,7 @@ function loanInfo(p, key){
   return {
     key, nm:t.nm, note:t.note, kind:t.kind,
     rate:t.rate, rateAnnual:t.rate * monthsPerYear(), prepayRate:t.prepayRate, minPeriod:t.minPeriod,
-    balance:bal, due, dueYear:annual(due),          /* 月供与年供，界面按「年」展示 */
+    balance:bal, due, dueYear:loanSchedule(p).loans[key].total,          /* 月供与年供，界面按「年」展示 */
     base:numOr(m.base), periods:per,
     /* ★ 期限一律以【年】对外：remainingYears 才是给玩家看的那个数，
        remaining（月）只留给提前还款的计算用 —— 两者不要混着放进界面。 */
@@ -186,38 +187,39 @@ function loanInfo(p, key){
     canPrepayYears: Math.floor(t.minPeriod / M)
   };
 }
-/* 推进一期还款：利息 = 剩余本金 × 月利率，月供的其余部分冲减本金。
-   在「经过发薪日」时调用 —— 与月现金流（其中已含月供）同步结算，账实一致。 */
-/* 每个结算年 → 摊还 monthsPerPayday() 期（领几年就还几年）。
-   ★ 为什么必须一次还 12 期，而不是「一年只还 1 期」：
-     合同的月供是按【月】计息的（月利率 0.41% 等），若一年只还 1 期，
-     本金下降速度远慢于时间的流逝 —— 一笔 140 期的房贷要 140 年才能还完，
-     而人的一生只有 45 年，于是「剩余期限」永远停在原地。
-     一次还满 12 期之后，期限与年龄才是同一个刻度：140 期 = 11.7 年。
-   ★ 逐期取整而不是一次性算 12 期：利息是小数，分 12 次取整能保持
-     「剩余本金始终是整数」，且每期的还款额与合同月供完全一致。 */
-/* 每经过一个结算日只摊还一年；多个结算日由移动路径逐格调用。 */
-function amortize(g, p){
-  if(!p || p.out) return;
+/* 预演未来一年的逐月本息。预览和实结共用，尾期仅付剩余本息，结清后停扣。
+   信用贷保持只付息规则；生活费用不随贷款余额或月供变化。 */
+function loanSchedule(p){
   ensureLoans(p);
-  const M = monthsPerPayday();
+  const months=Array.from({length:monthsPerPayday()},()=>0), loans={};
   LOAN_KEYS.forEach(key=>{
-    const t = loanType(key);
-    if(t.kind === 'revolving') return;               /* 信用贷按余额计息，不做本金摊还 */
-    let bal = numOr(p.liabs[key]);
-    if(bal <= 0) return;
-    const due = loanDue(p, key);
-    for(let k = 0; k < M; k++){
-      if(bal <= 1) break;
-      const pay = Math.min(bal, Math.max(0, due - bal * t.rate));
-      bal = Math.round(bal - pay);
-      p.loans[key].periods += 1;
-    }
-    p.liabs[key] = bal <= 1 ? 0 : bal;
-    /* 只在「这一年正好还清」时报一次，避免逐期刷屏 */
-    if(p.liabs[key] === 0){
-      const n = p.loans[key].periods;
-      log(g, `${p.name} 的${t.nm}已还清（共摊还 ${n} 期 ≈ ${toYears(n)} 年）`, 'good', p.name);
+    const t=loanType(key), start=numOr(p.liabs[key]), due=loanDue(p,key);
+    let balance=start, periods=0, total=0;
+    const payments=months.map((_,i)=>{
+      if(balance<=0) return 0;
+      const interest=Math.round(balance*t.rate);
+      const payment=t.kind==='revolving'?due:Math.min(due,balance+interest);
+      if(t.kind!=='revolving'){
+        balance=Math.max(0,balance-Math.max(0,payment-interest));
+        periods++;
+      }
+      months[i]+=payment; total+=payment;
+      return payment;
+    });
+    loans[key]={start,balance,periods,total,payments};
+  });
+  return {months,loans,total:months.reduce((s,n)=>s+n,0)};
+}
+function amortize(g,p,schedule){
+  if(!p || p.out) return;
+  const plan=schedule || loanSchedule(p);
+  LOAN_KEYS.forEach(key=>{
+    const row=plan.loans[key];
+    p.liabs[key]=row.balance;
+    p.loans[key].periods+=row.periods;
+    if(row.start>0 && row.balance===0){
+      const n=p.loans[key].periods;
+      log(g,`${p.name} 的${loanType(key).nm}已还清（共摊还 ${n} 期 ≈ ${toYears(n)} 年），后续月份不再扣该笔月供`,'good',p.name);
     }
   });
 }
@@ -264,7 +266,9 @@ function prepayPlan(p, key, amount, mode){
   const expenseBefore=p.inFT?ftExpenseOf(p):finance(p).totalExpenses;
   const expenseAfter=p.inFT?ftExpenseOf(projected):finance(projected).totalExpenses;
   return Object.assign(plan, {
-    budget:{before:expenseBefore,after:expenseAfter,saving:expenseBefore-expenseAfter},
+    budget:{before:expenseBefore,after:expenseAfter,saving:expenseBefore-expenseAfter,
+      yearBefore:settlementPlan(p).expense,yearAfter:settlementPlan(projected).expense,
+      yearSaving:settlementPlan(p).expense-settlementPlan(projected).expense},
     ok:true, amt, fee, need, cleared,
     mode: cleared ? 'settle' : (mode === 'reduce' ? 'reduce' : 'shorten'),
     before:{ due:info.due, remaining:info.remaining, interestLeft:info.interestLeft, balance:info.balance },
@@ -624,19 +628,15 @@ function checkSoloStage(g){
 }
 
 /* ------------------------------ 生活基线 ------------------------------ */
-/* 住房基线：自有住房的成本从未归零 —— 房贷还清后只是从「还本付息」
-   变成「物业 + 修缮 + 改善 + 换租」。
-   它解决的是「门槛随负债消失而崩塌」：旧版门槛 = 总支出，房贷一还清
-   门槛就从 ¥3,000 掉到 ¥400，出圈瞬时变成走过场。
-   见 data-careers.js 的 LIFEBASE 注释（持续生活预算与避免重复收费）。 */
+/* 持续生活费用独立于偿债：还清贷款不再用新增生活补足抵消月供收益。 */
 function lifeBaseHousing(p){
   const LB = window.LIFEBASE || {};
   const base = numOrDef(p.baseSalary, numOrDef(p.job && p.job.salary, 0));
   return Math.max(0, Math.round(base * numOrDef(LB.housingRate, 0) * numOrDef(p.lifeCoef, 1)));
 }
 
-/* 预算与偿债分开：存档中的职业卡提供原始生活基准，当前负债不能重设预算。
-   先放大预算，再扣现有月供，确保自由圈还贷不会反而抬高支出。 */
+/* 职业卡固定生活基准，只抵扣已计入的消费，绝不抵扣月供。
+   gap 保留旧字段名以兼容界面，含义为尚未在 retail 中列示的生活费用。 */
 function livingBudget(p,mult=1){
   ensureLoans(p);
   const cfg=window.LIFEBASE,j=p.job||{},coef=numOrDef(p.lifeCoef,1);
@@ -649,8 +649,8 @@ function livingBudget(p,mult=1){
   return specs.map(row=>{
     const base=Math.round(row.base*mult),spending=Math.round(row.spending*mult);
     const due=numOr(p.liabs[row.key])>0?loanDue(p,row.key):0;
-    const covered=due+spending,gap=Math.max(0,base-covered);
-    return {key:row.key,name:row.name,base,spending,due,covered,gap,total:covered+gap};
+    const covered=spending,gap=Math.max(0,base-covered);
+    return {key:row.key,name:row.name,base,spending,due,covered,gap,total:covered+gap+due};
   });
 }
 
@@ -670,11 +670,7 @@ function finance(p){
   /* 生活性支出随人生阶段浮动（35—55 岁是「三明治一代」的支出高峰）；
      赡养父母与医疗支出为阶段性的新增科目 */
   const lifeCoef = numOrDef(p.lifeCoef, 1);
-  /* ★ 住房支出的「地板」：max(房贷月供, 住房基线)，两者【不叠加】。
-     有房贷时按房贷算 —— 与改造前的数据完全一致，平衡不动；
-     房贷还清后按基线算 —— 成本不归零，门槛自然不崩塌。
-     ⚠️ 不能改成「房贷月供 + 基线」（开局会双算），也不能只放在门槛里
-        （那样现金流会因还清贷款而暴涨，同样不真实）。 */
+  /* 生活费用与当前月供分列相加，不因还贷自动增加其他支出。 */
   const homeDue     = numOr(p.liabs.home) > 0 ? loanDue(p, 'home') : 0;
   const budgets=livingBudget(p);
   const housingBase=budgets[0].base,housingGap=budgets[0].gap;
@@ -1124,11 +1120,24 @@ function collateralValue(g, p){
 
 /* 当前适用的【月度结余】—— 两圈各用各的账本：
    老鼠赛跑 = 工资 + 被动 − 支出；财务自由圈 = 分红 − 自由圈支出 − 仍在还的贷款。
-   ★ 界面上的每一处「年结余」都必须读它，不允许各处自己判断圈层 ——
+   ★ 月净额统一读本函数；实际年度结余读 settlementPlan，不自行判断圈层 ——
      否则会出现「分红日入账 ¥59,928，年结余却显示 ¥97,824」这种同一屏两套口径。 */
 function settleCashflow(p){
   if(!p) return 0;
   return p.inFT ? ftFinance(p).cashflow : finance(p).cashflow;
+}
+
+/* 下一次结算日：按当前收入和生活费用计算 12 个月，贷款逐月摊还。
+   年中结清时不能直接用第一个月净额 × 12；预览、入账与弹窗读同一计划。 */
+function settlementPlan(p){
+  const f=finance(p),ft=p.inFT?ftFinance(p):null;
+  const income=ft?ft.income:f.totalIncome;
+  const living=ft?ft.living:f.totalExpenses-f.loanTotal;
+  const schedule=loanSchedule(p);
+  const months=schedule.months.map((loans,i)=>({month:i+1,income,living,loans,net:income-living-loans}));
+  return {income:annual(income),living:annual(living),loanTotal:schedule.total,
+    expense:annual(living)+schedule.total,amount:Math.round(months.reduce((s,m)=>s+m.net,0)),
+    months,schedule,loanPayments:Object.fromEntries(LOAN_KEYS.map(k=>[k,schedule.loans[k].total]))};
 }
 
 /* ------------------------------ 信用额度 ------------------------------ */
@@ -1808,19 +1817,20 @@ function movePlayer(g, p, steps){
     if(sp.t !== (p.inFT ? 'cashflowday' : 'paycheck')) continue;
 
     /* 用长岁前的账本结算这一年，再摊还和长岁。
-       多个发薪日逐笔计算：还清贷款 / 退休 / 工资阶段变化会影响下一笔。 */
+       年内逐月扣贷款，多个发薪日逐年重算；退休和工资阶段在长岁后切换。 */
     refreshLife(g, p);
-    const since = ageOf(g, p), monthly = settleCashflow(p), amount = annual(monthly);
+    const since = ageOf(g, p), monthly = settleCashflow(p), plan=settlementPlan(p), amount=plan.amount;
     if(amount >= 0){ p.cash += amount; collected += amount; }
     else deficit += -amount;
-    amortize(g, p);
+    amortize(g, p, plan.schedule);
     settleFamilyYear(g,p,since);
     ASSET_KINDS.forEach(k=>(p.assets[k] || []).forEach(it=>{ it.heldYears = numOr(it.heldYears) + 1; }));
     p.age = since + 1;
     p.settledAge = p.age;
     p.settledYears = numOr(p.settledYears) + 1;
     bump(p, 'paychecks');
-    rows.push({ ix:to, years:1, monthly, amount, since, through:p.age });
+    rows.push({ ix:to, years:1, monthly, amount, months:plan.months, income:plan.income,
+      living:plan.living, loanTotal:plan.loanTotal, expense:plan.expense, since, through:p.age });
     const retirement = retireBreakOf(g);
     if(retirement) g.lastRetire = retirement;
     p.energy = Math.min(numOr(p.energy), energyMax(g, p));
@@ -1866,11 +1876,10 @@ function paydayNoticeOf(g, landed, inFT){
     kind: 'paid',
     inFT: !!inFT,
     years: st.yearsPaid,        /* 本次实际结算的年数（经过几个结算格就结几年） */
-    /* 每年均额 = 该结算格的月结余 × 12。界面要显示「年结余 × N」这个算式，
-       算式里的年结余必须由引擎给 —— 界面自己除会有取整误差，也违反单一真源。 */
+    /* 第一笔实际年度净额（含年中结清），不得再用年初月净额乘 12。 */
     perYear: (function(){
       const paid = (st.years || []).filter(y => y.years > 0)[0];
-      return paid ? annual(paid.monthly) : 0;
+      return paid ? paid.amount : 0;
     })(),
     amount: st.amount,          /* 实发金额（与入账同源，界面不再自己算） */
     deficit: st.deficit,        /* 同一次移动里另有入不敷出的部分 */
@@ -2384,7 +2393,7 @@ window.Engine = {
   /* 失业求职期 / 公益捐赠税前扣除 / 银翅膀 */
   isJobless, startJobless, settleAtBreak, jobHunt, donationRefund, useWing,
   /* 生活基线 / 自由圈账本 / 信用额度 */
-  lifeBaseHousing, livingBudget, ftExpenseOf, ftFinance, collateralValue, creditGradeOf, creditProfile, settleCashflow,
+  lifeBaseHousing, livingBudget, ftExpenseOf, ftFinance, collateralValue, creditGradeOf, creditProfile, settleCashflow, settlementPlan,
   /* 突变点与终局结算 */
   retireBreakOf, finalSettle,
   /* 资产估值：市场周期 + 行情冲击 + 折旧 */

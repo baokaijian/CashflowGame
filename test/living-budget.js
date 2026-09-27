@@ -11,16 +11,16 @@ function game(){
  return {g,p};
 }
 let n=0;function test(name,run){run();n++;console.log('✅ '+name);}
-test('所有职业开局车贷和信用卡月供覆盖预算，不额外双收费',()=>{
+test('所有职业生活费用与月供分列，已有日常消费不重复计费',()=>{
  for(const job of c.CAREERS){const {p}=game();p.job=job;p.baseSalary=job.salary;p.liabs={...p.liabs,...job.liab};p.loans=null;
-  const f=E.finance(p);assert.equal(f.exp.carGap,0);assert.equal(f.exp.consumptionGap,0);
+  const f=E.finance(p);assert.equal(f.exp.carGap,Math.round(job.car*.5*p.lifeCoef));assert.equal(f.exp.consumptionGap,Math.round(job.credit*.5*p.lifeCoef));
  }
 });
 test('结清车贷与信用卡仍保留持续成本，还款预览与实际总支出一致',()=>{
  for(const key of ['car','credit']){
   const {g,p}=game();E.amortize(g,p); // 实际摊还一年后解除提前还款限制
   const before=E.finance(p),cash=p.cash,plan=E.prepayPlan(p,key,p.liabs[key],'settle');
-  assert(plan.ok);assert(plan.budget.saving>=0 && plan.budget.saving<plan.before.due);
+  assert(plan.ok);assert(plan.budget.saving===plan.before.due);
   assert.equal(p.cash,cash,'预览不扣款');assert(A.prepayLoan(g,key,p.liabs[key],'settle').ok);
   const after=E.finance(p);assert.equal(after.totalExpenses,plan.budget.after);
   assert.equal(before.totalExpenses-after.totalExpenses,plan.budget.saving);
@@ -45,21 +45,21 @@ test('消费预算只补现有日常消费之外的部分，不能重复收原�
  assert.equal(row.total,row.base);assert.equal(row.total,f.exp.retail+f.exp.consumptionGap);
  assert.equal(f.exp.consumptionGap,Math.round(p.job.credit*.5*p.lifeCoef));
 });
-test('降低月供到预算以下时补足差额；再次加债不会提高生活预算',()=>{
+test('降低月供与再次加债均不改变生活费用',()=>{
  const {p}=game(),base=E.livingBudget(p)[1].base;
- p.loans.car.due=10;assert.equal(E.finance(p).exp.carGap,base-10);
+ p.loans.car.due=10;assert.equal(E.finance(p).exp.carGap,base);
  p.liabs.car*=10;p.loans.car.due=1000;
- assert.equal(E.livingBudget(p)[1].base,base);assert.equal(E.finance(p).exp.carGap,0);
+ assert.equal(E.livingBudget(p)[1].base,base);assert.equal(E.finance(p).exp.carGap,base);
 });
-test('自然还清的年度仍按年初账本结算，下一年才使用预算补足',()=>{
+test('自然还清只扣剩余本息，后续月份停止扣供',()=>{
  const {g,p}=game();p.liabs.car=10;p.loans.car.due=20;
- const expected=E.annual(E.settleCashflow(p)),cash=p.cash;p.pos=1;
+ const expected=E.annual(E.settleCashflow(p)+10)-10,cash=p.cash;p.pos=1;
  const move=E.movePlayer(g,p,1);assert.equal(p.cash-cash,expected);assert.equal(move.settled.count,1);
  assert.equal(p.liabs.car,0);assert(E.finance(p).exp.carGap>0);
- const next=E.annual(E.settleCashflow(p)),cash2=p.cash;p.pos=1;E.movePlayer(g,p,1);
+ const next=E.settlementPlan(p).amount,cash2=p.cash;p.pos=1;E.movePlayer(g,p,1);
  assert.equal(p.cash-cash2,next);
 });
-test('自由圈先调整预算后抵扣月供，逐步减债不会反向增加支出',()=>{
+test('自由圈生活费用不受月供影响，逐步减债同步降低支出',()=>{
  for(const key of ['home','car','credit']){
   const {p}=game();p.inFT=true;p.assets.business.push({nm:'分红测试企业',cost:100000,cf:20000});let previous=Infinity;
   for(let due=1000;due>=0;due--){p.liabs[key]=due?10000:0;p.loans[key].due=due;
@@ -72,7 +72,7 @@ test('自由圈提前结清预览自洽，分红与生活预算只扣一次',()=
  const {g,p}=game();p.inFT=true;p.assets.business.push({nm:'分红测试企业',cost:100000,cf:10000});E.amortize(g,p);
  const plan=E.prepayPlan(p,'car',p.liabs.car,'settle');assert(plan.ok);assert(A.prepayLoan(g,'car',p.liabs.car,'settle').ok);
  assert.equal(E.ftFinance(p).expense,plan.budget.after);
- const expected=E.annual(E.ftFinance(p).cashflow),cash=p.cash;p.ftPos=0;E.movePlayer(g,p,1);
+ const expected=E.settlementPlan(p).amount,cash=p.cash;p.ftPos=0;E.movePlayer(g,p,1);
  assert.equal(p.cash-cash,expected);
 });
 test('旧存档已清贷仍按原职业恢复预算，不追溯现金或重算锁定缺口',()=>{
