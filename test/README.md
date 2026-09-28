@@ -1,398 +1,100 @@
-# test/ —— 验证脚本
+# 验证脚本
 
-本项目**没有测试框架、没有依赖**，这里包含可直接运行的验证脚本。
-改动人生命题与消费升级相关的参数（`SALARY_CURVE` / `LIFE_STAGES` / `ENERGY` / `UNEMPLOYMENT` / `LIFESTYLE`）后，**必须重跑第 1—3 个**；
-改动单人模式参数（`SOLO` / `SOLO_STAGES`）后，**必须重跑第 4 个**；
-改动时间口径（`TIME`）后，**必须重跑第 5 个**；
-改动发薪日触发相关（`diceCount` / 棋盘格型分布 / `RING_LEN`）后，**必须重跑第 6—7 个**；
-改动价格标定（`tools/calibrate-prices.js` / 卡片价格字段 / `PRICE.scale`）后，**必须重跑第 8 个**；
-改动生活基线或信用额度（`LIFEBASE` / `CREDIT` / `UNEMPLOYMENT.lifeCut` / `BANK.loanRate`）后，**必须重跑第 9 个**；
-改动资产估值或多头借贷（`MARKET` / `CREDIT.multi` / 资产卡价格字段 / `SOLO.retireAge`）后，**必须重跑第 10 个**；
-改动投资回报或出圈门槛（`YIELD` 任一字段 / 带 `tier` 的投资卡 / `tools/rebalance-returns.js`）后，**必须重跑第 11 个**。
+核对日期：2026-09-28；游戏代码基线：`8732059`。本项目无需 npm 安装：30 个 Node 验证脚本可直接运行；`browser-behavior.js` 是浏览器探针，不能直接用 Node 执行。
 
----
+本次文档核验已重新运行全部 30 个 Node 脚本并通过，14 个运行资源的内容版本检查也通过。
 
-## 1. `career-cashflow-scan.js` —— 全职业 × 全年龄现金流扫描
+## Node 回归
 
-回答一个问题：**有没有哪个职业在「没有任何额外负债」的默认轨迹上，一生现金流会转负？**
-如果有，说明数值标定失衡，游戏会变成「注定破产」而不是「有时间压力」。
+从仓库根目录运行全部 Node 脚本，任意失败即停止：
 
 ```bash
-node test/career-cashflow-scan.js
+for f in test/*.js; do
+  [ "$f" = "test/browser-behavior.js" ] && continue
+  node "$f" || exit 1
+done
 ```
 
-期望输出：`✅ 全部 12 个职业在默认轨迹上一生现金流为正`，
-且**最低点统一落在 56 岁**（收入已回落、赡养仍最高的交汇点 —— 这是设计意图）。
+也可按改动范围运行相关脚本。涉及共享账本、贷款、时间或存档时，需同时检查调用方与长局；参数变化还要重跑平衡核验。脚本的断言数量不是覆盖率，不将旧版本数量累加成当前证据。
 
----
-
-## 2. `lifecycle-regression.js` —— 长局回归
-
-用固定随机种子跑 4 局完整对局（101/202 × 4/6 人），并在**每一回合**校验四条不变式：
-
-| 不变式 | 含义 |
+| 脚本 | 主要覆盖 |
 |---|---|
-| 现金永不为负 | 负现金会破坏整局赖以成立的财务逻辑 |
-| 数值有限 | 不出现 `NaN` / `Infinity` |
-| 卡片不卡死 | 每张 pending 都能被处理完 |
-| 精力不破 0 | 归零即触发健康危机，不允许继续下探 |
+| [career-cashflow-scan.js](career-cashflow-scan.js) | 全职业、年龄阶段的基础现金流扫描 |
+| [lifecycle-regression.js](lifecycle-regression.js) | 多人长局中的现金、数值、待处理事件与精力不变式 |
+| [consumption-tier.js](consumption-tier.js) | 消费档次、意外支出、金额锁定和实际扣款 |
+| [solo-mode.js](solo-mode.js) | 单人退休、合作差异、成就评级和完整人生 |
+| [time-unit.js](time-unit.js) | 一年十二个月、贷款期数和年度摊还 |
+| [payday-trigger.js](payday-trigger.js) | 内外圈路径、发薪密度、跨格与各玩家独立计龄 |
+| [payday-settlement.js](payday-settlement.js) | 一次结一年、跨退休与终龄、缺口和旧档幂等 |
+| [price-calibration.js](price-calibration.js) | 价格字段、卡面备注与标定保护 |
+| [life-baseline-credit.js](life-baseline-credit.js) | 生活基准、自由圈账本与收入授信 |
+| [market-valuation.js](market-valuation.js) | 周期估值、折旧、多头借贷、退休与长局 |
+| [escape-difficulty.js](escape-difficulty.js) | 回报参数、严格出圈门槛及固定策略难度 |
+| [property-sales.js](property-sales.js) | 共有份额出售、筛选列表后的持仓定位 |
+| [collateral-appraisal.js](collateral-appraisal.js) | 逐项抵押成本、估值、融资、待购资产排除 |
+| [asset-version.js](asset-version.js) | 静态资源内容版本、启动完整性与入口同步 |
+| [asset-transactions.js](asset-transactions.js) | 共享报价、稳定身份、项目融资、挂牌买回和转让 |
+| [family-lifecycle.js](family-lifecycle.js) | 子女成年、缴费年数、退休医疗及历史兼容 |
+| [operating-differences.js](operating-differences.js) | 规模维护、经营折旧、机构合同与拒绝路径 |
+| [living-budget.js](living-budget.js) | 生活费独立于月供、自然结清与提前还款 |
+| [portfolio-financing.js](portfolio-financing.js) | 初始组合融资、出售还本、混合旧债与迁移 |
+| [player-transfers.js](player-transfers.js) | 股票与企业买方成本、新身份、使用年数与重复交易 |
+| [rule-presentation.js](rule-presentation.js) | 规则展示、严格门槛、破产和复盘文本 |
+| [savings-redemption.js](savings-redemption.js) | 不同本金逐笔兑付、报价校验、旧档和失败不改账 |
+| [fast-track-income.js](fast-track-income.js) | 自由圈按当前持仓分红、企业与出圈奖励分开 |
+| [save-recovery.js](save-recovery.js) | 备份格式、容量、导入校验、存储失败和回滚 |
+| [random-state.js](random-state.js) | 骰子与洗牌连续性、动画中断恢复和旧档随机迁移 |
+| [balance-audit.js](balance-audit.js) | 报价对象可达、首付收益、共有结算及审计可复现 |
+| [wealth-history.js](wealth-history.js) | 财富采样、首点保留、裁剪、峰值和旧档 |
+| [health-recovery.js](health-recovery.js) | 强制休养不循环续期、恢复行动与再次过劳 |
+| [rental-cashflow.js](rental-cashflow.js) | 毛租金连续变化、固定利息、纯资本房产及自由圈复盘 |
+| [loan-cashflow.js](loan-cashflow.js) | 六类借还、净现金流、尾款、年中结清、年度缺口与预览 |
+
+## 浏览器行为
+
+[browser-behavior.js](browser-behavior.js) 覆盖 A—AB 组实际按钮、弹层、财务重绘、贷款返回、存档恢复、文件导入和结算流程。基线代码的最近完整验证为 242 项断言通过；文档整理不代表另做了一次浏览器验证。
+
+探针会创建、修改和覆盖测试对局。**只在临时副本及独立浏览器配置中运行，不要注入正在玩的页面**。以下 macOS 示例需要已安装 Chrome 与 Python 3；其他平台调整 Chrome 路径即可：
 
 ```bash
-node test/lifecycle-regression.js      # 退出码 0 = 全通过
+python3 - <<'PYCODE'
+from pathlib import Path
+import html, re, shutil, subprocess, tempfile
+root = Path.cwd()
+chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+with tempfile.TemporaryDirectory(prefix='cashflow-browser-') as folder:
+    tmp = Path(folder)
+    for name in ('js', 'css', 'test'):
+        shutil.copytree(root / name, tmp / name)
+    page = (root / 'index.html').read_text()
+    probe = '<script src="test/browser-behavior.js"></script>'
+    (tmp / 'index.html').write_text(page.replace('</body>', probe + '</body>'))
+    result = subprocess.run([
+        chrome, '--headless=new', '--disable-gpu',
+        '--allow-file-access-from-files', '--window-size=1440,900',
+        '--user-data-dir=' + str(tmp / 'profile'),
+        '--virtual-time-budget=60000', '--dump-dom',
+        (tmp / 'index.html').as_uri()
+    ], capture_output=True, text=True, timeout=120, check=True)
+    match = re.search(r'<pre[^>]*id="DIAG"[^>]*>(.*?)</pre>', result.stdout, re.S)
+    if not match:
+        raise SystemExit('未取得 DIAG，不能判为通过；检查浏览器启动与页面错误')
+    report = html.unescape(match.group(1))
+    print(report)
+    if any(flag in report for flag in ('❌', '⛔', '⚠️')):
+        raise SystemExit(1)
+PYCODE
 ```
 
-脚本会走**每种卡片的真实 action**（`doDownsized` / `payDoodad` / `chooseDeck` → `buyDeal` …），
-而不是一律清掉 pending —— 否则「失业求职期」「买入消耗精力」这两条路径根本不会被覆盖，
-回归会给出「求职 0 次」这种假通过。
+`DIAG` 缺失、未捕获异常或状态机卡住均不能当作通过；匹配时允许元素附带其他属性。浏览器探针与 Node 回归互补，不能只看页面截图判断交易正确。
 
-> 固定种子 → 结果可复现。**断言若失败，先看它指出的是产品缺陷还是脚本缺陷**：
-> 首版脚本就曾因为漏清 pending，把「失业 240 次」这种不可能的计数报出来。
-
----
-
-## 3. `consumption-tier.js` —— 消费升级规则（意外支出 × 消费档次）
-
-验证「社会等级越高，意外支出越贵」这条规则的计价是否处处自洽：
+## 资源和数值核验
 
 ```bash
-node test/consumption-tier.js      # 退出码 0 = 全通过
+node tools/version-assets.js --check
+node tools/audit-balance.js --out /tmp/cashflow-balance.json
 ```
 
-覆盖：系数阶梯与等级数一一对应且单调不降、**22 张意外支出卡全部标注了消费敏感度**、
-逐级核对（L0—L7）「消费升级型全额承接 / 基础型只承接 basicDamp 比例」、
-每月额外支出同步放大、实际扣款按实付计且加成单独记账、
-**传入手工锁定金额时按锁定值扣款**（保证弹层与账目一致）。
+修改运行资源后执行 `node tools/version-assets.js`，再检查摘要。标定工具可能改写数据，不应为了运行测试而在工作树中反复放大价格；涉及写入的标定回归使用临时副本。
 
-> 改动 `LIFESTYLE`（系数 / basicDamp）、社会等级门槛、或意外支出卡数据后**必须重跑**。
-
-## 4. `solo-mode.js` —— 单人模式
-
-验证单人模式的三处专属规则与结算：
-**人生阶段**（6 段 / 边界 / 单调不降 / **阶段表不得含业务数值字段**）、
-**退休断崖**（61 岁收入切换、养老金 = 基础工资 × 45%、免征个税、**多人模式不受影响**、
-退休后不进入求职期）、**单人下只有买入或放弃**（引擎里彻底不存在转让能力、
-多人模式的 `sellOpportunity` 照常可用）、**机构合伙**（出资 / 现金流 / 精力分摊、
-现金不足时零扣款）、**五种结局与人生评级**（含「恰好 60 岁」边界、走真实的 `endSolo` 链路、
-未达成时 `winner` 必须为 `null`），以及单人 45 年长局回归。
-
-```bash
-node test/solo-mode.js      # 78 项断言，退出码 0 = 全通过
-```
-
-> 改动 `SOLO`（退休年龄 / 养老金替代率 / 合伙比例）、`SOLO_STAGES`、
-> 或上面任何一条人生曲线后**必须重跑**。
-
----
-
-## 5. `time-unit.js` —— 时间口径（一个结算年 = 12 个月）
-
-守住「每个结算日长一岁、一个结算年 = 12 个月」这条时间主轴：口径真源唯一
-（`engine.js` 里不得出现写死的 `× 12`）、剩余期数 → 年的换算与边界（含 `Infinity`、
-不满一年向上取整）、**一次发薪日恰好摊还 12 期且余额与年限同步下降**、
-绕一圈经过 N 个发薪日就恰好摊还 N 年（不会多还）、还清后的边界行为、
-贷款能在整局内还清、单人 / 多人同口径、长局中剩余年限单调下降。
-
-注意：回合不再代表一年，构造年龄边界应设置 `p.age`；旧档迁移才会从历史轮数恢复年龄。
-
-```bash
-node test/time-unit.js      # 37 项断言，退出码 0 = 全通过
-```
-
-> 改动 `TIME`、`LOAN_TYPES` 或职业卡的负债数据后**必须重跑**。
-
----
-
-## 6. `payday-trigger.js` —— 路径和完整人生
-
-```bash
-node test/payday-trigger.js
-```
-
-穷举 101 / 202、内外圈、24 个起点和 0—48 步共 4,704 条路径。
-核验经过 / 到达、零步、绕圈、跨多个结算日、逐笔收支与年龄，以及提示与确认面板的分流。
-另用 12 局完整人生检查：每位存活玩家 20→65 岁恰好 45 笔，各自年龄独立，先完成者等待，最终正常排名。
-
-## 7. `payday-settlement.js` —— 年度结算边界
-
-```bash
-node test/payday-settlement.js
-```
-
-覆盖三种模式和两套规则、跨多个结算日时逐年重算、没有经过就不长岁、失业和终局不补结、
-跨退休年龄时切换工资 / 养老金、终龄停步、最后一年亏损与破产、多人的独立年龄与结束顺序、
-按年度结算折旧、真实出圈年龄、新旧存档恢复及幂等迁移。
-
-## 8. `price-calibration.js` —— 价格标定一致性
-
-守住标定之后最容易被破坏的三件事：
-**① 卡片备注里的价格数字必须与字段同值**（否则又出现「备注写 ¥300,000、卡面写 ¥645,000」）；
-**② 价格字段不能是 0 / 负数**（第一版标定脚本因为取整单位设成「百元」，把期权权利金抹成了 0）；
-**③ 买入价与卖出价必须同口径**（只换一边就会出现低买高卖）。
-
-```bash
-node test/price-calibration.js      # 15 项断言，退出码 0 = 全通过
-```
-
-> 标定用 `node tools/calibrate-prices.js <系数>`（幂等保护，重复运行会拒绝）。
-> 标定后必须重跑本脚本，并人工抽查几张卡片。
-
----
-
-## 9. `life-baseline-credit.js` —— 生活基线 / 自由圈账本 / 信用额度
-
-三条新规则的数学与边界，**外加一条跨模块口径一致性断言**：
-
-```bash
-node test/life-baseline-credit.js      # 60 项断言，退出码 0 = 全通过
-```
-
-覆盖：
-**住房基线**（12 个职业「有房贷时缺口恒为 0」→ 不双算 / 关掉基线后门槛会掉多少 /
-门槛 = 总支出 / 结余不因还清贷款而暴涨 / 基线随人生阶段浮动）、
-**自由圈账本**（支出 = 生活 × 1.35 + 贷款 / 工资税停征 / 分红日入账 = 年度结余 /
-**自由圈也会破产** / **`settleCashflow` 与分红口径一致且不等于工资口径**）、
-**信用额度**（12 职业的额度都在双约束内 / 汽修技师由 DTI 侧约束 / 借满后拒绝 /
-**连续借 60 次也滚不出千万级螺旋** / 失业+无资产拒绝 / **失业但有存款仍可抵押借** /
-失业只降收入侧系数而不动征信分 / 退休折半 / 破产禁贷期 + 事后折价 / 入不敷出下调信用 /
-**被拒后现金与负债分文未动**）、以及单人与多人的长局回归
-（现金非负 / 无 NaN / 无卡死 / **信用贷余额从未突破授信上限**）。
-
-> 改动 `LIFEBASE`、`CREDIT`、`UNEMPLOYMENT.lifeCut`、`BANK.loanRate`、
-> 职业卡的 `liab` 结构后**必须重跑**。
-
----
-
-## 10. `market-valuation.js` —— 资产估值 / 多头借贷 / 退休与终局结算
-
-三组机制的数学、边界与**配置对齐**：
-
-```bash
-node test/market-valuation.js      # 98 项断言，退出码 0 = 全通过
-```
-
-**① 资产动态估值** —— 周期确定性与振幅范围（8 年 ±15%）、各类资产**相位错开**、
-存款 / 理财不参与周期（`cycle.flat`）、
-**`phase` / `decay` / `haircut` 三张表的键名必须与 `ASSET_KINDS` 一致且无遗漏**（写错键名会静默失效）、
-折旧按持有年数计提（土地负折旧 / 房产不折旧 / 一般经营企业 4%，具体经营类型另见经营差异回归）、
-房产按**已付首付的权益比例**折算、企业按处置难度折算、
-行情冲击可累乘且有 clamp（连续 40 次 −10% / 200 次 +20% 都不越界）、
-租金 → 估值的联动与额度收缩、
-**202 组合卡的资产在开局就带 `buyRound`**（否则折旧年限会被少算）。
-
-**② 多头借贷识别** —— 三个维度各自生效并可相乘、总系数有下限不为 0、
-**抵押类负债（房贷 / 车贷 / 助学）不计入**（玩家确实背着它们却被正确排除）、
-硬拒绝与**被拒时账目分文未动**、拒绝文案不含内部产品 key、
-**窗口滑出后额度恢复**（不搞「一次违规终身受限」）、
-失业时抵押通道仍开放（不破坏既有的「就业状态与抵押解耦」约定）。
-
-**③ 退休与终局** —— 60→61 岁按在职口径结一年后切换养老金，不补结；
-多人模式完全不受影响（61 岁 `retired === false`、税负未清零）、
-退休时清除求职状态、终局不额外结算、走真实 `endSolo` 链路、缺口情形下现金仍非负。
-
-**④ 长局回归** —— 单人 101/202 × 2 颗种子，逐回合校验：
-现金非负 / 无 NaN / 估值非负有限 / 退休后都做过突变结算 / 结算年数与年龄同步。
-
-> 改动 `MARKET`（周期 / 折旧 / 抵押折扣 / 联动强度）、`CREDIT.multi`、
-> `SOLO.retireAge`、资产卡的价格字段、或任何新增的买入路径后**必须重跑**。
-> 新增资产**类别**时还要把键名同步进 `ASSET_KINDS`、`MARKET.cycle.phase`、`MARKET.decay`、`MARKET.haircut` ——
-> 本脚本的对齐断言就是为这件事准备的。
-
----
-
-## 11. `escape-difficulty.js` —— 投资回报标定 与 出圈门槛难度
-
-回答三类问题：
-**① 卡片的金额是否与 `window.YIELD` 逐项自洽？② 门槛是否真的带上了安全边际？
-③ 出圈难度是否落在目标区间？**
-
-```bash
-node test/escape-difficulty.js      # 30 项断言，退出码 0 = 全通过
-```
-
-覆盖：
-
-- **标定自洽**：27 张卡逐项对账（首付 = cost × 首付比例 / 毛租金 = cost × 租金回报 /
-  净现金流 = 毛租金 − 贷款 × 房贷月利率），**备注里的金额与字段同值**；
-  房贷月利率与 `LOAN_TYPES.home.rate` 一致；老破小仍是坏交易、法拍房按全款
-- **回报区间**：七个档位的实际回报率都落在各自的现实区间内
-  （住宅 4%—7% / 商业 6%—9% / 实业 9%—13% / 固收 4%—7%）；
-  房产投入口径 < 12%、实业 < 15%（对照改造前的 22%—45%）
-- **门槛与企业线**：两个规则的安全边际来自 YIELD 且 > 1；`escapeProgress` 与 `escapeTarget` 同源；
-  企业达标线与回报口径同源、全买下是达标线的 2.7 倍、**最大一家低于达标线**（必须买多家）
-- **难度实测**（12 职业 · 会买入、会出圈的 AI · 固定种子）：
-  出圈率落在 **4—9/12**、最早出圈 ≥ 30 岁、中位 ≥ 45 岁、**存在一生未出圈的职业**；202 比 101 更难
-
-> **改动 `YIELD`（房贷月利率 / 首付比例 / 毛租金回报 / 各类净回报 / 安全边际 / 企业达标线）、
-> 任何带 `tier` 的投资卡、或 `tools/rebalance-returns.js` 后必须重跑。**
->
-> 重算金额用 `node tools/rebalance-returns.js`（幂等：从 `cost` 反算而不是乘系数）。
-> ⚠️ 它同时会重写卡片备注 —— 备注里的金额是硬编码的，只改字段不改备注会出现两处打架。
-
----
-
-## 12. `browser-behavior.js` —— 浏览器行为验证
-
-覆盖原有机制及发薪年龄、独立玩家显示、新档保存恢复、终龄缺口处理的真实交互：精力消耗与不足拦阻、失业→求职期→复职、入不敷出处理、
-起点休假、银翅膀掷 2 粒（含单人模式同源验证）、公益捐赠税前扣除、健康危机、年龄推进曲线。
-
-它需要在浏览器里跑，做法是把探针注入 `index.html` 的副本，再从 `--dump-dom` 抽取结果：
-
-```bash
-cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)"
-
-python3 - <<'PY'
-h = open('index.html', encoding='utf-8').read()
-open('__probe.html','w',encoding='utf-8').write(
-    h.replace('</body>', '<script src="test/browser-behavior.js"></script>\n</body>'))
-PY
-
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files \
-  --window-size=1440,900 --virtual-time-budget=40000 --dump-dom \
-  "file://$PWD/__probe.html" 2>/dev/null \
-| python3 -c "import sys,re,html; d=sys.stdin.read(); m=re.search(r'<pre id=\"DIAG\">(.*?)</pre>', d, re.S); print(html.unescape(m.group(1)) if m else 'NO DIAG')"
-
-rm -f __probe.html        # ⚠️ 验证完务必清理，别把临时文件留在仓库里
-```
-
-无头 Chrome 也可换成 Playwright 自带的 `chrome-headless-shell`（更轻，但需自行指定路径）。
-
----
-
-## 语法自检（改完代码先跑这个）
-
-房产交易另跑 `node test/property-sales.js`：共有份额报价、实际净回款、原始持仓定位、
-同名多套连续出售、重复提交、旧存档编号恢复、灾害定位和亏损补款。
-浏览器探针验证旧行情存档恢复后连续卖房，确保成交款、现金和剩余资产一致。
-
-抵押物对应关系另跑 `node test/collateral-appraisal.js`：待购房产不提前纳入抵押，
-买入成功后按本人成本、首付和份额入账；逐项抵押金额之和与授信计算一致，
-并检查超额拒贷、存档恢复、资产卖出和机构共有。浏览器探针也验证从商铺点击
-“先贷款”、查看已持有资产明细、关闭返回商铺、买入后重新估值的完整操作。
-
-发布前还需运行 `node tools/version-assets.js` 与 `node test/asset-version.js`，
-确认所有脚本和样式的内容版本已更新，并验证混入旧引擎时不会启动或修改存档。
-`payday-settlement.js` 包含截图金额回归：年结余 ¥25,080，经过一次仅发 ¥25,080；
-`browser-behavior.js` 包含单人旧档恢复、真实掷骰按钮双击、重复动画回调、确认、刷新、
-结束回合与离开发薪日的逐步现金断言。
-
-```bash
-for f in js/*.js; do node --check "$f" || echo "FAIL $f"; done
-```
-
----
-
-## 一条通用经验：抽取 DIAG 的正则必须容忍属性
-
-探针常会给结果元素挂上 `style`，用严格写法 `<pre id="DIAG">` 会匹配失败，
-表现为「探针明明跑了却报 NO DIAG」。用 `<pre[^>]*id="DIAG"[^>]*>`。
-
-## 统一资产交易回归
-
-```bash
-node test/asset-transactions.js
-node test/property-sales.js
-node test/collateral-appraisal.js
-```
-
-覆盖统一股票报价、本人份额融资与费用、挂牌买回、失败不扣款、持仓身份、旧档恢复、急售与协议转让。浏览器 `N` 组验证挂牌页面、贷款返回和存档恢复。
-
-## 家庭收支回归
-
-```bash
-node test/family-lifecycle.js
-```
-
-覆盖子女 18 / 22 岁边界、多子女独立计龄、在职缴费年数、退休前后年度结算、基础医疗与临时医疗、出圈账本以及旧档保留支出的迁移。浏览器 `P` 组验证家庭明细、实际结算和刷新恢复。改动 `FAMILY` 或养老金规则后需重跑本脚本、单人模式、发薪结算及长局回归。
-
-## 经营差异回归
-
-```bash
-node test/operating-differences.js
-```
-
-13 组回归覆盖同类规模管理、超量协调、同一房产份额归并、经营类型与长期残值、实际年度结算、三种机构合同、费用随行情变化、旧档兼容、卖出再买回、自由圈及拒绝路径。浏览器 Q 组覆盖方案切换、贷款返回、真实买入和刷新恢复。修改 `OPERATIONS`、管理费或机构方案后必须重跑，同时运行长局与资产交易回归。
-
-## 持续生活预算回归
-
-```bash
-node test/living-budget.js
-```
-
-11 组回归覆盖职业开局生活费与月供分列、提前及自然结清、已有消费不重复收、降低月供、自由圈支出单调性、还款预览、退休和旧档恢复。浏览器 R 组验证真实结清按钮与实际生活支出。修改 `LIFEBASE` 或 `prepayPlan` 后必须运行，同时重跑时间、家庭、长局和难度回归。
-
-## 初始组合融资回归（D1）
-
-```bash
-node test/portfolio-financing.js
-```
-
-15 组回归覆盖新局融资与净租金、真实发薪及清算、原余额迁移、提前还款、结清、旧档已售与买回、协议转让、租金行情、无实体历史旧档、重复恢复及来源不明时保留原账。另在临时副本中重复运行价格重算工具，防止重新写入重复负债。浏览器 S 组验证财务页的融资、净租金、旧档恢复和待核对提示。修改初始组合或其融资迁移后需运行本脚本，同时运行资产交易、信用抵押、单人和长局回归。
-
-## 第一批剩余问题回归（D2 / D3）
-
-```bash
-node test/player-transfers.js
-node test/rule-presentation.js
-```
-
-D2 的 7 组回归覆盖成交成本、不能整除的股票单价、同股多笔持仓、经营年数与合同、重复及过期提交、失败不改账和新旧存档。D3 的 4 组回归核对 101 / 202 的真实门槛、恰好等于的拒绝边界、持续预算、破产日志及复盘导出说明。浏览器 T 组通过真实交易按钮与财务 / 帮助入口验证显示和恢复。
-
-
-## 到期理财兑付回归
-
-```bash
-node test/savings-redemption.js
-```
-
-6 组回归验证不同本金的逐笔兑付、无编号旧选项、双向出售顺序、理财与基金混合列表、重复或过期交易、错误金额与比例、历史本金恢复及失败不改账。浏览器 U 组通过 101 / 202 的真实兑付按钮验证稳定定位、立即存档恢复、失败后的报价刷新、清晰日志与行情收尾。
-
-
-## 自由圈收益归属回归（D4）
-
-```bash
-node test/fast-track-income.js
-```
-
-11 组回归覆盖当前持仓分红、一次性出圈奖励、企业不重复计入、租金与机构费用、共有份额、转让、急售、灾害、到期兑付、买回、202 买断、旧档幂等迁移与自由圈授信收入。正常年度结算测试应提供真实收入资产，不使用历史 `ftBase` 伪造永久分红。浏览器 V 组验证真实出圈 / 售房 / 企业按钮、财务明细、旧档恢复提示和下一年度结算。
-
-## 存档保护与随机状态回归（D5 / D6）
-
-```bash
-node test/save-recovery.js
-node test/random-state.js
-```
-
-存档保护 6 组覆盖完整状态往返、写入失败保留旧记录与成功时间、错误结构及版本拒绝、无效金额、旧档兼容与完整备份日志范围。随机连续性 7 组覆盖 101 / 202 多次洗牌与掷骰、202 第 25 张行情重洗、默认种子及种子 0、全部牌堆绑定、旧档迁移、无效随机状态与期权编号连续性。
-
-浏览器 W / X 组验证实际保存状态、下载与重试、失败不改账、导入预览及取消、真实文件输入与确认、恢复异常回滚、动画中断后的同一骰子继续执行。累计 200 项浏览器断言。修改存档格式、恢复顺序或随机入口时须重跑这两组及原有恢复场景。
-
-## 第四批平衡、财富轨迹与休养恢复
-
-```bash
-node test/balance-audit.js
-node test/wealth-history.js
-node test/health-recovery.js
-node tools/audit-balance.js --baseline 6c4282b --out /tmp/cashflow-balance.json
-```
-
-平衡审计 7 组覆盖所有房产报价可达、来源首付联动、真实买卖、共有份额、旧档报价保留、标定幂等与固定策略复现。轨迹 7 组覆盖年龄聚合、开局保留、无限模式上限、自由圈现金流、旧档迁移与峰值、导出和图表首尾金额。休养恢复 6 组覆盖高维护循环、多人与单人轮转、暂停存档恢复、真实年龄推进和原种子长局。
-
-浏览器 Y / Z 组验证实际出售按钮、复盘及保存恢复、强制休养结束后重新掷骰，累计 217 项断言。审计工具是有限策略下的可复现比较，不是最优策略或整体玩家胜率预测；达到 500 回合的情景单独报告。完整证据见 [第四批平衡审计](../docs/第四批平衡审计.md)。
-
-## 追加：租金行情与复盘口径
-
-```bash
-node test/rental-cashflow.js
-```
-
-13 组回归覆盖毛租金、连续涨跌、固定项目利息、亏损及管理费、同实体共有、部分与全部挂牌、纯资本房产买回、旧档、非法行情比例、自由圈复盘导出和严格门槛。浏览器 AA 组覆盖行情重绘及刷新不重复计算、实际复盘、旧机会卡显示与买入。累计 226 项浏览器断言。
-
-
-## 30. `loan-cashflow.js` —— 贷款与月净现金流
-
-```bash
-node test/loan-cashflow.js
-```
-
-13 组专项回归独立核算六类贷款结清、新借款、部分降供与缩期、年中结清、1 元尾款、连续发薪、年度缺口、旧档和报表。月净额须扣全部月供；年度净额为逐月合计，不能在年中结清时沿用月初金额乘 12。浏览器 AB 组验证真实借还按钮、立即刷新、恢复、尾期预览和分红入账；累计 242 项断言。
+288 个情景的当前方法、结果与边界见 [游戏平衡核验](../docs/游戏平衡核验.md)，工具说明见 [投资回报标定](../docs/出圈门槛与投资回报标定.md)。功能入口见 [文档索引](../docs/README.md)。
