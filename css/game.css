@@ -32,7 +32,6 @@
 
 /* ================= 主框架 ================= */
 .save-notice{min-height:30px;padding:4px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;background:var(--surface);position:sticky;top:56px;z-index:29;}
-.save-notice button{border:0;background:none;color:var(--primary);font:inherit;cursor:pointer;white-space:nowrap;padding:2px 4px;}
 .shell{
   display:grid;grid-template-columns:250px minmax(0,1fr) 356px;gap:16px;
   padding:16px;align-items:stretch;max-width:1780px;margin:0 auto;
@@ -713,9 +712,3 @@ html[data-theme="dark"] .die{background:var(--surface-2);}
 }
 .appraisal-detail[open] > summary::before{transform:rotate(90deg);}
 .appraisal-detail .rowlist{margin-top:6px;}
-
-/* 历史核对表单与差异预览 */
-.repair-form .field{display:block;}
-.repair-form .textfield{margin-top:8px;}
-.repair-form textarea.textfield{min-height:88px;height:auto;padding:10px 13px;resize:vertical;}
-.repair-form .rowlist__row span{min-width:0;overflow-wrap:anywhere;}

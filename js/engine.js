@@ -963,7 +963,7 @@ function migratePortfolioFinancing(g){
     if(!pf || pf.nm!==name || pf.financingVersion===1 || p.portfolioFinancingMigration) return;
     const review=reason=>{
       p.portfolioFinancingMigration={version:1,status:'review',reason};
-      log(g,`${p.name} 的旧组合融资需核对：${reason}。保留原账，未自动减债；可在保存与备份中核对历史。`,'bad',p.name);
+      log(g,`${p.name} 的旧组合融资需核对：${reason}。保留原账，未自动减债；缺少可靠凭据的部分不自动调整。`,'bad',p.name);
     };
     const source=pf.realEstate && pf.realEstate[0];
     if(!source || source.cost!==cost || source.dp!==50000 ||

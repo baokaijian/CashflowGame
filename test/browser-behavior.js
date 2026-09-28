@@ -604,31 +604,18 @@ window.addEventListener('load', function(){
       ok(!U.saveState().ok && localStorage.getItem(S.KEY)===raw && U.saveStatus.lastSuccess===last,'保存配额不足时保留上次好档与成功时间');
       ok(q('#saveNotice').textContent.indexOf('进度未保存')>=0 && q('#paneSettings [data-save-error]').textContent.indexOf('空间不足')>=0,'常驻状态与设置都明确提示失败');
       C.backup=U.backupText();ok(S.prepare(C.backup).g.players[0].cash===p.cash,'无法本地保存时仍能生成当前完整备份');
-      var downloaded=null,download=window.UiSummary.download;window.UiSummary.download=function(name,text){downloaded={name:name,text:text};};
-      try{q('#paneSettings [data-save="backup"]').click();ok(downloaded && downloaded.name.indexOf('完整存档')>=0 && S.prepare(downloaded.text).g.players[0].cash===p.cash,'真实备份按钮生成可恢复文件，而非复盘报告');}finally{window.UiSummary.download=download;}
       var before=JSON.stringify(g);ok(!U.importBackup(C.backup).ok && window.Game.g===g && JSON.stringify(g)===before && localStorage.getItem(S.KEY)===raw,'恢复时写入失败不替换当前游戏或原存档');
     }finally{Storage.prototype.setItem=original;}
-    q('#paneSettings [data-save="retry"]').click();ok(U.saveStatus.state==='saved' && q('#saveNotice').textContent.indexOf('已保存')>=0,'真实重试按钮成功后清除失败状态');
+    U.saveState();ok(U.saveStatus.state==='saved' && q('#saveNotice').textContent.indexOf('已保存')>=0,'再次自动保存成功后清除失败状态');
     var snapshot=JSON.stringify(window.Game.g),saved=localStorage.getItem(S.KEY);
     ['{',JSON.stringify({v:99}),window.UiSummary.exportJSON(g)].forEach(function(text){ok(!U.importBackup(text).ok && JSON.stringify(window.Game.g)===snapshot && localStorage.getItem(S.KEY)===saved,'损坏文件、未知版本或复盘报告拒绝恢复，原对局不变');});
-    p.cash+=500;U.previewImport(C.backup,'验证备份.json');
-    ok(title()==='恢复完整存档' && q('#modal').textContent.indexOf('存档验证')>=0,'导入前展示文件、玩家和替换说明');q('#modal [data-cancel]').click();
-    ok(window.Game.g===g && p.cash===S.prepare(C.backup).g.players[0].cash+500,'取消恢复保留当前游戏');
-    U.previewImport(C.backup,'验证备份.json');q('#modal [data-ok]').click();g=window.Game.g;p=g.players[0];
-    ok(p.cash===S.prepare(C.backup).g.players[0].cash && g.rngState.state===S.prepare(C.backup).g.rngState.state,'确认导入恢复备份中的现金与随机进度');
     var get=Storage.prototype.getItem;Storage.prototype.getItem=function(key){if(key===S.KEY)throw new DOMException('不允许','SecurityError');return get.call(this,key);};
     try{ok(!U.tryRestore() && window.Game.g===g && U.saveStatus.state==='failed','存储被禁用时有错误状态，内存对局不丢失');}finally{Storage.prototype.getItem=get;}
     U.saveState();window.UI.closeModal();q('#toastHost').innerHTML='';
   });
 
-  step('W 从文件选择器读取备份',function(){return true;},function(){
-    var input=q('#paneSettings [data-save-file]'),transfer=new DataTransfer();
-    transfer.items.add(new File([C.backup],'完整备份测试.json',{type:'application/json'}));input.files=transfer.files;input.dispatchEvent(new Event('change'));
-  });
-  step('W 确认文件导入与界面异常回滚',function(){return !q('#modalHost').hidden && q('#modal').textContent.indexOf('完整备份测试.json')>=0;},function(){
-    ok(q('#modal').textContent.indexOf('完整备份测试.json')>=0,'文件选择器读取完整备份后显示预览');q('#modal [data-ok]').click();
+  step('W 内部恢复异常回滚',function(){return true;},function(){
     var U=window.UiGame,S=window.SaveState,g=window.Game.g,raw=localStorage.getItem(S.KEY),snapshot=JSON.stringify(g);
-    ok(g.players[0].cash===S.prepare(C.backup).g.players[0].cash,'通过真实文件读取与确认流程成功恢复');
     var candidate=JSON.parse(C.backup);candidate.g.pending={type:'rest',p:0};var show=window.UiPending.showPending;
     window.UiPending.showPending=function(){throw new Error('测试恢复界面异常');};
     try{ok(!U.importBackup(JSON.stringify(candidate)).ok && window.Game.g===g && JSON.stringify(g)===snapshot && localStorage.getItem(S.KEY)===raw,'恢复界面异常时回滚内存和本机记录，不替换为半恢复状态');}finally{window.UiPending.showPending=show;}
@@ -753,49 +740,17 @@ window.addEventListener('load', function(){
     E.clearPending(g);window.UI.closeModal();
   });
 
-  /* AC. 历史核对：真实入口、确认、原档备份与重复保护。 */
-  step('AC 家庭历史修正', function(){return true;}, function(){
-    var a=fresh(),g=a.g,p=a.p,E=a.E,U=window.UiGame,S=window.SaveState;
-    p.age=40;p.children=1;delete p.family;E.migrateTime(g);U.renderAll();
-    var cash=p.cash,child=p.family.children[0];
-    q('#paneSettings [data-save="repair"]').click();
-    ok(title()==='历史核对与修正','设置提供历史核对入口');
-    q('[data-repair-field="childId"]').value=child.id;
-    q('[data-repair-field="childAge"]').value='18';
-    q('[data-repair-field="contributionYears"]').value='15';
-    q('[data-repair-field="evidence"]').value='历史备份中的出生与缴费记录';
-    q('[data-repair-preview]').click();
-    ok(title()==='确认历史修正'&&p.family.children[0].ageUnknown,'先展示差异，预览不改变当前家庭');
-    q('[data-repair-apply]').click();p=window.Game.g.players[0];
-    ok(!p.family.children[0].ageUnknown&&p.family.contributionYears===15,'确认后使用核实的家庭记录');
-    ok(p.cash===cash&&E.familySummary(p).children[0].expense===Math.round(p.job.perChild*.5),'只改变未来家庭支出，不追溯现金');
-    var backup=JSON.parse(localStorage.getItem(S.REPAIR_BACKUP_KEY));
-    ok(backup.g.players[0].family.children[0].ageUnknown,'修正前完整原档另存，可回退');
-    U.saveState();U.tryRestore();p=window.Game.g.players[0];
-    ok(p.family.contributionYears===15&&window.Game.g.recovery.entries.length===1,'刷新后已核实记录保留，修正不重复执行');
+  /* AC. 自动续局与迁移，没有任何手动备份或恢复入口。 */
+  step('AC 仅自动保存与续局',function(){return true;},function(){
+    var a=fresh(),U=window.UiGame,S=window.SaveState,p=a.p;
+    ok(!document.querySelector('[data-save], [data-save-file], [data-repair-history], [data-repair-field], #btnSaveDetails'),'开局、设置与全局均无备份、导入或历史核对入口');
+    ok(!U.openHistoryRepair&&!U.previewImport&&!U.downloadBackup,'手动恢复弹层与下载入口已移除');
+    p.cash=123456;U.saveState();U.tryRestore();
+    ok(window.Game.g.players[0].cash===123456&&q('#setupScreen').hidden,'有本地进度时自动进入原对局');
+    var saved=localStorage.getItem(S.KEY);window.Game.g=null;q('#setupScreen').hidden=false;localStorage.removeItem(S.KEY);
+    ok(!U.tryRestore()&&window.Game.g===null&&!q('#setupScreen').hidden,'无本地进度时显示新游戏设置，不出现恢复选项');
+    localStorage.setItem(S.KEY,saved);U.tryRestore();
   });
-  step('AC 现金、成本和历史核对返回', function(){return true;}, function(){
-    var U=window.UiGame,S=window.SaveState,g=window.Game.g,p=g.players[0];
-    U.openHistoryRepair(0,'cash');q('[data-repair-field="cash"]').value=String(p.cash+321);
-    q('[data-repair-field="evidence"]').value='原始兑付流水确认的当前余额';
-    q('[data-repair-preview]').click();
-    var before=p.cash;q('[data-repair-back]').click();
-    ok(window.Game.g.players[0].cash===before,'取消现金预览保持余额不变');
-    q('[data-repair-field="cash"]').value=String(before+321);q('[data-repair-field="evidence"]').value='原始兑付流水确认的当前余额';
-    q('[data-repair-preview]').click();q('[data-repair-apply]').click();
-    ok(window.Game.g.players[0].cash===before+321,'确认使用目标余额，未重复补发兑付款');
-    p=window.Game.g.players[0];p.assets.funds.push({nm:'核对用基金',cost:10800,interest:52});U.renderAll();
-    U.openHistoryRepair(0,'cost');var id=window.Engine.holdingId(window.Game.g,p.assets.funds[p.assets.funds.length-1]);
-    q('[data-repair-field="assetId"]').value=id;q('[data-repair-field="totalCost"]').value='43000';q('[data-repair-field="evidence"]').value='基金原始购买凭据编号2026';
-    q('[data-repair-preview]').click();q('[data-repair-apply]').click();
-    ok(window.Game.g.players[0].assets.funds.slice(-1)[0].cost===43000,'成本修正按持仓身份生效');
-    var saved=U.backupText(),plan=S.planRepair(saved,{player:0,kind:'cash',cash:before,evidence:'历史余额核对凭据'});
-    window.Game.g.players[0].cash++;
-    ok(!U.applyRepair(plan).ok,'预览后对局已变更则拒绝旧修正方案');
-    U.openHistoryRepair(0,'listing');ok(!!q('[data-repair-field="reference"]'),'已售房产有凭据补录入口');q('[data-repair-cancel]').click();
-    U.openHistoryRepair(0,'history');ok(!!q('[data-repair-history]'),'支持导入历史备份补充记录');q('[data-repair-cancel]').click();
-  });
-
   step('AC 自动凭据恢复与写入失败', function(){return true;}, function(){
     var a=fresh(),g=a.g,p=a.p,E=a.E,U=window.UiGame,S=window.SaveState,b=g.players[1];
     p.assets.stocks=[{symbol:'AC-COST',shares:3,cost:100}];b.cash=10000;

@@ -279,7 +279,7 @@ function renderLiabs(p){
   E.ensureLoans(p);
   const migration=p.portfolioFinancingMigration;
   const notice=migration && migration.status==='review'
-    ? `<p class="hint neg" data-financing-review>旧组合融资待核对：${esc(migration.reason)}。已保留原账，可能仍有重复债务；没有自动减债或补发现金。可在设置 → 历史核对与修正中按凭据处理。</p>` : '';
+    ? `<p class="hint neg" data-financing-review>旧组合融资待核对：${esc(migration.reason)}。已保留原账，可能仍有重复债务；没有自动减债或补发现金。缺少可靠凭据的部分不自动调整。</p>` : '';
   let rows = E.LOAN_KEYS.map(k=>{
     const i = E.loanInfo(p, k);
     if(i.balance <= 0) return '';
