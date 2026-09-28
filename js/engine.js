@@ -26,8 +26,15 @@ function randomSource(state){
 }
 function restoreRandom(g){
   if(!g.rngState){
-    g.rngState=randomState();g.rngMigrated=true;
-    log(g,'旧存档没有随机历史：从本次恢复起保存随机进度，无法还原过去的种子序列。','info');
+    // 同一旧备份每次迁移到同一未来序列；不依赖导入时间、对象键序或新随机数。
+    const stable=x=>Array.isArray(x)?x.map(stable):x && typeof x==='object'
+      ? Object.fromEntries(Object.keys(x).sort().filter(k=>typeof x[k]!=='function').map(k=>[k,stable(x[k])])):x;
+    const source=JSON.stringify(stable({rule:g.rule,mode:g.mode,round:g.round,turnNo:g.turnNo,
+      cur:g.cur,players:g.players,decks:g.decks,market:g.market,lastDice:g.lastDice}));
+    let seed=2166136261;
+    for(let i=0;i<source.length;i++)seed=Math.imul(seed^source.charCodeAt(i),16777619)>>>0;
+    g.rngState=randomState(seed);g.rngMigrated=true;g.rngMigrationMethod='saved-content-v1';
+    log(g,'旧存档没有随机历史：按备份内容固定后续随机进度，同一份旧档再次导入不会换序列；这不是过去的种子。','info');
   }
   const s=g.rngState;
   if(s.version!==1 || !Number.isInteger(s.state) || s.state<0 || s.state>0x7fffffff)
@@ -956,7 +963,7 @@ function migratePortfolioFinancing(g){
     if(!pf || pf.nm!==name || pf.financingVersion===1 || p.portfolioFinancingMigration) return;
     const review=reason=>{
       p.portfolioFinancingMigration={version:1,status:'review',reason};
-      log(g,`${p.name} 的旧组合融资需核对：${reason}。保留原账，未自动减债；请查看财务报表。`,'bad',p.name);
+      log(g,`${p.name} 的旧组合融资需核对：${reason}。保留原账，未自动减债；可在保存与备份中核对历史。`,'bad',p.name);
     };
     const source=pf.realEstate && pf.realEstate[0];
     if(!source || source.cost!==cost || source.dp!==50000 ||

@@ -103,6 +103,7 @@ function saveControls(){
     <div class="picklist"><button class="btn btn--tonal" data-save="retry">重试保存</button>
       <button class="btn btn--tonal" data-save="backup">下载完整存档</button>
       <button class="btn btn--outline" data-save="import">从备份恢复</button>
+      ${Game.g?'<button class="btn btn--outline" data-save="repair">历史核对与修正</button><button class="btn btn--text" data-save="repair-before">下载最近修正前原档</button><button class="btn btn--text" data-save="repair-records">下载核对与补充历史</button>':''}
       <button class="btn btn--outline" data-save="raw" hidden>下载无法读取的原记录</button></div>
     <input type="file" accept=".json,application/json" data-save-file hidden>
     <p class="hint">完整存档可恢复本局及牌堆；复盘报告仅供阅读，不能恢复对局。备份含本局玩家信息，请自行保管。</p>
@@ -121,8 +122,132 @@ function bindSaveControls(root){
       previewImport(await file.text(),file.name);
     }catch(e){U.toast('无法读取备份：'+esc(e.message),'err');}
   };
+  const repair=$('[data-save="repair"]',root);
+  if(repair){
+    repair.onclick=()=>openHistoryRepair();
+    $('[data-save="repair-before"]',root).onclick=()=>{
+      try{const raw=localStorage.getItem(S.REPAIR_BACKUP_KEY);if(!raw)throw new Error('尚无修正前备份');
+        window.UiSummary.download('现金流-修正前原档.json',raw,'application/json');
+      }catch(e){U.toast(esc(e.message),'err');}
+    };
+    $('[data-save="repair-records"]',root).onclick=()=>window.UiSummary.download('现金流-历史核对记录.json',
+      JSON.stringify({format:'cashflow-history-review',recovery:Game.g.recovery||{entries:[]}},null,2),'application/json');
+  }
   renderSaveStatus();
 }
+/* 历史修正必须先预览，再验证同一状态，最后保留原档并原子替换。 */
+function applyRepair(plan){
+  if(!Game.g||Game.animating)return {ok:false,msg:'请等待掷骰结束后再核对。'};
+  try{
+    const before=backupText();
+    if(S.stateKey(JSON.parse(before))!==plan.source)throw new Error('对局已发生变化，请重新预览，未应用旧方案');
+    const checked=S.planRepair(before,plan.request);
+    localStorage.setItem(S.REPAIR_BACKUP_KEY,before);
+    const result=importBackup(checked.text);
+    if(result.ok)U.toast('历史修正已保存；设置中可下载修正前备份和核对记录。','ok');
+    return result;
+  }catch(e){U.toast('未应用修正：'+esc(e.message),'err');return {ok:false,msg:e.message};}
+}
+function openHistoryRepair(playerId,kind){
+  if(!Game.g||Game.animating){U.toast('请先完成掷骰再核对历史。','err');return;}
+  const g=Game.g,p=g.players[playerId==null?g.cur:playerId];kind=kind||'family';
+  Object.values(p.assets).filter(Array.isArray).forEach(list=>list.forEach(item=>E.holdingId(g,item)));
+  const status=S.repairStatus(g),records=g.recovery && g.recovery.entries || [];
+  const input=(name,label,value='',step='1')=>`<label class="field">${esc(label)}<input class="textfield" data-repair-field="${name}" type="number" min="0" step="${step}" value="${esc(value)}"></label>`;
+  const option=(v,label)=>`<option value="${esc(v)}">${esc(label)}</option>`;
+  const select=(name,label,options)=>`<label class="field">${esc(label)}<select class="textfield" data-repair-field="${name}">${options}</select></label>`;
+  const text=(name,label)=>`<label class="field">${esc(label)}<input class="textfield" data-repair-field="${name}" maxlength="120"></label>`;
+  let fields='',holdings=[];
+  if(kind==='family')fields=select('childId','要核对的孩子（可只改缴费年数）',option('','不修改子女记录')+p.family.children.map((x,i)=>option(x.id,'子女 '+(i+1)+(x.ageUnknown?' · 历史年龄未知':''))).join(''))+
+    input('childAge','确认后的孩子当前年龄（选孩子后填写）')+input('contributionYears','确认后的累计缴费年数（留空保留原值）')+
+    `<p class="hint">当前缴费 ${p.family.contributionYears} 年，其中兼容估计 ${p.family.estimatedContributionYears} 年。只调整未来养育费与养老金，不补发过去收支。</p>`;
+  if(kind==='financing'){
+    holdings=g.players.flatMap(owner=>owner.assets.realEstate.filter(x=>E.assetName(x)==='老破小出租房').map(item=>({owner,item})));
+    fields=select('disposition','核对结果',option('held','旧债转入仍持有的对应房产')+option('sold','已有售房还本凭据，移除重复旧债')+option('separate','确认是独立债务，保留原账'))+
+      input('duplicate','从其他负债中拆出的重复本金（独立债务填 0）')+
+      input('remainingDue','拆分后剩余其他负债合同月供（无剩余债务填 0）')+
+      select('assetId','仅转入房产时：选择实际承接房产',holdings.map(({owner,item})=>option(item.holdingId,owner.name+' · '+item.nm+' · '+item.holdingId)).join(''))+
+      input('rent','仅转入房产时：确认的本人毛租金 / 月')+input('wholeRent','仅共有房产：整套毛租金 / 月')+
+      '<label class="field"><input type="checkbox" data-repair-field="finishReview" checked>此次已核完该玩家全部重复融资（分多项处理时取消勾选）</label>'+
+      `<p class="hint">当前其他负债 ${money(p.liabs.other)}。只拆分有依据的金额；共有房产需核对本人份额和整套租金，分多项处理可保留待核对状态。其他借款保留，已售房只在有还本凭据时消除重复余额。</p>`;
+  }
+  if(kind==='cost'){
+    holdings=Object.entries(p.assets).filter(([key,list])=>key!=='realEstate'&&Array.isArray(list)).flatMap(([key,list])=>list.map(item=>({key,item})));
+    fields=select('assetId','选择仍持有的具体资产',holdings.map(({key,item})=>option(item.holdingId, E.assetLabel(item)+' · 成本 '+money(E.assetBookOf(key,item))+' · '+item.holdingId)).join(''))+
+      input('totalCost','确认后的整笔取得总成本（股票填全部股数的总款）')+
+      '<p class="hint">按原始成交凭据校正，不用新卡价格替代历史本金。不会再次支付买入款或重置经营年数。</p>';
+  }
+  if(kind==='cash')fields=input('cash','核对所有历史差错后的当前现金余额',p.cash)+
+    '<p class="hint">依据完整流水或可靠备份填写最终余额，不能只看两笔金额相同就补钱。不会自动重放兑付；已锁定待缴的年度缺口仍需另行处理。</p>';
+  if(kind==='listing')fields=select('propertyId','已有原房产实体时必须选原实体',option('','实体记录也已丢失，需要新建')+Object.values(g.assetMarket.properties).map(x=>option(x.id,x.nm+' · '+x.id)).join(''))+
+    '<label class="field"><input type="checkbox" data-repair-field="differentProperty">凭据确认是另一套同名房产（仅新建同名实体时）</label>'+text('reference','唯一售房凭据编号（防止重复补录）')+text('name','房产名称')+
+    input('value','整套参考价')+input('rent','整套当前毛租金 / 月')+input('downRate','新买入首付比例（0—1）','','0.01')+
+    input('share','当时售出的份额（0—1）','','0.01')+input('heldYears','已有持有年数')+
+    '<label class="field"><input type="checkbox" data-repair-field="capital">纯资本利得房产（无租金）</label><p class="hint">只用于历史已删除、且能确认尚未重新登记的房产。下一次行动起可挂牌，不补发售房款，不凭同名关联其他房产。</p>';
+  if(kind==='history')fields='<label class="field">选择同一局的历史完整备份<input type="file" data-repair-history accept=".json,application/json"></label><label class="field"><input type="checkbox" data-repair-field="sameGame">我已核对，所选历史备份与当前对局是同一局</label><p class="hint">只补入可查阅的历史档案，不替换现金、资产、当前财富曲线或骰子进度。姓名职业一致不足以证明同一局，请核对备份来源。补充历史会包含在完整存档和核对记录下载中。</p>';
+  const back=()=>{U.closeModal();if(Game.g&&Game.g.pending)window.UiPending.showPending();};
+  U.openModal(`<div class="modal__head"><h3>历史核对与修正</h3><p class="muted">有凭据才修正；未知历史保留标记，不猜测补账。</p></div>
+    <div class="modal__body repair-form"><div class="hint">${status.length?status.map(esc).join('<br>'):'没有自动识别的待核对项；如有原始凭据，可检查具体历史差错。'}</div>
+    ${select('player','玩家',g.players.map(x=>option(x.id,x.name)).join(''))}
+    ${select('kind','核对内容',Object.entries({family:'子女年龄与缴费年数',financing:'初始房产重复融资',cost:'持仓取得成本',cash:'现金错账',listing:'补录已售房产挂牌',history:'补入历史备份记录'}).map(([v,t])=>option(v,t)).join(''))}
+    <div data-repair-fields>${fields}</div>
+    <label class="field">核对依据（必填）<textarea class="textfield" data-repair-field="evidence" maxlength="500" placeholder="例如：原始存档日期、交易凭据编号及核对结论"></textarea></label>
+    <p class="hint">预览不会改账。确认时先保存完整原档，保存失败则不应用；每次保留前后差异与依据。当前已有 ${records.length} 条核对记录。</p>
+    ${records.slice(-5).reverse().map(x=>`<p class="hint">#${x.id} · ${esc(x.evidence)}<br>${x.changes.map(c=>esc(c.label)).join('、')}</p>`).join('')}</div>
+    <div class="modal__foot"><button class="btn btn--text" data-repair-cancel>返回</button><button class="btn btn--filled" data-repair-preview>预览修正</button></div>`,{
+    onDismiss:back,onMount(m){
+      const field=k=>$('[data-repair-field="'+k+'"]',m),read=k=>field(k).value;
+      field('player').value=String(p.id);field('kind').value=kind;
+      field('player').onchange=()=>openHistoryRepair(+read('player'),kind);
+      field('kind').onchange=()=>openHistoryRepair(p.id,read('kind'));
+      if(kind==='listing')field('propertyId').onchange=()=>{
+        const prop=g.assetMarket.properties[read('propertyId')];if(!prop)return;
+        field('name').value=prop.nm;field('value').value=E.propertyValue(g,{propertyId:prop.id,nm:prop.nm,share:1,cost:prop.referencePrice});
+        field('rent').value=prop.rent;field('downRate').value=prop.downRate;field('capital').checked=!!prop.capital;
+      };
+      $('[data-repair-cancel]',m).onclick=back;
+      $('[data-repair-preview]',m).onclick=async()=>{
+        const request={kind,player:p.id,evidence:read('evidence')};
+        const num=k=>{const value=read(k).trim();if(!value)throw new Error('请填写所有需要核对的数值');return Number(value);};
+        try{
+          if(kind==='family'){
+            if(read('childId')){request.childId=read('childId');request.childAge=num('childAge');}
+            if(read('contributionYears').trim())request.contributionYears=num('contributionYears');
+          }
+          if(kind==='financing'){
+            Object.assign(request,{disposition:read('disposition'),duplicate:num('duplicate'),remainingDue:read('disposition')==='separate'?0:num('remainingDue')});
+            if(request.disposition==='held')Object.assign(request,{assetId:read('assetId'),rent:num('rent'),wholeRent:read('wholeRent').trim()?num('wholeRent'):undefined});
+            request.finishReview=field('finishReview').checked;
+          }
+          if(kind==='cost'){
+            const row=holdings.find(x=>x.item.holdingId===read('assetId'));if(!row)throw new Error('没有可核对的持仓');
+            Object.assign(request,{assetKind:row.key,assetId:row.item.holdingId,totalCost:num('totalCost')});
+          }
+          if(kind==='cash')request.cash=num('cash');
+          if(kind==='listing'){
+            ['value','rent','downRate','share','heldYears'].forEach(k=>request[k]=num(k));
+            Object.assign(request,{reference:read('reference'),name:read('name'),capital:field('capital').checked,propertyId:read('propertyId')||null,differentProperty:field('differentProperty').checked});
+          }
+          if(kind==='history'){
+            const file=$('[data-repair-history]',m).files[0];if(!file||file.size>S.MAX_CHARS*3)throw new Error('请选择大小受支持的完整备份');
+            request.sameGame=field('sameGame').checked;request.backup=await file.text();
+            if(Game.g!==g||Game.animating)throw new Error('对局已变化，请重新选择备份');
+          }
+          const plan=S.planRepair(backupText(),request);
+          const describe=v=>v==null?'无':typeof v==='object'?JSON.stringify(v):String(v);
+          U.openModal(`<div class="modal__head"><h3>确认历史修正</h3></div><div class="modal__body repair-form">
+            <p>${esc(request.evidence)}</p><div class="rowlist">${plan.changes.map(x=>`<div class="rowlist__row"><span>${esc(x.label)}<br>${esc(describe(x.before))} → ${esc(describe(x.after))}</span></div>`).join('')}</div>
+            <p>现金：${money(plan.before.cash)} → ${money(plan.after.cash)}<br>月净额：${money(plan.before.monthly)} → ${money(plan.after.monthly)}</p>
+            <p class="hint">历史结算与待处理账单不会重放。原档会另存，可从设置下载恢复。</p></div><div class="modal__foot"><button class="btn btn--text" data-repair-back>取消</button><button class="btn btn--filled" data-repair-apply>保存并应用修正</button></div>`,{
+              onDismiss:()=>openHistoryRepair(p.id,kind),onMount(box){
+                $('[data-repair-back]',box).onclick=()=>openHistoryRepair(p.id,kind);
+                $('[data-repair-apply]',box).onclick=()=>{const result=applyRepair(plan);if(result.ok)back();};
+              }});
+        }catch(e){U.toast('无法预览：'+esc(e.message),'err');}
+      };
+    }});
+}
+
 function checkPrepared(data){
   data.g.players.forEach(p=>{U.renderIncome(p,data.g);U.renderAssets(p,data.g);});
   return data;
@@ -133,6 +258,7 @@ function importBackup(text){
   try{
     previousRaw=localStorage.getItem(SAVE_KEY);
     data=checkPrepared(S.prepare(text));
+    if(data.autoRepairs)localStorage.setItem(S.REPAIR_BACKUP_KEY,text);
     // 先确保新档可以保存；失败时当前内存对局及原本机记录均不替换。
     const saved=S.encode(data.g,data,true);localStorage.setItem(SAVE_KEY,saved);
     if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}
@@ -175,7 +301,7 @@ function tryRestore(){
   let data=null,raw=null;
   try{
     raw=localStorage.getItem(SAVE_KEY);
-    if(raw){saveStatus.raw=raw;data=checkPrepared(S.prepare(raw));saveStatus.lastSuccess=data.at||null;saveStatus.state='saved';saveStatus.error='';saveStatus.raw=null;failureNotified=false;}
+    if(raw){saveStatus.raw=raw;data=checkPrepared(S.prepare(raw));if(data.autoRepairs){try{localStorage.setItem(S.REPAIR_BACKUP_KEY,raw);}catch(e){data=null;throw e;}}saveStatus.lastSuccess=data.at||null;saveStatus.state='saved';saveStatus.error='';saveStatus.raw=null;failureNotified=false;}
   }catch(e){saveFailure(e);}
 
   const cfg = loadCfg();
@@ -1780,5 +1906,5 @@ function bind(){
 window.UiGame = { Game, startGame, resetGame, tryRestore, saveState, renderAll, roll, endTurn, onMenu, bind, finishRoll, renderCenter,
   showPlayerDetail, openHelp, openLoan, openLoanCenter, updateActions, openShortPanel, winnerModal, bizOfSpace, p_inFT,
   syncBoardView, resetBoardView, curCircle, bothCircles, pauseNotice, crisisNotice,
-  reportIfNeeded, surrenderFlow, retireNotice, backupText, importBackup, previewImport, downloadBackup, saveStatus };
+  reportIfNeeded, surrenderFlow, retireNotice, openHistoryRepair, applyRepair, backupText, importBackup, previewImport, downloadBackup, saveStatus };
 })();

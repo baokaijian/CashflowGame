@@ -1,8 +1,8 @@
 # 验证脚本
 
-核对日期：2026-09-28；游戏代码基线：`8732059`。本项目无需 npm 安装：30 个 Node 验证脚本可直接运行；`browser-behavior.js` 是浏览器探针，不能直接用 Node 执行。
+核对日期：2026-09-28。本项目无需 npm 安装：31 个 Node 验证脚本可直接运行；`browser-behavior.js` 是浏览器探针，不能直接用 Node 执行。
 
-本次文档核验已重新运行全部 30 个 Node 脚本并通过，14 个运行资源的内容版本检查也通过。
+本次旧档修复验证已重新运行全部 31 个 Node 脚本并通过，14 个运行资源的内容版本检查也通过。
 
 ## Node 回归
 
@@ -48,20 +48,21 @@ done
 | [wealth-history.js](wealth-history.js) | 财富采样、首点保留、裁剪、峰值和旧档 |
 | [health-recovery.js](health-recovery.js) | 强制休养不循环续期、恢复行动与再次过劳 |
 | [rental-cashflow.js](rental-cashflow.js) | 毛租金连续变化、固定利息、纯资本房产及自由圈复盘 |
+| [legacy-repair.js](legacy-repair.js) | 旧档固定随机、家庭和融资核对、凭据恢复、现金、挂牌、历史归档及修正失败保护 |
 | [loan-cashflow.js](loan-cashflow.js) | 六类借还、净现金流、尾款、年中结清、年度缺口与预览 |
 
 ## 浏览器行为
 
-[browser-behavior.js](browser-behavior.js) 覆盖 A—AB 组实际按钮、弹层、财务重绘、贷款返回、存档恢复、文件导入和结算流程。基线代码的最近完整验证为 242 项断言通过；文档整理不代表另做了一次浏览器验证。
+[browser-behavior.js](browser-behavior.js) 覆盖 A—AC 组实际按钮、弹层、财务重绘、贷款返回、存档恢复、文件导入和结算流程。本次完整交互验证为 258 项断言通过，包含历史修正的确认、回退原档与写入失败保护。
 
 探针会创建、修改和覆盖测试对局。**只在临时副本及独立浏览器配置中运行，不要注入正在玩的页面**。以下 macOS 示例需要已安装 Chrome 与 Python 3；其他平台调整 Chrome 路径即可：
 
 ```bash
 python3 - <<'PYCODE'
 from pathlib import Path
-import html, re, shutil, subprocess, tempfile
+import html, os, re, shutil, subprocess, tempfile
 root = Path.cwd()
-chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+chrome = os.environ.get('CHROME_TEST_BIN', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
 with tempfile.TemporaryDirectory(prefix='cashflow-browser-') as folder:
     tmp = Path(folder)
     for name in ('js', 'css', 'test'):
@@ -86,7 +87,7 @@ with tempfile.TemporaryDirectory(prefix='cashflow-browser-') as folder:
 PYCODE
 ```
 
-`DIAG` 缺失、未捕获异常或状态机卡住均不能当作通过；匹配时允许元素附带其他属性。浏览器探针与 Node 回归互补，不能只看页面截图判断交易正确。
+若本机 Chrome 启动超时，可通过 `CHROME_TEST_BIN` 指定独立的 `chrome-headless-shell` 可执行文件。`DIAG` 缺失、未捕获异常或状态机卡住均不能当作通过；匹配时允许元素附带其他属性。浏览器探针与 Node 回归互补，不能只看页面截图判断交易正确。
 
 ## 资源和数值核验
 

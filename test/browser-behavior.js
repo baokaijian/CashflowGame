@@ -753,6 +753,65 @@ window.addEventListener('load', function(){
     E.clearPending(g);window.UI.closeModal();
   });
 
+  /* AC. 历史核对：真实入口、确认、原档备份与重复保护。 */
+  step('AC 家庭历史修正', function(){return true;}, function(){
+    var a=fresh(),g=a.g,p=a.p,E=a.E,U=window.UiGame,S=window.SaveState;
+    p.age=40;p.children=1;delete p.family;E.migrateTime(g);U.renderAll();
+    var cash=p.cash,child=p.family.children[0];
+    q('#paneSettings [data-save="repair"]').click();
+    ok(title()==='历史核对与修正','设置提供历史核对入口');
+    q('[data-repair-field="childId"]').value=child.id;
+    q('[data-repair-field="childAge"]').value='18';
+    q('[data-repair-field="contributionYears"]').value='15';
+    q('[data-repair-field="evidence"]').value='历史备份中的出生与缴费记录';
+    q('[data-repair-preview]').click();
+    ok(title()==='确认历史修正'&&p.family.children[0].ageUnknown,'先展示差异，预览不改变当前家庭');
+    q('[data-repair-apply]').click();p=window.Game.g.players[0];
+    ok(!p.family.children[0].ageUnknown&&p.family.contributionYears===15,'确认后使用核实的家庭记录');
+    ok(p.cash===cash&&E.familySummary(p).children[0].expense===Math.round(p.job.perChild*.5),'只改变未来家庭支出，不追溯现金');
+    var backup=JSON.parse(localStorage.getItem(S.REPAIR_BACKUP_KEY));
+    ok(backup.g.players[0].family.children[0].ageUnknown,'修正前完整原档另存，可回退');
+    U.saveState();U.tryRestore();p=window.Game.g.players[0];
+    ok(p.family.contributionYears===15&&window.Game.g.recovery.entries.length===1,'刷新后已核实记录保留，修正不重复执行');
+  });
+  step('AC 现金、成本和历史核对返回', function(){return true;}, function(){
+    var U=window.UiGame,S=window.SaveState,g=window.Game.g,p=g.players[0];
+    U.openHistoryRepair(0,'cash');q('[data-repair-field="cash"]').value=String(p.cash+321);
+    q('[data-repair-field="evidence"]').value='原始兑付流水确认的当前余额';
+    q('[data-repair-preview]').click();
+    var before=p.cash;q('[data-repair-back]').click();
+    ok(window.Game.g.players[0].cash===before,'取消现金预览保持余额不变');
+    q('[data-repair-field="cash"]').value=String(before+321);q('[data-repair-field="evidence"]').value='原始兑付流水确认的当前余额';
+    q('[data-repair-preview]').click();q('[data-repair-apply]').click();
+    ok(window.Game.g.players[0].cash===before+321,'确认使用目标余额，未重复补发兑付款');
+    p=window.Game.g.players[0];p.assets.funds.push({nm:'核对用基金',cost:10800,interest:52});U.renderAll();
+    U.openHistoryRepair(0,'cost');var id=window.Engine.holdingId(window.Game.g,p.assets.funds[p.assets.funds.length-1]);
+    q('[data-repair-field="assetId"]').value=id;q('[data-repair-field="totalCost"]').value='43000';q('[data-repair-field="evidence"]').value='基金原始购买凭据编号2026';
+    q('[data-repair-preview]').click();q('[data-repair-apply]').click();
+    ok(window.Game.g.players[0].assets.funds.slice(-1)[0].cost===43000,'成本修正按持仓身份生效');
+    var saved=U.backupText(),plan=S.planRepair(saved,{player:0,kind:'cash',cash:before,evidence:'历史余额核对凭据'});
+    window.Game.g.players[0].cash++;
+    ok(!U.applyRepair(plan).ok,'预览后对局已变更则拒绝旧修正方案');
+    U.openHistoryRepair(0,'listing');ok(!!q('[data-repair-field="reference"]'),'已售房产有凭据补录入口');q('[data-repair-cancel]').click();
+    U.openHistoryRepair(0,'history');ok(!!q('[data-repair-history]'),'支持导入历史备份补充记录');q('[data-repair-cancel]').click();
+  });
+
+  step('AC 自动凭据恢复与写入失败', function(){return true;}, function(){
+    var a=fresh(),g=a.g,p=a.p,E=a.E,U=window.UiGame,S=window.SaveState,b=g.players[1];
+    p.assets.stocks=[{symbol:'AC-COST',shares:3,cost:100}];b.cash=10000;
+    var id=E.holdingId(g,p.assets.stocks[0]);window.Act.transferAsset(g,p,b,'stock',id,1001);
+    b.assets.stocks[0].cost=100;var cash=b.cash;U.saveState();U.tryRestore();
+    ok(window.Game.g.players[1].assets.stocks[0].cost===1001/3&&window.Game.g.players[1].cash===cash,'恢复时按唯一成交凭据自动修复成本，现金不重付');
+    ok(JSON.parse(localStorage.getItem(S.REPAIR_BACKUP_KEY)).g.players[1].assets.stocks[0].cost===100,'自动修正同样保留修正前原档');
+    var original=Storage.prototype.setItem,current=window.Game.g.players[0].cash,stored=localStorage.getItem(S.KEY);
+    var plan=S.planRepair(U.backupText(),{kind:'cash',player:0,cash:current+777,evidence:'保存失败测试所用核对依据'});
+    try{
+      Storage.prototype.setItem=function(key,value){if(key===S.KEY)throw new DOMException('已满','QuotaExceededError');return original.call(this,key,value);};
+      ok(!U.applyRepair(plan).ok,'修正前备份成功但新档写入失败时明确拒绝应用');
+    }finally{Storage.prototype.setItem=original;}
+    ok(window.Game.g.players[0].cash===current&&localStorage.getItem(S.KEY)===stored,'新档写入失败保留原对局与已保存记录');
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

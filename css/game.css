@@ -713,3 +713,9 @@ html[data-theme="dark"] .die{background:var(--surface-2);}
 }
 .appraisal-detail[open] > summary::before{transform:rotate(90deg);}
 .appraisal-detail .rowlist{margin-top:6px;}
+
+/* 历史核对表单与差异预览 */
+.repair-form .field{display:block;}
+.repair-form .textfield{margin-top:8px;}
+.repair-form textarea.textfield{min-height:88px;height:auto;padding:10px 13px;resize:vertical;}
+.repair-form .rowlist__row span{min-width:0;overflow-wrap:anywhere;}
