@@ -1,8 +1,8 @@
 # 验证脚本
 
-核对日期：2026-09-28。本项目无需 npm 安装：31 个 Node 验证脚本可直接运行；`browser-behavior.js` 是浏览器探针，不能直接用 Node 执行。
+核对日期：2026-10-02。本项目无需 npm 安装：32 个 Node 验证脚本可直接运行；`browser-behavior.js` 是浏览器探针，不能直接用 Node 执行。
 
-本次旧档修复验证已重新运行全部 31 个 Node 脚本并通过，14 个运行资源的内容版本检查也通过。
+年度对账功能新增独立回归，验证结算明细、差额解释、月供经过及自动续局；运行结果以当前版本实际执行输出为准。
 
 ## Node 回归
 
@@ -26,6 +26,7 @@ done
 | [time-unit.js](time-unit.js) | 一年十二个月、贷款期数和年度摊还 |
 | [payday-trigger.js](payday-trigger.js) | 内外圈路径、发薪密度、跨格与各玩家独立计龄 |
 | [payday-settlement.js](payday-settlement.js) | 一次结一年、跨退休与终龄、缺口和旧档幂等 |
+| [payday-audit.js](payday-audit.js) | 实结逐项对账、差额原因、年中结清、同名持仓、人生变化、缺口与自动续局 |
 | [price-calibration.js](price-calibration.js) | 价格字段、卡面备注与标定保护 |
 | [life-baseline-credit.js](life-baseline-credit.js) | 生活基准、自由圈账本与收入授信 |
 | [market-valuation.js](market-valuation.js) | 周期估值、折旧、多头借贷、退休与长局 |
@@ -53,7 +54,7 @@ done
 
 ## 浏览器行为
 
-[browser-behavior.js](browser-behavior.js) 覆盖 A—AC 组实际按钮、弹层、财务重绘、贷款返回、存档恢复、自动续局和结算流程。浏览器探针继续验证保存失败、自动迁移与动画续接，并确认所有手动备份和恢复入口均已移除。具体断言数以本次运行输出为准。
+[browser-behavior.js](browser-behavior.js) 覆盖 A—AD 组实际按钮、弹层、财务重绘、贷款返回、存档恢复、自动续局和结算流程。AD 组检查年度对账明细展开、文本安全和刷新后凭据不变。浏览器探针继续验证保存失败、自动迁移与动画续接，并确认所有手动备份和恢复入口均已移除。具体断言数以本次运行输出为准。
 
 探针会创建、修改和覆盖测试对局。**只在临时副本及独立浏览器配置中运行，不要注入正在玩的页面**。以下 macOS 示例需要已安装 Chrome 与 Python 3；其他平台调整 Chrome 路径即可：
 

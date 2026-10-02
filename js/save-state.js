@@ -40,7 +40,10 @@ function validate(data){
   requireValue(typeof data.rolled==='boolean'&&typeof g.over==='boolean','行动状态无效');
   requireValue(g.winner==null||integer(g.winner,0,g.players.length-1),'获胜玩家无效');
   requireValue(Array.isArray(g.log)&&Array.isArray(g.lastDice)&&Array.isArray(g.lastPath),'对局记录无效');
-  g.log.forEach(x=>requireValue(obj(x)&&typeof x.text==='string','日志记录无效'));
+  g.log.forEach(x=>{
+    requireValue(obj(x)&&typeof x.text==='string','日志记录无效');
+    if(x.cashflowDetails!=null)requireValue(Array.isArray(x.cashflowDetails)&&x.cashflowDetails.every(v=>typeof v==='string'),'年度对账日志无效');
+  });
   g.players.forEach((p,i)=>{
     requireValue(obj(p)&&p.id===i&&typeof p.name==='string'&&p.name.length<=200,'玩家身份无效');
     requireValue(typeof p.color==='string'&&/^#[\da-f]{3,8}$/i.test(p.color)&&typeof p.icon==='string','玩家显示信息无效');
@@ -49,6 +52,15 @@ function validate(data){
     requireValue(finite(p.cash)&&finite(p.salary)&&integer(p.children,0,3)&&typeof p.inFT==='boolean','玩家财务数据无效');
     requireValue(integer(p.pos,0,23)&&integer(p.ftPos,0,23),'棋盘位置无效');
     requireValue(p.age==null||finite(p.age),'玩家年龄无效');
+    if(p.lastCashflowStatement!=null){
+      const s=p.lastCashflowStatement;
+      requireValue(obj(s)&&s.version===1&&finite(s.since)&&finite(s.amount)&&Array.isArray(s.items)&&obj(s.factors),'年度对账基准无效');
+      const keys=new Set();
+      s.items.forEach(x=>{
+        requireValue(obj(x)&&typeof x.key==='string'&&!keys.has(x.key)&&typeof x.label==='string'&&finite(x.value),'年度对账科目无效');keys.add(x.key);
+      });
+      requireValue(Object.values(s.factors).every(x=>typeof x==='string')&&Math.abs(s.items.reduce((sum,x)=>sum+x.value,0)-s.amount)<0.001,'年度对账金额不一致');
+    }
     numbers(p,['energy','baseSalary','salaryMult','taxesCur','lifeCoef','elderCare','joblessProgress','joblessNeed','wings','medicalExp','crisisTurns','creditBanUntil','ftGain','ftBase','settledAge','settledYears','charityTurns','skipTurns','turnsPlayed']);
     requireValue(p.ftIncomeVersion==null||p.ftIncomeVersion===1,'分红规则版本不支持');
     requireValue(obj(p.liabs)&&obj(p.assets),'资产负债数据不完整');

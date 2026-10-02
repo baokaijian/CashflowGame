@@ -767,6 +767,21 @@ window.addEventListener('load', function(){
     ok(window.Game.g.players[0].cash===current&&localStorage.getItem(S.KEY)===stored,'新档写入失败保留原对局与已保存记录');
   });
 
+  step('AD 发薪日志年度对账', function(){return true;}, function(){
+    var a=fresh(),g=a.g,p=a.p,E=a.E,U=window.UiGame;
+    p.pos=1;E.movePlayer(g,p,1);
+    p.assets.business.push({nm:'<img src=x onerror=alert(1)> 对账商店',cost:1000,cf:100});
+    p.pos=1;E.movePlayer(g,p,1);U.renderAll();
+    var detail=q('#paneLog .log__audit');
+    ok(!!detail&&!detail.open,'发薪日志默认折叠明细，保留净额变化摘要');
+    detail.querySelector('summary').click();
+    ok(detail.open&&detail.textContent.indexOf('使年净额增加 ¥1,200')>=0,'点击展开可核对新增持仓的年度贡献');
+    ok(detail.textContent.indexOf('年内月净额经过')>=0&&detail.textContent.indexOf('本年收支')>=0,'同一条日志包括收支等式与逐月经过');
+    ok(!detail.querySelector('img')&&detail.textContent.indexOf('<img src=x')>=0,'资产名称按文本显示，不执行标记');
+    var text=detail.textContent,cash=p.cash;U.saveState();U.tryRestore();
+    ok(q('#paneLog .log__audit').textContent===text&&window.Game.g.players[0].cash===cash,'刷新续局保留原对账明细且不重复入账');
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

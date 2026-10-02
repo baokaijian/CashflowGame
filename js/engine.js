@@ -1147,6 +1147,94 @@ function settlementPlan(p){
     months,schedule,loanPayments:Object.fromEntries(LOAN_KEYS.map(k=>[k,schedule.loans[k].total]))};
 }
 
+/* 结算凭据只使用实结计划，保存当时的科目；不能用未来账本倒推历史。 */
+function cashflowStatement(g,p,plan){
+  const f=finance(p),items=[];
+  const add=(key,label,value)=>items.push({key,label,value});
+  add('salary','工资 / 养老金',p.inFT?0:annual(f.inc.salary));
+  for(const kind of ['savings','funds','realEstate','business','ftBusiness']){
+    (p.assets[kind]||[]).forEach(a=>{
+      const cf=kind==='realEstate'?assetCashflow(a):['savings','funds'].includes(kind)?a.interest:a.cf;
+      add('asset:'+holdingId(g,a),assetName(a)+'（资产净收入）',annual(cf));
+    });
+  }
+  const labels={taxes:'工资税费',housingGap:'住房生活费',carGap:'用车生活费',consumptionGap:'日常消费补足',
+    retail:'日常消费',other:'其他生活费',elder:'赡养费',medical:'医疗费',extra:'额外固定支出',children:'子女养育费'};
+  const mult=p.inFT?numOrDef(window.LIFEBASE.freeTrackMult,1):1;
+  const budgets=livingBudget(p,mult);
+  Object.entries(labels).forEach(([key,label])=>{
+    let value=f.exp[key];
+    if(p.inFT){
+      const gap=['housingGap','carGap','consumptionGap'].indexOf(key);
+      value=key==='taxes'?0:gap>=0?budgets[gap].gap:Math.round(value*mult);
+    }
+    add('expense:'+key,label,-annual(value));
+  });
+  LOAN_KEYS.forEach(key=>add('loan:'+key,loanType(key).nm+'本息',-plan.loanPayments[key]));
+  // 自由圈生活费用合并取整与逐科目取整可能相差几元，单列后确保逐项可加总。
+  add('rounding','合计取整差额',plan.amount-items.reduce((sum,x)=>sum+x.value,0));
+  const family=familySummary(p);
+  const factors={
+    '收入口径':p.inFT?'财务自由圈（不计工资或养老金）':p.retired?'退休养老金':isJobless(p)?'失业（工资为零）':'在职工资',
+    '工资阶段':String(p.salaryPhase||'')+'，倍率 '+numOrDef(p.salaryMult,1),
+    '精力绩效':!p.inFT&&!p.retired&&!isJobless(p)&&numOr(p.energy)<window.ENERGY.lowAt?'低精力折减':'无折减',
+    '生活费倍率':String(numOrDef(p.lifeCoef,1))+'；自由圈倍率 '+mult,
+    '子女阶段':family.children.map(x=>x.stage).join('、')||'无子女',
+    '医疗预算':`基础 ${money(family.medicalBase)}/月，康复 ${money(family.crisisMedical)}/月`
+  };
+  return {version:1,since:ageOf(g,p),amount:plan.amount,items,factors};
+}
+function cashflowChanges(before,after){
+  const old=new Map(before.items.map(x=>[x.key,x])),now=new Map(after.items.map(x=>[x.key,x]));
+  const lines=[];
+  for(const key of new Set([...old.keys(),...now.keys()])){
+    const a=old.get(key),b=now.get(key),from=a?a.value:0,to=b?b.value:0,delta=to-from;
+    if(!delta) continue;
+    const status=key.startsWith('asset:')?(!a?'新增持仓：':!b?'持仓退出：':'持仓收益变化：'):'';
+    lines.push(`${status}${(b||a).label}：年度贡献 ${money(from)} → ${money(to)}，使年净额${delta>0?'增加':'减少'} ${money(Math.abs(delta))}`);
+  }
+  for(const [key,value] of Object.entries(after.factors)){
+    if(before.factors[key]!==value) lines.push(`${key}：${before.factors[key]} → ${value}`);
+  }
+  return lines;
+}
+function paymentRanges(values){
+  const ranges=[];
+  values.forEach((value,i)=>{
+    const last=ranges[ranges.length-1];
+    if(last&&last.value===value) last.to=i+1;
+    else ranges.push({from:i+1,to:i+1,value});
+  });
+  return ranges.map(x=>`第 ${x.from}${x.to===x.from?'':'—'+x.to} 月：${money(x.value)}/月`).join('；');
+}
+function cashflowAudit(plan,statement,previous,next){
+  const comparable=previous&&previous.version===1&&previous.since+1===statement.since;
+  const delta=comparable?statement.amount-previous.amount:null;
+  const summary=delta===null?'首次记录年度明细，无上次明细可比':
+    `较上次年净额${delta===0?'持平':(delta>0?'增加 ':'减少 ')+money(Math.abs(delta))}`;
+  const details=[`本年收支：收入 ${money(plan.income)} − 生活及其他支出 ${money(plan.living)} − 个人贷款本息 ${money(plan.loanTotal)} = 年净额 ${money(plan.amount)}`,
+    '本年科目（正数增加净额，负数减少净额）：'+statement.items.filter(x=>x.value).map(x=>`${x.label} ${money(x.value)}`).join('；')];
+  if(comparable){
+    details.push(`与上次对账：${previous.since}→${previous.since+1} 岁 ${money(previous.amount)} → 本年 ${money(statement.amount)}；${summary}。`);
+    const changes=cashflowChanges(previous,statement);
+    details.push(...(changes.length?changes:['所有收支科目均无变化。']));
+  }else details.push('从本次开始保存对账基准；旧日志只有总额时，不猜测历史变化原因。');
+  details.push('年内月净额经过：'+paymentRanges(plan.months.map(x=>x.net)));
+  LOAN_KEYS.forEach(key=>{
+    const loan=plan.schedule.loans[key];
+    if(!loan.start&&!loan.total) return;
+    details.push(`${loanType(key).nm}：${paymentRanges(loan.payments)}；年供 ${money(loan.total)}，本金 ${money(loan.start)} → ${money(loan.balance)}`+
+      (loan.start>0&&loan.balance===0?`；第 ${loan.payments.reduce((last,x,i)=>x>0?i+1:last,0)} 月结清，之后不再扣供`:'')+'。');
+  });
+  if(next){
+    const changes=cashflowChanges(statement,next);
+    if(changes.length) details.push(`结算后长岁及还贷影响：按当前状态，下一年预计净额 ${money(next.amount)}（尚未入账，后续行动仍会改变）。`,...changes);
+  }
+  details.push(plan.amount<0?'本年净额为负，记为待处理缺口；筹资和补款由缺口事件另行处理。':'本年净额已一次性计入现金。');
+  details.push('买入、卖出、借款到账及提前还本等一次性现金往来见各自交易日志，不重复计作年度收入或支出；房产收入已扣项目融资利息及适用管理费。');
+  return {summary,details};
+}
+
 /* ------------------------------ 信用额度 ------------------------------ */
 /* 信用贷不是「想要多少有多少」：收入决定了你能借多少。
    旧版无限额度、只还息、无期限 —— 回归里 AI 曾滚到 ¥5,700 万且永不破产，
@@ -1827,6 +1915,7 @@ function movePlayer(g, p, steps){
        年内逐月扣贷款，多个发薪日逐年重算；退休和工资阶段在长岁后切换。 */
     refreshLife(g, p);
     const since = ageOf(g, p), monthly = settleCashflow(p), plan=settlementPlan(p), amount=plan.amount;
+    const statement=cashflowStatement(g,p,plan), previous=p.lastCashflowStatement;
     if(amount >= 0){ p.cash += amount; collected += amount; }
     else deficit += -amount;
     amortize(g, p, plan.schedule);
@@ -1843,9 +1932,13 @@ function movePlayer(g, p, steps){
     p.energy = Math.min(numOr(p.energy), energyMax(g, p));
     refreshLife(g, p);
     checkSoloStage(g);
+    const next=lifeComplete(g,p)?null:cashflowStatement(g,p,settlementPlan(p));
+    const audit=cashflowAudit(plan,statement,previous,next);
+    p.lastCashflowStatement=statement;
     log(g, `${p.name} 经过${p.inFT ? '分红日' : '发薪日'}：结算 1 年（${since}→${p.age} 岁）`
       + (amount >= 0 ? `，入账 ${money(amount)} = 年结余 ${money(amount)} × 1`
-                     : `，入不敷出 ${money(-amount)}`), amount >= 0 ? 'good' : 'bad', p.name);
+                     : `，入不敷出 ${money(-amount)}`)+`；${audit.summary}。`, amount >= 0 ? 'good' : 'bad', p.name);
+    g.log[0].cashflowDetails=audit.details;
   }
   g.lastPath = path;
   if(p.inFT) p.ftPos = to; else p.pos = to;

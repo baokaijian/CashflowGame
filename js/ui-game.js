@@ -544,7 +544,8 @@ function renderFinance(){
 function renderLog(){
   const host = $('#paneLog');
   host.innerHTML = '<div class="log">' + Game.g.log.map(l=>
-    `<div class="log__item log__item--${l.type}">${l.text.includes('一次结算（覆盖') ? '<span class="muted">【旧规则历史记录】</span>' : ''}${l.who?`<span class="log__who">${esc(l.who)}：</span>`:''}${esc(l.text)}</div>`
+    `<div class="log__item log__item--${l.type}">${l.text.includes('一次结算（覆盖') ? '<span class="muted">【旧规则历史记录】</span>' : ''}${l.who?`<span class="log__who">${esc(l.who)}：</span>`:''}${esc(l.text)}${Array.isArray(l.cashflowDetails)?
+      `<details class="log__audit"><summary>查看年度对账明细与变化原因</summary>${l.cashflowDetails.map(line=>`<p>${esc(line)}</p>`).join('')}</details>`:''}</div>`
   ).join('') + '</div>';
 }
 function renderRules(){

@@ -290,6 +290,9 @@ html[data-theme="dark"] .die{background:var(--surface-2);}
 .log__item--info::before{background:var(--accent);opacity:1;}
 .log__item--sys::before{background:var(--orange);opacity:1;}
 .log__who{font-weight:700;color:var(--on-surface);}
+.log__audit{margin-top:8px;overflow-wrap:anywhere;}
+.log__audit summary{cursor:pointer;color:var(--primary);padding:4px 0;}
+.log__audit p{margin:8px 0;padding-top:8px;border-top:1px solid var(--sep);}
 
 /* ================= 规则 ================= */
 .rulelist{border:1px solid var(--sep);border-radius:var(--r-m);overflow:hidden;background:var(--surface);}
