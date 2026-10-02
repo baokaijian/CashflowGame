@@ -789,6 +789,20 @@ window.addEventListener('load', function(){
     ok(JSON.stringify(entry.cashflowDetails)===raw,'旧日志展示调整不改写原凭据');
   });
 
+  step('AE 复盘诊断机制与当前状态', function(){return true;}, function(){
+    var a=fresh(),g=a.g,p=a.p,E=a.E;
+    E.initTrack(p);p.stats.crises=10;p.stats.peakCash=1000000;p.cash=10;
+    E.LOAN_KEYS.forEach(function(k){p.liabs[k]=0;});p.assets.business=[];
+    window.UiSummary.openSummary(0);var text=q('#modal').textContent;
+    ok(text.indexOf('精力降至零时触发危机')>=0,'真实复盘说明健康危机的精力触发机制');
+    ok(text.indexOf('不代表历史危机发生时')>=0,'当前经营数据不冒充历史危机成因');
+    ok(text.indexOf('当前现金 ¥10')>=0,'应急诊断使用当前现金，不使用历史现金峰值');
+    ok(text.indexOf('当前个人贷款已结清')>=0&&text.indexOf('全程零负债')<0,'已结清贷款不描述为全程零负债');
+    ok(!/运气|每 2—3 轮|每轮至少|只有一处/.test(text),'复盘移除运气归因与固定行动要求');
+    ok(text.indexOf('先平衡精力')>=0,'下一局清单针对健康记录优先安排精力管理');
+    window.UI.closeModal();
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

@@ -1,6 +1,6 @@
 # 验证脚本
 
-核对日期：2026-10-02。本项目无需 npm 安装：32 个 Node 验证脚本可直接运行；`browser-behavior.js` 是浏览器探针，不能直接用 Node 执行。
+核对日期：2026-10-02。本项目无需 npm 安装：33 个 Node 验证脚本可直接运行；`browser-behavior.js` 是浏览器探针，不能直接用 Node 执行。
 
 年度对账功能新增独立回归，验证结算明细、差额解释、月供经过及自动续局；运行结果以当前版本实际执行输出为准。
 
@@ -41,6 +41,7 @@ done
 | [portfolio-financing.js](portfolio-financing.js) | 初始组合融资、出售还本、混合旧债与迁移 |
 | [player-transfers.js](player-transfers.js) | 股票与企业买方成本、新身份、使用年数与重复交易 |
 | [rule-presentation.js](rule-presentation.js) | 规则展示、严格门槛、破产和复盘文本 |
+| [summary-diagnostics.js](summary-diagnostics.js) | 危机机制、当前与历史分离、储备、借还、退出及导出诊断一致性 |
 | [savings-redemption.js](savings-redemption.js) | 不同本金逐笔兑付、报价校验、旧档和失败不改账 |
 | [fast-track-income.js](fast-track-income.js) | 自由圈按当前持仓分红、企业与出圈奖励分开 |
 | [save-recovery.js](save-recovery.js) | 备份格式、容量、导入校验、存储失败和回滚 |
@@ -54,7 +55,7 @@ done
 
 ## 浏览器行为
 
-[browser-behavior.js](browser-behavior.js) 覆盖 A—AD 组实际按钮、弹层、财务重绘、贷款返回、存档恢复、自动续局和结算流程。AD 组检查年度对账明细展开、文本安全和刷新后凭据不变。浏览器探针继续验证保存失败、自动迁移与动画续接，并确认所有手动备份和恢复入口均已移除。具体断言数以本次运行输出为准。
+[browser-behavior.js](browser-behavior.js) 覆盖 A—AE 组实际按钮、弹层、财务重绘、贷款返回、存档恢复、自动续局和结算流程。AD 组检查年度对账明细展开、文本安全和刷新后凭据不变；AE 组检查健康危机、当前现金与贷款状态的实际复盘文案。浏览器探针继续验证保存失败、自动迁移与动画续接，并确认所有手动备份和恢复入口均已移除。具体断言数以本次运行输出为准。
 
 探针会创建、修改和覆盖测试对局。**只在临时副本及独立浏览器配置中运行，不要注入正在玩的页面**。以下 macOS 示例需要已安装 Chrome 与 Python 3；其他平台调整 Chrome 路径即可：
 

@@ -44,7 +44,7 @@ function outcomeOf(g, p){
         ? '你在局势还可控时主动退出本局。与破产不同，认输不清算资产 —— 名下的资产与负债完整保留，最终仍按净资产计入排名。'
         : (bought
           ? '对手以 1.5 倍溢价买断了你的全部资产，你失去了产生现金流的来源。'
-          : '资不抵债：现金不足以偿付到期债务，且没有可立即变现的资产，银行按半价清算后退出本局。')
+          : '本局已按破产规则清算并退出。请结合退出前的缺口与交易记录核对原因，清算后的余额不代表当时的财务状态。')
     };
   }
   if(g.over && g.winner === p.id){
@@ -108,6 +108,7 @@ function collect(g, p){
     monthlyInterest: Math.round(num(p.liabs.bank) * BANK.loanRate),
     kinds, kindCount: kinds.length,
     safetyMonths: f.totalExpenses > 0 ? num(peakCash) / f.totalExpenses : 0,
+    currentSafetyMonths: f.totalExpenses > 0 ? Math.max(0,num(p.cash)) / f.totalExpenses : null,
     expiredOptions: 0,
     escaped: !!p.inFT || !!p.escaped,
     out: !!p.out,
@@ -127,7 +128,7 @@ function collect(g, p){
   };
 }
 
-/* ------------------------------ 五维评分 ------------------------------ */
+/* ------------------------------ 六维评分 ------------------------------ */
 function scoreOf(g, p, m){
   const dims = [];
 
@@ -148,8 +149,8 @@ function scoreOf(g, p, m){
   const debtScore = clamp(100 - clamp(m.debtRatio / 1.5, 0, 1) * 70 - interestLoad, 0, 100);
   dims.push({ key:'debt', label:'负债管理', score: debtScore,
     comment: m.debt > 0
-      ? `负债合计 ${money(m.debt)}，${debtPosText(m)}，每月利息支出 ${money(m.monthlyInterest)}。`
-      : '全程零负债，没有一分布息支出。' });
+      ? `当前个人贷款合计 ${money(m.debt)}，${debtPosText(m)}，其中信用贷每月利息 ${money(m.monthlyInterest)}。`
+      : '当前个人贷款已结清；这不代表整局没有借款或利息支出。房产项目融资另计在资产净收入中。' });
 
   /* 4. 风险抵御：现金安全垫 + 是否被迫急售 + 是否出局 */
   const risk = m.out ? 0
@@ -178,10 +179,10 @@ function scoreOf(g, p, m){
   dims.push({ key:'sustain', label:'可持续性', score: sustain,
     comment: m.crises > 0
       ? `整局发生 ${m.crises} 次健康危机：精力被透支到归零，被迫休养并承担持续医疗支出。` +
-        `名下资产的每回合维护需要 ${m.upkeep} 点精力，而每回合只能恢复 ${E.energyRecover(g, p)} 点 —— 管不过来的部分，宁可不要。`
+        energyDiagnosis(g,p,m)
       : (m.energySpent > 0
-        ? `精力投入合计 ${m.energySpent} 点，全程没有出现健康危机` +
-          (m.deficitMonths > 0 ? `；但有 ${m.deficitMonths} 个月入不敷出（合计 ${money(m.deficitTotal)}）。` : '，且收支始终为正。')
+        ? `已记录精力投入合计 ${m.energySpent} 点，未记录到健康危机` +
+          (m.deficitMonths > 0 ? `；记录到 ${m.deficitMonths} 个月年度结算缺口（合计 ${money(m.deficitTotal)}）。` : '，未记录到年度结算缺口。')
         : '整局没有精力投入记录。') });
 
   const total = Math.round(cashflow * 0.26 + alloc * 0.20 + debtScore * 0.16 + risk * 0.14 + timing * 0.14 + sustain * 0.10);
@@ -193,8 +194,8 @@ function scoreOf(g, p, m){
 /* 负债占净资产的表述：峰值净资产为负时「百分比」没有意义，必须换成定性说法 */
 function debtPosText(m){
   return m.peakNet > 0
-    ? `约占峰值净资产的 ${pct(m.debtRatio)}%`
-    : '已超过全部资产（峰值净资产为负）';
+    ? `约占峰值净资产的 ${Math.round(m.debtRatio*100)}%`
+    : '峰值净资产不为正，不计算负债与峰值净资产的比例';
 }
 /* 被动支出对投入的侵蚀：比例超过 100% 时改用绝对值表述，避免出现「占 100%」这种失真文案 */
 function erosionText(m){
@@ -207,11 +208,21 @@ function erosionText(m){
 }
 
 function verdictOf(g, p, m, sc){
-  if(sc.grade === 'S') return '整局节奏很干净：现金流资产持续累积，负债可控，拿到的机会基本没有浪费。';
-  if(sc.grade === 'A') return '整体健康：资产端已经跑通，主要差距在出圈速度与安全垫厚度。';
-  if(sc.grade === 'B') return '中规中矩：有投资动作，但被动收入增长偏慢，机会利用率还有明确提升空间。';
-  if(sc.grade === 'C') return '结构偏弱：现金没能有效转成「能生钱的资产」，负债或意外支出吃掉了本金积累。';
-  return '风险敞口过大：现金流为负且缺少缓冲，最终没能撑住。';
+  if(m.out) return `本局已${p.outReason||'出局'}。请结合保留的结算与交易日志核对退出前的收支，清算后余额不能用于还原退出前状态。`;
+  if(m.crises>0) return `本局记录到 ${m.crises} 次精力归零引发的健康危机。资产收益之外，还需要优先改善投入、维护与恢复之间的平衡。`;
+  if(m.f.cashflow<0) return '当前月净现金流为负。先检查收入、生活费用和月供，再评估新投资对现金及精力的影响。';
+  if(m.currentSafetyMonths!==null&&m.currentSafetyMonths<3) return '当前收支与现金储备需要一起看：保留足够的现金缓冲，再安排后续投资。';
+  return `当前月净现金流 ${money(m.f.cashflow)}，综合评级 ${sc.grade}。下一步结合出圈进度、资产维护和可用现金选择行动。`;
+}
+
+/* 危机次数是历史记录，维护与恢复是当前值；不据此断言过去每次的具体成因。 */
+function energyDiagnosis(g,p,m){
+  const recover=E.energyRecover(g,p),gap=recover-m.upkeep;
+  return `当前每回合维护消耗 ${m.upkeep} 点、自然恢复 ${recover} 点${num(p.crisisTurns)>0?'（康复期间恢复减半）':''}，`+
+    (gap<0?`即使不新增行动，精力仍净减少 ${-gap} 点。应先降低持续维护负担，再考虑扩张。`:
+     gap===0?'维护已用尽自然恢复量，购买、研究和求职等额外投入会消耗剩余精力。':
+     `扣除维护后可恢复 ${gap} 点；购买、研究和求职等投入仍需单独预留。`)+
+    '当前数值不代表历史危机发生时的资产组合和恢复能力。';
 }
 
 /* ------------------------------ 社会等级（展示层） ------------------------------ */
@@ -270,263 +281,126 @@ function classEvidence(g, p, m, cls){
 
 /* 提升等级的具体财商手段：按【当前层级】给动作，回答「怎么往上走一层」。
    与 adviceOf 的分工：那份是整局的结构性诊断，这份是登台阶的动作清单。 */
-function classLevers(g, p, m, cls){
-  const lv = cls.lv, cover = cls.cover, passive = cls.passive, target = cls.target;
-  const out = [];
-  const add = (t, d)=> out.push({ t, d });
-  const exp = m.f.totalExpenses;
-  const upkeep = m.upkeep, recover = E.energyRecover(g, p);
-
-  if(lv === 0){
-    add('止血优先于赚钱',
-      `当前净资产 ${money(m.nw)}。任何「未来很赚」的资产都比不上先让月度收支转正 —— ` +
-      `优先偿清月息最高的那笔负债（信用贷月息 1%，年化约 12%，是所有负债里最贵的）。`);
-    add('永远留一项可折价变现的资产',
-      '它是你的第二次机会。把全部现金压进流动性差的资产后，一旦遇到意外支出，就只剩「破产出局」这一条路。');
-    add('把「月现金流为负」写进禁投清单',
-      '哪怕标的账面很便宜 —— 负现金流资产不会让你变富，只会加速把你推出局。');
+function classLevers(g,p,m,cls){
+  const out=[],add=(t,d)=>out.push({t,d}),recover=E.energyRecover(g,p);
+  const next=nextReqOf(g,p,cls);
+  if(p.out){
+    add('以退出前记录复核本局',`本局已${p.outReason||'出局'}，当前余额可能是清算结果。下一局先核对现金储备、实际月供与可变现渠道。`);
+  }else if(!p.inFT){
+    add('按当前账本核对出圈条件',
+      `当前被动收入 ${money(cls.passive)}/月，须严格超过支出 ×${E.escapeMargin(g)} 的门槛 ${money(cls.target)}/月。`+
+      '增加资产净收益和减少个人月供均可能改善进度；提前还款不取消住房、用车与日常消费预算。');
+  }else{
+    add('在自由圈目标之间安排资源',
+      `当前企业新增月现金流累计 ${money(num(p.ftGain))}，目标 ${money(E.empireTarget())}；也可选择梦想目标。`+
+      '比较企业、特许经营与保留资金的效果，继续计入自由圈生活费用、贷款和维护。');
   }
-  if(lv === 1){
-    add('第一优先级是攒够 3 个月应急金',
-      `按你每月支出 ${money(exp)} 算，目标是 ${money(exp * 3)}；目前现金峰值只有 ${money(m.peakCash)}。` +
-      '在攒够之前，不要把钱投入流动性差的资产。');
-    add('把「出圈门槛」当成 KPI 来管理',
-      `门槛 = 总支出 × ${E.escapeMargin(g)}（现在是 ${money(target)}/月）。偿债能降低支出，但仍需保留住房、用车和消费预算。` +
-      '比较贷款管家的实际支出改善，再决定还款顺序。');
-    add('每轮固定完成一个动作，不要等「合适的时机」',
-      '把「买入 1 笔月现金流为正的资产」写进每轮流程。内圈的财富来自「机会 → 资产」的转化率，不是来自等待。');
+  if(next) add('下一等级的参考条件',`${next.name}：${next.req}。${next.need}。等级只是阶段指标，不能替代当前现金与经营能力检查。`);
+  add('为新机会预留现金与精力',
+    `当前现金 ${money(p.cash)}，三个月当前支出的参考储备为 ${money(m.f.totalExpenses*3)}；维护 ${m.upkeep} 点、自然恢复 ${recover} 点/回合。`+
+    '买入前核对首付、资产净收入、额外贷款月供、一次性精力及持续维护，承受能力不足时可以放弃。');
+  if(cls.lv>=4){
+    const life=E.lifestyleOf(g,p);
+    add('消费档次会改变额外支出',
+      `当前 L${cls.lv}，额外消费卡金额按 ×${life.mult.toFixed(2)} 计算。`+
+      '档次来自游戏的财富与现金流指标，不能靠卖掉某一类资产保证降低；预留现金并核对卡面实际扣款。');
   }
-  if(lv === 2){
-    add('让闲置的现金开始工作',
-      `你已经有 ${money(m.peakCash)} 的现金峰值，但被动收入只有 ${money(passive)}/月 —— 钱放在手上不会生钱。` +
-      '下一步是把这笔钱换成能持续产生月现金流的资产。');
-    add('先配「不需要打理」的金融资产起步',
-      '指数基金、存款、债券几乎不占精力、流动性好，适合作为第一桶生息资产；' +
-      '等现金流转正、应急金稳固之后，再考虑需要投入时间打理的房产与企业。');
-    add('开始接触正现金流房产',
-      '判断标准只有一条：租金能否覆盖月供。从「房客替你还贷」开始，而不是从「赌房价上涨」开始。');
-  }
-  if(lv === 3){
-    if(m.seen >= 3 && m.hitRate < 0.5){
-      add('提高出手率：机会是内圈唯一的原料',
-        `你拿到 ${m.seen} 次机会只出手 ${m.buys} 次（出手率 ${pct(m.hitRate)}）。` +
-        '买不起大标的时，就先用成本低、月现金流为正的小额标的上车 —— 空手过格等于放弃一轮复利。');
-    } else {
-      add('把单笔现金流做大，而不是增加笔数',
-        `本局单笔平均带来 ${money(m.avgCf)}/月现金流。下一局把目标定在 +${money(Math.round(Math.max(m.avgCf, 300) * 1.2))}/月以上，` +
-        '让每一笔买入都更接近出圈门槛。');
-    }
-    add('用杠杆，但要让资产替你还债',
-      '只有当「月现金流 ≥ 月供」时借钱才是加速；否则杠杆只是把出局的时间提前。');
-    add('别只买一类资产',
-      '房产/企业拉高被动收入，存款/基金提供流动性防止节奏被打断 —— 两者搭配才能连续爬台阶。');
-  }
-  if(lv === 4){
-    add('同时推「两条边」，比只盯被动收入更快',
-      `门槛 = 总支出 × ${E.escapeMargin(g)}（${money(target)}/月）。提前还款可降低偿债支出，` +
-      '但住房、用车与消费仍有预算下限；被动收入须严格超过门槛才能出圈。');
-    if(upkeep >= recover){
-      add('先解决精力约束，再谈扩张',
-        `名下资产每回合要花 ${upkeep} 点精力维护，而你的恢复能力只有 ${recover} 点 —— ` +
-        '已经没有余量承接新机会。减持一部分需要亲自打理的资产，改配不占精力的金融资产。');
-    } else {
-      add('把资源集中到最能拉高现金流的那一类标的上',
-        `距离 80% 只差 ${money(Math.max(0, target * 0.8 - passive))}。` +
-        '与其分散买小资产，不如攒够首付一次拿下现金流最大的标的。');
-    }
-    add('守住安全垫，别为了提速把应急金也投进去',
-      `目前应急金约 ${m.safetyMonths.toFixed(1)} 个月支出。低于 3 个月时，一次意外就能把你打回上一层。`);
-  }
-  if(lv === 5){
-    add('达标当轮立刻出圈，一天都别拖',
-      `你距离门槛只差 ${money(Math.max(0, target + 1 - passive))}。出圈资金 = 月被动收入 × 100（≈ 8.3 年被动收入），` +
-      '晚一轮就少一轮复利，也会少拿一大笔起始现金。');
-    add('最后一笔不要靠高息贷凑',
-      '月息 1% 的信用贷会立刻吃掉你刚建立起来的现金流 —— 宁可用小额标的补足，也不要用消费型负债冲线。');
-    add('提前想清楚出圈后要做什么',
-      `出圈后目标从「被动收入 ＞ 支出 × 安全边际」切换为「企业月现金流累计 ≥ ${money(E.empireTarget())}」。` +
-      '先把财务自由圈企业名单看一遍，出圈资金到手就直接下手，不要让现金闲置。');
-  }
-  if(lv === 6){
-    add('把重心从内圈切到企业现金流',
-      `你已经出圈，目标变成「企业月现金流累计 ≥ ${money(E.empireTarget())}」，当前累计 ${money(num(p.ftGain))}。` +
-      '继续在内圈买小资产已经不再得分，出圈资金应优先配置到企业上。');
-    add('性价比最高的动作是特许经营',
-      '首付只需要企业成本的 20%，却能拿到原现金流 50% 的额外现金流 —— 这是财务自由圈里回报率最高的一步。');
-    add('精力依然是硬约束',
-      `企业维护随经营类型与组合规模变化（当前维护 ${upkeep} 点 / 恢复 ${recover} 点）。` +
-      '财务自由圈里同样会因过劳而触发健康危机，扩张节奏要留余量。');
-  }
-  /* 消费升级规则上线后，这条建议对所有中高等级都成立 —— 也是这条规则真正的用意 */
-  if(lv >= 4){
-    const ls = E.lifestyleOf(g, p);
-    add('注意「消费档次」正在抬高你的意外支出',
-      `你处在 L${lv}，意外支出按 ×${ls.mult.toFixed(2)} 计价 —— 这是地位的隐性成本：` +
-      '豪车的保养与保险、大房子的维护、社会圈的往来标准，都会随档次一起上涨，' +
-      '而且几乎无法通过「省一点」来规避，只能通过「不持有」来规避。' +
-      '真正的对策是让资产表里以**生息资产**（存款 / 基金 / 股票，不产生维护成本）为主，' +
-      '把**消耗型资产**（豪车、豪宅、奢侈品）控制在必要范围内。');
-  }
-  if(lv === 7){
-    add('把这一局的结构复述成你的规则',
-      `你以「被动收入 ${money(passive)} ＞ 门槛 ${money(target)}」完成出圈并达成目标。` +
-      '真正有价值的是可复用的路径：先把应急金做厚 → 集中买入正现金流资产 → 达标当轮出圈 → 立刻转投企业。');
-    add('下一局的挑战是把达标时间往前压',
-      `本局在第 ${num(p.escapeRound) || num(m.rounds)} 轮出圈。同样的机会下，能否用更少的轮数完成，是唯一的进阶方向。`);
-  }
-  /* L4 及以上多给一条：消费档次是「地位越高越贵」的一整套机制，
-     只有中产以后才会真正咬人，属于额外的维度，不该挤掉原有的登台阶建议。 */
-  return out.slice(0, lv >= 4 ? 4 : 3);
+  return out;
 }
 
 /* ------------------------------ 改进建议 ------------------------------ */
 /* 全部结论都由 stats / track 推出，带具体数字，可直接指导下一局操作 */
 function adviceOf(g, p, m, sc){
-  const out = [];
-  const add = (t, d)=> out.push({ t, d });
-  const passive = m.out ? m.peakPassive : m.f.passive;      /* 出局后资产已清算，用峰值更能反映能力 */
-  const gap = Math.max(0, m.target - passive);
+  const out=[],add=(t,d)=>out.push({t,d});
+  const recover=E.energyRecover(g,p),room=recover-m.upkeep;
+  const passive=m.out?m.peakPassive:m.f.passive;
+  const gap=Math.max(0,m.target-passive+1);
 
-  /* 1. 被动收入缺口 —— 内圈的唯一 KPI */
-  if(!m.escaped && m.target > 0 && passive < m.target * 0.6){
-    const perDeal = Math.max(1, m.avgCf);
-    const need = Math.ceil(gap / perDeal);
-    add('被动收入是内圈唯一的目标，你的缺口还很实',
-      `结束（峰值）被动收入 ${money(passive)}，门槛 ${money(m.target)}，缺口 ${money(gap)}。` +
-      (m.deals > 0
-        ? `按你本局每笔投资平均带来 ${money(m.avgCf)}/月现金流计算，还需要约 ${need} 笔同类资产。`
-        : '本局没有完成任何一笔能产生月现金流的投资，下一局请把「买入正现金流资产」当作每轮的固定动作。'));
-  }
-
-  /* 2. 出手率 —— 投资机会是内圈唯一的原料 */
-  if(m.seen >= 3 && m.hitRate < 0.5){
-    add(sc.total >= 72 ? '出手率还有提升空间' : '投资机会的出手率偏低，机会被大量放弃',
-      `拿到 ${m.seen} 次机会只出手 ${m.buys} 次（出手率 ${pct(m.hitRate)}）。内圈的财富来自「机会 → 资产」的转化，` +
-      '钱放在手上不会生钱。建议：即使暂时买不起大标的，也优先选成本低、月现金流为正的小额标的先上车。');
-  }
-
-  /* 3. 高息负债 —— 唯一会持续吞噬现金流的支出 */
-  if(m.monthlyInterest > 0 && m.debtRatio > 0.35){
-    add('高息负债正在持续吞噬你的现金流',
-      `当前负债 ${money(m.debt)}（${debtPosText(m)}），其中信用贷每月利息 ${money(m.monthlyInterest)}，` +
-      `占月收入的 ${pct(ratio(m.monthlyInterest, Math.max(1, m.f.totalIncome)))}%。` +
-      '建议：每凑够 6 个月利息就先还一笔本金，并且「还清前不再新增消费型借贷」。');
-  }
-
-  /* 4. 安全垫 —— 直接决定会不会被意外击穿 */
-  if(!m.out && m.safetyMonths < 2){
-    const need = Math.round(m.f.totalExpenses * 3);
-    add('没有安全垫，任何一次意外支出都可能直接击穿你',
-      `现金峰值 ${money(m.peakCash)}，只够 ${m.safetyMonths.toFixed(1)} 个月的支出。` +
-      `建议先把应急金做到 3 个月支出（约 ${money(need)}）再扩大投资，避免被迫做「折价急售」这种亏本变现。`);
-  }
-
-  /* 4b. 健康危机 —— 过劳的真实代价，且会持续拖累现金流 */
-  if(m.crises > 0){
-    add('资产规模已经超出你能照看的范围',
-      `整局发生 ${m.crises} 次健康危机。触发原因不是运气，而是结构问题：名下资产每回合需要 ${m.upkeep} 点精力去维护，` +
-      `而你的恢复能力只有 ${E.energyRecover(g, p)} 点/回合。` +
-      '建议：① 少买「需要你亲自打理」的资产（房产 / 企业），多配「不需要打理」的（指数基金、存款、债券）；' +
-      '② 每 2—3 轮安排一次休假（停在起点，花约一个月支出换精力），把状态维持在预警线以上。');
-  } else if(m.upkeep >= E.energyRecover(g, p)){
-    add('你的资产维护成本已经吃满全部精力',
-      `当前资产每回合消耗 ${m.upkeep} 点精力，而恢复能力是 ${E.energyRecover(g, p)} 点 —— 已经没有余量承接新机会。` +
-      '建议：先减持一部分需要打理的资产，或改配不占精力的金融资产，再考虑扩张。');
-  }
-
-  /* 4c. 入不敷出 —— 收入盖不住支出，是最危险的信号 */
-  if(m.deficitMonths > 0){
-    add('出现过入不敷出，说明现金流结构本身不成立',
-      `整局有 ${m.deficitMonths} 个月收入盖不住支出，累计动用储蓄补了 ${money(m.deficitTotal)}。` +
-      (m.jobless > 0
-        ? `其中主要发生在失业期间（工资归零、支出照付）—— 这正是应急金的意义：按你目前的支出，` +
-          `失业 3 个月就需要准备约 ${money(m.f.totalExpenses * 3)}。`
-        : '常见原因是贷款月供超过了收入，建议优先偿还月息最高的那笔，把月现金流拉回正数。'));
-  }
-
-  /* 4d. 时间与年龄 —— 收入会随年龄回落，越晚越难 */
-  if(E.isAgeMode(g) && !m.escaped && !m.out && m.age >= 40 && m.salaryMult <= 1){
-    add('你的收入已经越过了峰值，时间不再是免费的',
-      `当前 ${m.age} 岁，收入系数 ×${m.salaryMult}（巅峰期是 ×1.20），此后还会继续回落。` +
-      '现实中的职场收入曲线就是这样：35—45 岁是唯一的窗口期。' +
-      '建议把「在收入下滑前完成原始积累」当成硬约束 —— 越晚开始，同样一笔资产能滚出的被动收入越少。');
-  }
-
-  /* 5. 资产结构 —— 只买一类资产，风险与收益都过于集中 */
-  if(m.kindCount > 0 && m.kindCount <= 2 && m.deals >= 2){
-    add('资产结构过于单一',
-      `整局只配置了 ${m.kinds.map(k=>ASSET_CN[k]).join('、')} 共 ${m.kindCount} 类资产。` +
-      '建议把「产生月现金流的资产（房产 / 企业）」与「提供流动性的资产（存款 / 基金）」搭配使用：前者拉高被动收入，后者防止被意外支出打断节奏。');
-  }
-
-  /* 6. 破产 / 出局 —— 直接原因复盘 */
   if(m.out){
-    add(p.outReason === '主动认输' ? '认输本身没问题，但要看清是哪一步开始失控' : '破产的直接原因：现金流为负 + 没有可动用的资产',
-      `出局时月现金流 ${money(m.f.cashflow)}、负债 ${money(m.debt)}、可急售资产为零。` +
-      '两个可执行的动作：① 不做「月现金流为负」的投资，哪怕它账面很便宜；② 无论何时都保留至少一项可折价变现的资产，它等于你的第二次机会。');
+    add(p.outReason==='主动认输'?'主动退出后复核决策过程':'按退出前记录核对出局过程',
+      `本局退出原因：${p.outReason||'未记录'}。退出后的资产和负债可能已被清算，不能据此认定退出前没有资产或月净额一定为负。`+
+      '结合保留的缺口事件、交易及关键决策，区分现金不足、持仓无法及时变现与主动退出。');
   }
 
-  /* 7. 出圈之后的新目标 */
-  if(m.escaped && !m.out && num(m.st.ftBusinesses) === 0){
-    add('已经出圈，但财务自由圈的得分完全没拿到',
-      `你在第 ${num(p.escapeRound) || '—'} 轮出圈，但还没有购买任何财务自由圈企业。出圈后目标已经从「被动收入 ＞ 支出 × 安全边际」切换为` +
-      `「企业月现金流累计增加 ≥ ${money(E.empireTarget())}」—— 请把出圈资金优先配置到企业上，而不是继续在内圈买小资产。`);
+  if(m.crises>0){
+    add('精力曾被透支，需要调整经营与恢复节奏',
+      `本局记录到 ${m.crises} 次健康危机。游戏中精力降至零时触发危机，随后需要强制休养并承担医疗支出。`+
+      energyDiagnosis(g,p,m)+
+      `安排新行动前，检查行动精力成本及维护后的余量，尽量保持在 ${window.ENERGY.lowAt} 点低精力线以上。`+
+      '停在起点且现金足够时可选择休假；休假只补充精力，不能消除持续维护负担。');
+  }else if(room<=0){
+    add(room<0?'当前维护消耗超过恢复能力':'当前维护已占满自然恢复量',energyDiagnosis(g,p,m)+
+      '比较不同经营类型、规模协同和机构合同的维护成本，优先减少高维护、低净收益的持仓。');
   }
-
-  /* 8. 意外支出的侵蚀 */
-  if(num(m.st.forcedTotal) > 0 && m.invested > 0 && num(m.st.forcedTotal) / m.invested > 0.5){
-    add('被动支出吃掉了相当一部分本金',
-      `整局被动支付（意外支出 / 失业 / 财务自由圈事件）合计 ${money(num(m.st.forcedTotal))}${erosionText(m)}。` +
-      '这部分无法避免，只能靠「应急金 + 不让月现金流为负」来降低它的破坏力。');
+  if(m.deficitMonths>0){
+    add('曾出现年度结算缺口，先核对发生年份的账单',
+      `记录到 ${m.deficitMonths} 个月的结算缺口，累计 ${money(m.deficitTotal)}。`+
+      `当前月净现金流 ${money(m.f.cashflow)}。缺口可能随工资、家庭费用、月供或资产收入变化，`+
+      '请按发薪日对账明细核对具体原因；有失业记录也不能据此断定全部缺口来自失业。');
   }
-
-  /* 9. 时间账：年龄模式下最重要的是剩余轮数 */
-  if(E.isAgeMode(g) && !m.escaped && !m.out && sc.total < 72){
-    const left = E.yearsLeft(g, p);
-    add('时间是最稀缺的资源',
-      `你目前 ${E.ageOf(g, p)} 岁，距离 ${g.endAge} 岁退休只剩 ${left} 年（${left} 次年度结算）。` +
-      '越往后复利空间越小，建议把「每 2 轮至少完成 1 笔正现金流资产」当作硬性节奏，而不是有合适机会才出手。');
+  if(!m.out&&m.currentSafetyMonths!==null&&m.currentSafetyMonths<3){
+    add('当前现金缓冲不足，先预留应急和恢复费用',
+      `当前现金 ${money(p.cash)}，约覆盖 ${m.currentSafetyMonths.toFixed(1)} 个月当前支出；`+
+      `三个月支出的参考储备为 ${money(m.f.totalExpenses*3)}。历史现金峰值 ${money(m.peakCash)} 不代表现在可动用的现金。`+
+      '投资前同时预留意外支出、还款和可能的休假费用，避免被迫折价变现。');
   }
-
-  /* 表现不错时也给一条正向确认与精进方向 */
-  if(sc.total >= 72 && out.length < 3){
-    add('本局做得好的地方，下一局保持',
-      `出圈进度完成度 ${Math.round(clamp(m.target > 0 ? m.peakPassive / m.target : 0, 0, 1) * 100)}%、出手率 ${pct(m.hitRate)}、` +
-      `${m.debt > 0 ? '负债控制在净资产的 ' + pct(m.debtRatio) + '%' : '全程零负债'}。` +
-      '可以进一步优化的只有一处：把出圈所需的时间压缩 —— 在同样的机会下更快把现金换成资产。');
+  if(m.monthlyInterest>0){
+    add('将新增融资成本与资产净收益一起比较',
+      `当前个人贷款 ${money(m.debt)}，其中信用贷利息 ${money(m.monthlyInterest)}/月。`+
+      '借款到账只增加现金和负债，未来利息会减少月净额。提前还款前比较贷款管家的支出改善、所需现金和违约金，并保留应急储备。');
   }
-
-  if(!out.length){
-    add('本局没有发现明显的结构性问题',
-      '继续沿用当前节奏即可：优先拿下能产生月现金流的资产，把负债控制在净资产 30% 以内，出圈后立刻把重心切到企业现金流。');
+  if(!m.escaped&&m.target>0&&passive<m.target*.6){
+    add('被动收入仍有缺口，按资金和精力筛选机会',
+      `${m.out?'历史峰值':'当前'}被动收入 ${money(passive)}/月；按当前账本，须严格超过门槛 ${money(m.target)}/月。`+
+      `尚差 ${money(gap)}/月。`+
+      (m.avgCf>0?`以已完成投资平均新增 ${money(m.avgCf)}/月粗略估算，相当于约 ${Math.ceil(gap/m.avgCf)} 笔同等收益投资；未来报价和维护成本可能不同。`:
+       '优先比较正净现金流、可承担首付与维护成本的机会，无需为完成固定笔数而投资。'));
   }
-  return out.slice(0, 5);
+  if(m.seen>=3&&m.hitRate<.5){
+    add('复核放弃机会的原因，而非单纯追求出手率',
+      `已记录 ${m.seen} 次投资机会，买入 ${m.buys} 次、放弃 ${m.passes} 次。`+
+      '仅凭次数无法判断放弃是否合理。核对当时的现金、精力、融资成本和净收益，资金或维护能力不足时放弃是合理选择。');
+  }
+  if(!m.out&&m.kindCount>0&&m.kindCount<=2&&m.deals>=2){
+    add('评估当前持仓集中度和变现能力',
+      `当前持有 ${m.kinds.map(k=>ASSET_CN[k]).join('、')}，共 ${m.kindCount} 类资产。`+
+      '类别数量只是提示；结合单项占比、净现金流和可变现渠道判断是否需要分散，金融资产同样需核对报价、兑付条件和交易机会。');
+  }
+  if(m.escaped&&!m.out&&num(m.st.ftBusinesses)===0){
+    add('出圈后继续比较可承担的企业机会',
+      `已出圈，尚未记录财务自由圈企业买入。企业新增月现金流累计目标为 ${money(E.empireTarget())}，也可通过梦想目标完成游戏。`+
+      '先检查当前分红净额、生活费用、现金与维护余量，再选择企业、特许经营或保留资金。');
+  }
+  if(E.isAgeMode(g)&&!m.escaped&&!m.out){
+    const left=E.yearsLeft(g,p),peak=Math.max(...window.SALARY_CURVE.map(x=>x.mult));
+    add('按剩余结算年安排投资和偿债',
+      `当前 ${m.age} 岁，距终龄还有 ${left} 次年度结算；当前工资倍率 ×${m.salaryMult}，配置中的峰值倍率为 ×${peak}。`+
+      '回合数与结算年数不同。根据下一年预计收支、家庭费用和精力安排行动，不设置固定每轮买入要求。');
+  }
+  if(sc.total>=72&&out.length<5){
+    add('已取得的进展与后续关注点',
+      `被动收入历史峰值 ${money(m.peakPassive)}/月，已完成 ${m.buys} 次买入；`+
+      `${m.escaped?'已有出圈记录':'当前尚未出圈'}，当前个人贷款 ${money(m.debt)}。`+
+      '保留已验证有效的决策，同时持续检查现金储备、维护负担和家庭支出，提速并非唯一目标。');
+  }
+  if(!out.length) add('继续按当前账本评估下一步',
+    `当前月净现金流 ${money(m.f.cashflow)}，维护 ${m.upkeep} 点/回合、恢复 ${recover} 点/回合。`+
+    '现有记录没有触发重点提示；每次行动仍需检查现金、月供和精力影响。');
+  return out.slice(0,5);
 }
 
 /* ------------------------------ 下一局行动清单 ------------------------------ */
-function planOf(g, p, m){
-  const list = [];
-  const cashNeed = Math.round(Math.max(0, m.f.totalExpenses * 3 - 0));
-  if(m.out || m.safetyMonths < 2){
-    list.push(`前 3 轮先把应急金攒到约 <b>${money(Math.max(cashNeed, num(p.startCash) * 2))}</b>（≈ 3 个月支出）再开始大面积投资。`);
-  } else {
-    list.push('保持安全垫：任何时候手上都留够 <b>3 个月支出</b> 的现金，不把它全部投入资产。');
-  }
-  const perDeal = Math.round(Math.max(m.avgCf, 300) * 1.2 / 100) * 100;
-  list.push(`每轮至少完成 <b>1 笔月现金流为正</b> 的资产${m.avgCf > 0 ? `（本局单笔平均 +${money(m.avgCf)}/月，下一局目标 +${money(perDeal)}/月以上）` : ''}，不要空手过格。`);
-  if(m.debtRatio > 0.3 || m.monthlyInterest > 0){
-    list.push(`把负债压到 <b>净资产的 30% 以内</b>（本局${m.peakNet > 0 ? '约 ' + pct(m.debtRatio) + '%' : '已超过全部资产'}），并优先归还月息最高的那笔。`);
-  } else {
-    list.push('维持低负债：只在大标的出现、且月现金流能覆盖利息时使用信用贷。');
-  }
-  if(m.escaped){
-    list.push(`出圈后立刻把重心从「买小资产」切到 <b>企业现金流 ≥ ${money(E.empireTarget())}</b>，并优先开设特许经营。`);
-  } else if(num(m.f.passive) > m.target){
-    list.push(`你已满足出圈条件（被动收入 ${money(m.f.passive)} ＞ 门槛 ${money(m.target)}），下一局的重点是 <b>更早达标</b>：把达标轮数从第 ${num(m.rounds) || num(g.round)} 轮继续往前压。`);
-  } else {
-    list.push(`盯住出圈线：把被动收入从 ${money(m.f.passive)} 推到 <b>${money(m.target)}</b> 以上，达标当轮就立刻出圈拿资金。`);
-  }
-  return list.slice(0, 4);
+function planOf(g,p,m){
+  const list=[];
+  if(m.crises>0||m.upkeep>=E.energyRecover(g,p)) list.push(
+    '先平衡精力：比较行动投入、持仓维护与自然恢复。持续维护超过恢复时先调整组合；起点休假按现金和精力需要选择。');
+  list.push(`按当前每月支出 ${money(m.f.totalExpenses)}，把约 <b>${money(m.f.totalExpenses*3)}</b> 作为三个月现金储备参考；投资和提前还款后仍需留出缓冲。`);
+  list.push('有投资机会时比较<b>净现金流、首付、融资和维护成本</b>；承受能力不足时保留现金，不追求固定每轮成交笔数。');
+  list.push(m.debt>0?'用贷款管家比较提前还款的现金成本与月供改善，优先考虑高成本负债，并保留应急资金。':
+    '个人贷款已结清；再融资前核对新增月供，房产项目融资仍需通过资产净收入核对。');
+  list.push(m.escaped?`出圈后在企业现金流累计目标 <b>${money(E.empireTarget())}</b> 与梦想目标之间安排资金，扩张前检查分红净额和精力余量。`:
+    `被动收入须严格超过当前门槛 <b>${money(m.target)}</b>；达到后检查自由圈费用与维护负担，再决定出圈时机。`);
+  return list;
 }
 
 /* ------------------------------ 迷你走势图 ------------------------------ */
@@ -563,10 +437,10 @@ function metricsOf(g, p, m){
     ['被动支出', money(num(m.st.forcedTotal)), `${num(m.st.forcedCount)} 次意外 / 失业 / 事件`],
     ['精力余量', `${m.energy} / ${m.energyMax}`,
       m.upkeep > 0 ? `资产维护 ${m.upkeep}/回合 · 恢复 ${E.energyRecover(g, p)}/回合` : `每回合恢复 ${E.energyRecover(g, p)}`],
-    ['健康危机', m.crises > 0 ? `${m.crises} 次` : '未发生',
+    ['健康危机', m.crises > 0 ? `${m.crises} 次` : '未记录',
       m.crises > 0 ? '精力透支到归零 · 被迫休养' : `精力投入合计 ${m.energySpent} 点`],
-    ['逆流冲击', m.jobless > 0 ? `失业 ${m.jobless} 次` : '未遭遇失业',
-      m.deficitMonths > 0 ? `${m.deficitMonths} 个月入不敷出 ${money(m.deficitTotal)}` : '收支始终为正']
+    ['逆流冲击', m.jobless > 0 ? `失业 ${m.jobless} 次` : '未记录失业',
+      m.deficitMonths > 0 ? `${m.deficitMonths} 个月结算缺口 ${money(m.deficitTotal)}` : '未记录年度结算缺口']
   ];
 }
 
@@ -753,6 +627,7 @@ function exportJSON(g){
           passiveIncome: m.f.passive, peakPassiveIncome: m.peakPassive,
           totalIncome: m.f.totalIncome, totalExpenses: m.f.totalExpenses, monthlyCashflow: m.f.cashflow,
           cash: p.cash, peakCash: m.peakCash, safetyMonths: +m.safetyMonths.toFixed(2),
+          currentSafetyMonths: m.currentSafetyMonths===null?null:+m.currentSafetyMonths.toFixed(2),
           debt: m.debt, monthlyInterest: m.monthlyInterest,
           invested: m.invested, dealsSeen: m.seen, dealsBought: m.buys, dealsPassed: m.passes,
           cashflowGained: m.cfGained, avgCashflowPerDeal: m.avgCf,
@@ -911,7 +786,7 @@ function reportHTML(g, pid){
         </div>
 
         <div class="sec">
-          <div class="sec__title">五维表现</div>
+          <div class="sec__title">六维表现</div>
           <div class="sum-dims">${dimsHTML}</div>
         </div>
 
