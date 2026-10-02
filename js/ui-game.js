@@ -217,6 +217,7 @@ function renderAll(){
   if(!Game.g) return;
   syncDrawerForMode(Game.g);
   renderBoard(); renderPlayers(); renderFinance(); renderLog(); renderRules(); renderSettings(); updateActions();
+  if(window.UiCashReport) window.UiCashReport.refresh();
 }
 /* 抽屉里有两项是「多人专属」：玩家间交易、买断对手资产（202）。
    单人模式没有对手，留着它们只会让人点进去看到一张空表。
@@ -389,8 +390,9 @@ function showPlayerDetail(pid){
         <div class="sec"><div class="sec__title">资产负债表 · 资产</div>${U.renderAssets(p,g)}</div>
         <div class="sec"><div class="sec__title">资产负债表 · 负债</div>${U.renderLiabs(p)}</div>`}
     </div>
-    <div class="modal__foot"><button class="btn btn--primary" data-close>关闭</button></div>`,
-    { onMount(m){ $('[data-close]',m).onclick = U.closeModal; } });
+    <div class="modal__foot">${mask?'':'<button class="btn btn--tonal" data-cash-report>查看现金报表</button>'}<button class="btn btn--primary" data-close>关闭</button></div>`,
+    { onMount(m){ $('[data-close]',m).onclick = U.closeModal;
+      const report=$('[data-cash-report]',m);if(report)report.onclick=()=>window.UiCashReport.open(pid); } });
 }
 
 /* ------------------------------ 财务面板（当前玩家） ------------------------------ */
@@ -437,6 +439,7 @@ function renderFinance(){
       <span class="token token--big" style="background:${p.color}">${p.icon}</span>
       <div><h3>${esc(p.name)}</h3><p class="muted">${p.job.ico} ${esc(p.job.name)} · 第 ${g.round} 轮 · ${p.inFT?'财务自由圈':'老鼠赛跑'}</p></div>
     </div>
+    <button class="btn btn--outline btn--block" data-current-cash-report>查看现金报表</button>
     <div class="sec">
       <div class="sec__total"><span>手头现金</span><span class="money">${money(p.cash)}</span></div>
       <div class="sec__total"><span>年结余</span><span class="money ${E.settlementPlan(p).amount<0?'neg':''}">${money(E.settlementPlan(p).amount)}</span></div>
@@ -538,6 +541,7 @@ function renderFinance(){
         <div class="sec"><div class="sec__title">负债</div>${U.renderLiabs(p)}</div>
       </div>
     </div>`;
+  $('[data-current-cash-report]',host).onclick=()=>window.UiCashReport.open(p.id);
 }
 
 /* ------------------------------ 日志 / 规则 / 设置 ------------------------------ */
@@ -701,6 +705,7 @@ function renderSettings(){
     </div>
     <div class="sec">
       <div class="sec__title">操作</div>
+      <button class="btn btn--primary btn--block" data-act="cash-report" style="margin-bottom:8px">查看现金报表</button>
       <button class="btn btn--tonal btn--block" data-act="finance" style="margin-bottom:8px">财务报表总览</button>
       <button class="btn btn--tonal btn--block" data-act="loan" style="margin-bottom:8px">贷款管家（提前还款）</button>
       <button class="btn btn--tonal btn--block" data-act="trade" style="margin-bottom:8px">玩家间交易</button>
@@ -977,6 +982,7 @@ function onMenu(act){
   if(E.lifeComplete(g, E.current(g)) && ['trade','short','surrender'].includes(act))
     return U.toast('已到达终龄，请结束回合完成人生结算。', 'info');
   switch(act){
+    case 'cash-report': window.UiCashReport.open(); break;
     case 'finance': openFinanceOverview(); break;
     case 'players': U.openModal(`
         <div class="modal__head"><h3>玩家一览</h3></div>
@@ -1733,6 +1739,7 @@ function surrenderFlow(){
 
 /* ------------------------------ 绑定 ------------------------------ */
 function bind(){
+  $('#btnCashReport').onclick=()=>onMenu('cash-report');
   /* 主/次按钮的语义随局面切换（掷骰 / 结束回合 / 再来一局 / 查看战绩），这里按状态分发 */
   $('#btnRoll').onclick = ()=>{ if(Game.g && Game.g.over) return resetGame(); roll(); };
   $('#btnEndTurn').onclick = ()=>{ if(Game.g && Game.g.over) return winnerModal(); endTurn(); };

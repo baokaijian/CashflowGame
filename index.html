@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>现金流游戏 · 中国本土版 · 101 + 202</title>
 <link rel="stylesheet" href="css/base.css?v=5493095078fa4a6f">
-<link rel="stylesheet" href="css/game.css?v=c929792cc25127a3">
+<link rel="stylesheet" href="css/game.css?v=39bf573ec3821ca3">
 </head>
 <body>
 
@@ -43,6 +43,7 @@
   <aside class="rail rail--left" id="railLeft">
     <h2 class="rail__title">玩家</h2>
     <div id="playerList" class="player-list"></div>
+    <button class="btn btn--primary btn--block" id="btnCashReport">查看现金报表</button>
     <button class="btn btn--outline btn--block" id="btnReport">财务报表总览</button>
   </aside>
 
@@ -178,6 +179,7 @@
     </button>
   </div>
   <div class="drawer__body">
+    <button class="drawer__item" data-act="cash-report">查看现金报表</button>
     <button class="drawer__item" data-act="finance">财务报表</button>
     <button class="drawer__item" data-act="players">玩家一览</button>
     <button class="drawer__item" data-act="help">规则速查</button>
@@ -198,9 +200,10 @@
 <script src="js/engine-actions.js?v=25a485076c9341e5"></script>
 <script src="js/save-state.js?v=4efdd81c0ead0e06"></script>
 <script src="js/ui-core.js?v=169c0373630aa67e"></script>
-<script src="js/ui-game.js?v=061ab6a783c81f59"></script>
+<script src="js/ui-game.js?v=265f729a4c7d2a6e"></script>
 <script src="js/ui-pending.js?v=ff7534c5ce3d64a6"></script>
 <script src="js/ui-summary.js?v=cc3c617e5aef0995"></script>
-<script src="js/main.js?v=9ead8e024e7c8d06"></script>
+<script src="js/ui-cash-report.js?v=df04e7fb03bf7340"></script>
+<script src="js/main.js?v=3b709c3312e7b7e4"></script>
 </body>
 </html>

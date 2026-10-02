@@ -803,6 +803,28 @@ window.addEventListener('load', function(){
     window.UI.closeModal();
   });
 
+  step('AF 模板现金报表入口与实时账本', function(){return true;}, function(){
+    var a=fresh(),g=a.g,p=a.p,E=a.E,U=window.UiGame,R=window.UiCashReport;
+    q('#btnCashReport').click();var cash=p.cash,net=E.settleCashflow(p);
+    ok(title()==='查看现金报表'&&q('[data-cash-sheet]'),'点击现金报表入口打开模板式账单');
+    ok(q('[data-report-close]').getBoundingClientRect().bottom<=window.innerHeight,'长报表的关闭按钮始终在窗口内');
+    ok(q('[data-report-monthly]').textContent===E.money(net)&&q('[data-report-annual]').textContent===E.money(E.settlementPlan(p).amount),'月净额与年净额读取实结账本');
+    ok(q('[data-report-book-net]').textContent===E.money(E.netWorth(p))&&q('[data-report-value-net]').textContent===E.money(E.valuedNetWorth(g,p)),'资产负债表的账面和估值净资产正确');
+    ok(window.Act.takeLoan(g,5000).ok,'为实时刷新验证增加信用贷');U.renderAll();
+    ok(q('[data-report-cash]').textContent===E.money(cash+5000)&&q('[data-report-monthly]').textContent===E.money(net-50),'借款后已打开报表同步更新现金与月息');
+    g.players[1].cash=123456;q('[data-cash-report-player]').value='1';q('[data-cash-report-player]').dispatchEvent(new Event('change'));
+    ok(q('[data-report-cash]').textContent===E.money(123456),'切换玩家使用其独立账本');
+    window.UI.Setup.showAll=false;U.renderAll();
+    ok(!q('[data-cash-sheet]')&&q('[data-cash-report-content]').textContent.indexOf('已关闭对手财务明细')>=0,'隐藏对手明细时新报表不泄露账本');
+    window.UI.Setup.showAll=true;window.UI.closeModal();U.showPlayerDetail(1);q('[data-cash-report]').click();
+    ok(q('[data-cash-report-player]').value==='1','玩家详情中的报表入口默认选择该玩家');window.UI.closeModal();
+    E.setPending(g,{type:'info',ico:'',title:'待处理报表测试',msg:'测试事件'});window.UiPending.showPending();U.onMenu('cash-report');
+    window.UI.requestClose();ok(g.pending&&title().trim()==='待处理报表测试','关闭报表恢复待处理事件，不丢失回合');
+    U.onMenu('cash-report');q('[data-report-close]').click();ok(g.pending&&title().trim()==='待处理报表测试','报表关闭按钮同样返回待处理事件');
+    E.clearPending(g);window.UI.closeModal();
+    q('[data-current-cash-report]').click();ok(!!q('[data-cash-sheet]'),'财务面板入口也可打开实时模板');window.UI.closeModal();
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){
