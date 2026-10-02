@@ -543,9 +543,15 @@ function renderFinance(){
 /* ------------------------------ 日志 / 规则 / 设置 ------------------------------ */
 function renderLog(){
   const host = $('#paneLog');
+  // 早期对账日志把差额放在账单后；展示时前置原因，保留原始凭据内容。
+  const auditLines=l=>{
+    const lines=l.cashflowDetails,from=lines.findIndex(x=>x.startsWith('与上次对账：')),
+      end=lines.findIndex(x=>x.startsWith('年内月净额经过：'));
+    return from>0&&end>from?[...lines.slice(from,end),...lines.slice(0,from),...lines.slice(end)]:lines;
+  };
   host.innerHTML = '<div class="log">' + Game.g.log.map(l=>
     `<div class="log__item log__item--${l.type}">${l.text.includes('一次结算（覆盖') ? '<span class="muted">【旧规则历史记录】</span>' : ''}${l.who?`<span class="log__who">${esc(l.who)}：</span>`:''}${esc(l.text)}${Array.isArray(l.cashflowDetails)?
-      `<details class="log__audit"><summary>查看年度对账明细与变化原因</summary>${l.cashflowDetails.map(line=>`<p>${esc(line)}</p>`).join('')}</details>`:''}</div>`
+      `<details class="log__audit"><summary>查看年度对账明细与变化原因</summary>${auditLines(l).map(line=>`<p>${esc(line)}</p>`).join('')}</details>`:''}</div>`
   ).join('') + '</div>';
 }
 function renderRules(){

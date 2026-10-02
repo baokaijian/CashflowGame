@@ -1184,15 +1184,25 @@ function cashflowStatement(g,p,plan){
   };
   return {version:1,since:ageOf(g,p),amount:plan.amount,items,factors};
 }
-function cashflowChanges(before,after){
+function cashflowChanges(before,after,concise=false){
   const old=new Map(before.items.map(x=>[x.key,x])),now=new Map(after.items.map(x=>[x.key,x]));
   const lines=[];
   for(const key of new Set([...old.keys(),...now.keys()])){
     const a=old.get(key),b=now.get(key),from=a?a.value:0,to=b?b.value:0,delta=to-from;
     if(!delta) continue;
     const status=key.startsWith('asset:')?(!a?'新增持仓：':!b?'持仓退出：':'持仓收益变化：'):'';
+    if(concise){
+      if(key==='rounding'){
+        lines.push(`取整差额使年净额${delta>0?'增加':'减少'} ${money(Math.abs(delta))}`);
+        continue;
+      }
+      const expense=key.startsWith('expense:')||key.startsWith('loan:');
+      lines.push(`${status}${(b||a).label}年度${expense?'支出':'收入'}${(expense?-delta:delta)>0?'增加':'减少'} ${money(Math.abs(delta))}`);
+      continue;
+    }
     lines.push(`${status}${(b||a).label}：年度贡献 ${money(from)} → ${money(to)}，使年净额${delta>0?'增加':'减少'} ${money(Math.abs(delta))}`);
   }
+  if(concise) return lines;
   for(const [key,value] of Object.entries(after.factors)){
     if(before.factors[key]!==value) lines.push(`${key}：${before.factors[key]} → ${value}`);
   }
@@ -1212,13 +1222,16 @@ function cashflowAudit(plan,statement,previous,next){
   const delta=comparable?statement.amount-previous.amount:null;
   const summary=delta===null?'首次记录年度明细，无上次明细可比':
     `较上次年净额${delta===0?'持平':(delta>0?'增加 ':'减少 ')+money(Math.abs(delta))}`;
-  const details=[`本年收支：收入 ${money(plan.income)} − 生活及其他支出 ${money(plan.living)} − 个人贷款本息 ${money(plan.loanTotal)} = 年净额 ${money(plan.amount)}`,
-    '本年科目（正数增加净额，负数减少净额）：'+statement.items.filter(x=>x.value).map(x=>`${x.label} ${money(x.value)}`).join('；')];
+  const reasons=comparable?cashflowChanges(previous,statement,true):[];
+  const causes=reasons.slice(0,3).join('；')+(reasons.length>3?`；另有 ${reasons.length-3} 项变化，详见明细`:'');
+  const details=[];
   if(comparable){
     details.push(`与上次对账：${previous.since}→${previous.since+1} 岁 ${money(previous.amount)} → 本年 ${money(statement.amount)}；${summary}。`);
     const changes=cashflowChanges(previous,statement);
     details.push(...(changes.length?changes:['所有收支科目均无变化。']));
   }else details.push('从本次开始保存对账基准；旧日志只有总额时，不猜测历史变化原因。');
+  details.push(`本年收支：收入 ${money(plan.income)} − 生活及其他支出 ${money(plan.living)} − 个人贷款本息 ${money(plan.loanTotal)} = 年净额 ${money(plan.amount)}`,
+    '本年科目（正数增加净额，负数减少净额）：'+statement.items.filter(x=>x.value).map(x=>`${x.label} ${money(x.value)}`).join('；'));
   details.push('年内月净额经过：'+paymentRanges(plan.months.map(x=>x.net)));
   LOAN_KEYS.forEach(key=>{
     const loan=plan.schedule.loans[key];
@@ -1232,7 +1245,7 @@ function cashflowAudit(plan,statement,previous,next){
   }
   details.push(plan.amount<0?'本年净额为负，记为待处理缺口；筹资和补款由缺口事件另行处理。':'本年净额已一次性计入现金。');
   details.push('买入、卖出、借款到账及提前还本等一次性现金往来见各自交易日志，不重复计作年度收入或支出；房产收入已扣项目融资利息及适用管理费。');
-  return {summary,details};
+  return {summary,causes,details};
 }
 
 /* ------------------------------ 信用额度 ------------------------------ */
@@ -1937,7 +1950,7 @@ function movePlayer(g, p, steps){
     p.lastCashflowStatement=statement;
     log(g, `${p.name} 经过${p.inFT ? '分红日' : '发薪日'}：结算 1 年（${since}→${p.age} 岁）`
       + (amount >= 0 ? `，入账 ${money(amount)} = 年结余 ${money(amount)} × 1`
-                     : `，入不敷出 ${money(-amount)}`)+`；${audit.summary}。`, amount >= 0 ? 'good' : 'bad', p.name);
+                     : `，入不敷出 ${money(-amount)}`)+`；${audit.summary}${audit.causes?'；原因：'+audit.causes:''}。`, amount >= 0 ? 'good' : 'bad', p.name);
     g.log[0].cashflowDetails=audit.details;
   }
   g.lastPath = path;

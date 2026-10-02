@@ -776,10 +776,17 @@ window.addEventListener('load', function(){
     ok(!!detail&&!detail.open,'发薪日志默认折叠明细，保留净额变化摘要');
     detail.querySelector('summary').click();
     ok(detail.open&&detail.textContent.indexOf('使年净额增加 ¥1,200')>=0,'点击展开可核对新增持仓的年度贡献');
+    ok(q('#paneLog .log__item').textContent.indexOf('原因：新增持仓：')>=0,'无需展开即可看到年净额变化原因');
+    ok(detail.querySelector('p').textContent.indexOf('与上次对账：')===0,'差额对账显示在完整账单之前');
     ok(detail.textContent.indexOf('年内月净额经过')>=0&&detail.textContent.indexOf('本年收支')>=0,'同一条日志包括收支等式与逐月经过');
     ok(!detail.querySelector('img')&&detail.textContent.indexOf('<img src=x')>=0,'资产名称按文本显示，不执行标记');
     var text=detail.textContent,cash=p.cash;U.saveState();U.tryRestore();
     ok(q('#paneLog .log__audit').textContent===text&&window.Game.g.players[0].cash===cash,'刷新续局保留原对账明细且不重复入账');
+    var entry=window.Game.g.log[0],lines=entry.cashflowDetails,start=lines.findIndex(function(x){return x.indexOf('本年收支：')===0;});
+    entry.cashflowDetails=lines.slice(start,start+2).concat(lines.slice(0,start),lines.slice(start+2));
+    var raw=JSON.stringify(entry.cashflowDetails);U.renderAll();
+    ok(q('#paneLog .log__audit p').textContent.indexOf('与上次对账：')===0,'旧日志重新打开也将对账原因前置');
+    ok(JSON.stringify(entry.cashflowDetails)===raw,'旧日志展示调整不改写原凭据');
   });
 
   /* ---------------- 状态机驱动 ---------------- */

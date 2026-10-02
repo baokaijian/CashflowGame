@@ -53,6 +53,25 @@ test('长岁工资和子女成年只影响下一年度，注明生效顺序',()=
   const second=pay(g,p);assert.match(second.text,/与上次对账：27→28 岁/);
   assert.match(second.text,/子女养育费.*使年净额增加/);assert.match(second.text,/工资阶段：/);
 });
+test('截图回归：收入不变，子女成年后少支出840，19644→20484',()=>{
+  const {g,p}=game();p.job=c.CAREERS.find(x=>x.id==='trucker');p.baseSalary=p.job.salary;p.name='Derek';
+  p.liabs.school=6000;p.loans.school={base:6000,due:60,periods:24};p.liabs.bank=15000;
+  p.assets.funds=[{nm:'高收益债基金',cost:10000,interest:52}];
+  p.assets.realEstate=[{nm:'小区车位',cost:100000,dp:50000,cf:297}];
+  p.assets.business=[{nm:'社区团购团长',cost:10800,cf:99}];p.age=38;
+  p.family.children=[21,24,27].map((birthAge,i)=>({id:'child-'+(i+1),birthAge,ageUnknown:false}));p.children=3;
+  const first=pay(g,p),prior=p.lastCashflowStatement;
+  assert.equal(first.landed.collected,19644);assert.equal(first.landed.settled.years[0].income,45876);
+  const cash=p.cash,second=pay(g,p),row=second.landed.settled.years[0];
+  assert.equal(p.cash-cash,20484);assert.equal(row.income,45876);assert.equal(row.living,22872);assert.equal(row.loanTotal,2520);
+  assert.match(second.log.text,/原因：子女养育费年度支出减少 ¥840/);
+  assert(second.log.cashflowDetails[0].startsWith('与上次对账：'));
+  assert.match(second.log.cashflowDetails[1],/子女养育费.*-¥5,040 → -¥4,200/);
+  for(const item of prior.items){
+    const after=p.lastCashflowStatement.items.find(x=>x.key===item.key);
+    assert.equal(after.value-item.value,item.key==='expense:children'?840:0);
+  }
+});
 test('退休、医疗和精力变化分别解释；分红日不叠加工资',()=>{
   const {g,p}=game();p.age=60;
   assert.match(pay(g,p).text,/收入口径：在职工资 → 退休养老金/);
