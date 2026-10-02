@@ -36,6 +36,19 @@ for(const free of [false,true]){
   assert(A.prepayLoan(g,'bank',10000,'settle').ok);assert.equal(E.settleCashflow(p),monthly);
   assert(A.takeLoan(g,5000).ok);assert.equal(E.settleCashflow(p),monthly-50);
  });
+ test(`${free?'自由圈':'内圈'}：信用贷部分还本无固定期限，按剩余本金重算利息`,()=>{
+  for(const mode of ['shorten','reduce']){
+   const {g,p}=game(free);due(p,'bank',10000,100);
+   const cash=p.cash,monthly=E.settleCashflow(p),plan=E.prepayPlan(p,'bank',2500,mode);
+   assert(plan.ok);assert.equal(plan.before.remaining,null);assert.equal(plan.after.remaining,null);
+   assert.equal(plan.after.due,75);assert.equal(plan.budget.saving,25);assert.equal(plan.budget.yearSaving,300);
+   const r=A.prepayLoan(g,'bank',2500,mode);assert(r.ok);assert.equal(r.after.remaining,null);
+   assert.equal(p.cash,cash-2500);assert.equal(p.liabs.bank,7500);assert.equal(E.settleCashflow(p),monthly+25);
+   const info=E.loanInfo(p,'bank');assert.equal(info.remainingYears,null);assert.equal(info.dueYear,900);
+   const restored=E.migrateTime(JSON.parse(JSON.stringify(g))).players[0];assert.equal(E.loanInfo(restored,'bank').due,75);
+   assert.equal(restored.liabs.bank,7500);assert.equal(E.loanInfo(restored,'bank').remaining,null);
+  }
+ });
  test(`${free?'自由圈':'内圈'}：部分提前还款降低月供与缩期分别生效`,()=>{
   for(const mode of ['reduce','shorten']){
    const {g,p}=game(free);due(p,'car',10000,500);const monthly=E.settleCashflow(p),plan=E.prepayPlan(p,'car',5000,mode);

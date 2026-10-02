@@ -722,8 +722,16 @@ window.addEventListener('load', function(){
       U.onMenu('loan');q('#loanAmt').value='10000';q('#modal [data-loan]').click();
       ok(p.cash===cash+10000 && E.settleCashflow(p)===monthly-100,(free?'自由圈':'内圈')+' 真实借款到账10000，月净额减少100');
       ok(q('#paneFinance [data-monthly-cashflow]').textContent.indexOf(E.money(monthly-100))>=0,'借款关闭面板后月净额立即刷新');
+      U.onMenu('loan');q('#modal [data-pick=bank]').click();q('#ppAmt').value='2500';q('#ppAmt').dispatchEvent(new Event('input'));
+      ok(q('#ppPreview').textContent.indexOf('无固定期数')>=0&&!/null|缩短期限/.test(q('#ppPreview').textContent),'信用贷部分还本预览无固定期数，不显示空期限');
+      q('#modal [data-do]').click();var repayToast=q('#toastHost').lastElementChild.textContent;
+      ok(p.liabs.bank===7500&&p.cash===cash+7500&&E.settleCashflow(p)===monthly-75,'部分还本2500后本金7500、月息75、月净额增加25');
+      ok(repayToast.indexOf('剩余本金 ¥7,500')>=0&&repayToast.indexOf('月息由 ¥100 降至 ¥75')>=0&&repayToast.indexOf('月净现金流增加 ¥25')>=0&&!/null|剩余期限/.test(repayToast),'还款成功提示按信用贷本金和月息说明，不显示 null 年');
+      ok(q('#modal [data-pick=bank]').parentElement.textContent.indexOf('随借随还')>=0&&!/null/.test(q('#modal').textContent),'还款后贷款列表仍显示随借随还');
+      U.saveState();U.tryRestore();g=window.Game.g;p=g.players[0];
+      ok(p.liabs.bank===7500&&E.loanInfo(p,'bank').remaining===null&&E.settleCashflow(p)===monthly-75,'部分还本保存恢复保留本金和利息，不虚构期限');
       U.onMenu('loan');q('#modal [data-pick=bank]').click();q('#modal [data-quick=all]').click();
-      ok(q('#ppPreview').textContent.indexOf('未来一年支出减少')>=0 && q('#ppPreview').textContent.indexOf(E.money(1200))>=0,'结清预览显示未来一年少扣1200');
+      ok(q('#ppPreview').textContent.indexOf('未来一年支出减少')>=0 && q('#ppPreview').textContent.indexOf(E.money(900))>=0,'结清余款预览显示未来一年少扣900');
       q('#modal [data-do]').click();mb('关闭').click();
       ok(p.liabs.bank===0 && E.settleCashflow(p)===monthly && p.cash===cash,'真实结清恢复原月净额，生活费用不吞掉收益');
       ok(q('#paneFinance [data-monthly-cashflow]').textContent.indexOf(E.money(monthly))>=0,'结清后财务面板立即刷新');

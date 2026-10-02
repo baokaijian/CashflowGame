@@ -632,11 +632,12 @@ function renderRules(){
     <h4>贷款与提前还款</h4>
     <ul>
       <li>六类贷款<b>全部支持提前还款</b>，统一在「贷款管家」里操作。</li>
-      <li>每笔贷款都有明确的<b>年供、月利率、剩余年数、剩余利息</b>。经过一次发薪日即偿还<b>一年</b>（12 期）：
+      <li>分期贷款显示<b>年供、月利率、剩余年数、剩余利息</b>。经过一次发薪日即偿还<b>一年</b>（12 期）：
           每期利息 = 剩余本金 × 月利率，月供的其余部分冲减本金。</li>
-      <li>剩余期限以<b>年</b>显示（剩余期数 ÷ 12，向上取整）—— 与年龄、轮次同一把尺子。</li>
-      <li>部分提前还款<b>不得低于 1 期月供</b>；想一次还清直接选「结清全部」。</li>
-      <li>还款后二选一：<b>年供不变 · 缩短期限</b>（省利息最多，默认）或 <b>期限不变 · 降低年供</b>（减轻每年压力）。</li>
+      <li>分期贷款剩余期限以<b>年</b>显示（剩余期数 ÷ 12，向上取整）—— 与年龄、轮次同一把尺子。</li>
+      <li>分期贷款部分提前还款<b>不得低于 1 期月供</b>；想一次还清直接选「结清全部」。</li>
+      <li>分期贷款还款后二选一：<b>年供不变 · 缩短期限</b>（默认）或 <b>期限不变 · 降低年供</b>（减轻每年压力）。</li>
+      <li>信用贷<b>随借随还、无固定期限</b>，每年结算只扣利息，不自动还本；部分还本后，月息立即按剩余本金重算。</li>
       <li>结清后该笔年供立即从支出中消失，年结余同步改善。</li>
     </ul>
     <div class="rulelist">
@@ -1080,9 +1081,10 @@ function openFinanceOverview(){
 
 /* ------------------------------ 贷款管家 ------------------------------ */
 /* 六类贷款（房贷 / 助学贷款 / 车贷 / 信用卡分期 / 其他负债 / 信用贷）统一在一处管理，
-   全部支持提前还款。还款后可选两种方式，与现实中银行给的选项一致：
+   全部支持提前还款。分期贷款还款后可选两种方式：
      · 年供不变 · 缩短期限（默认，省利息最多）
      · 期限不变 · 降低年供（减轻每年的还款压力）
+   信用贷没有固定期限，部分还本后按余额重算月息。
    ★ 预览与实际扣款共用 Engine.prepayPlan，界面算的和账上扣的一定一致。 */
 const LoanUI = { key:null, mode:'shorten' };
 
@@ -1337,7 +1339,9 @@ function openLoanCenter(key, preset){
           renderAll();
           U.toast(r.cleared
             ? `${E.loanType(r.key||LoanUI.key).nm}已结清，月净现金流增加 ${money(plan.budget.saving)}；未来一年支出减少 ${money(plan.budget.yearSaving)}`
-            : `已提前还款 ${money(r.principal)}${r.fee ? `（含违约金 ${money(r.fee)}）` : ''}，${r.mode === 'reduce' ? `年还款降至 ${money(E.annual(r.after.due))}` : `剩余期限缩短至 ${E.toYears(r.after.remaining)} 年`}`
+            : `已提前还款 ${money(r.principal)}${r.fee ? `（含违约金 ${money(r.fee)}）` : ''}，${plan.info.revolving
+              ? `剩余本金 ${money(r.after.balance)}，月息由 ${money(r.before.due)} 降至 ${money(r.after.due)}；月净现金流增加 ${money(plan.budget.saving)}`
+              : r.mode === 'reduce' ? `年还款降至 ${money(E.annual(r.after.due))}` : `剩余期限缩短至 ${E.toYears(r.after.remaining)} 年`}`
             + (r.savedInterest ? `，节省利息 ${money(r.savedInterest)}` : ''), 'ok');
           openLoanCenter(LoanUI.key);
         };
