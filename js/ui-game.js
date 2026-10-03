@@ -137,7 +137,7 @@ function installSave(data){
     $('#modalHost').hidden=true;$('#scrim').hidden=true;$('#setupScreen').hidden=true;
     renderAll();
     if(Game.pendingDice)finishRoll(Game.pendingDice);
-    else if(!Game.g.over){if(Game.g.pending)window.UiPending.showPending();else pauseNotice(Game.g);}
+    else if(!Game.g.over){if(Game.g.pending)window.UiPending.showPending();else if(!crisisNotice(Game.g))pauseNotice(Game.g);}
   }catch(e){
     if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}
     Object.assign(Game,previous);$('#setupScreen').hidden=wasSetup;$('#modalHost').hidden=true;$('#scrim').hidden=true;
@@ -742,17 +742,19 @@ function flashSeat(pid){
 function renderTurnBar(g, p, pendingBusy, canEnd){
   const bar = $('#turnBar'); if(!bar) return;
   $('#turnDot').style.background = p.color;
-  $('#turnName').textContent = g.over ? '游戏结束' : `轮到 ${p.name}`;
+  $('#turnName').textContent = g.over ? '游戏结束' : E.isSolo(g) ? p.name : `轮到 ${p.name}`;
   let s, txt;
   if(g.over){
     s = 'over';
     txt = (g.winner != null && g.players[g.winner]) ? `🏆 ${g.players[g.winner].name} 获胜` : '本局已结束';
   }
-  else if(p.pausedThisTurn){ s = 'pause'; txt = `本回合暂停（健康危机休养 · 此后还剩 ${p.skipTurns} 轮）· 请交给下一位`; }
+  else if(p.pausedThisTurn){ s = 'pause'; txt = E.isSolo(g)
+    ? `强制休养中 · 剩余 ${p.skipTurns+1} 轮（含本轮）· 请完成本轮休养`
+    : `本回合暂停（健康危机休养 · 此后还剩 ${p.skipTurns} 轮）· 请交给下一位`; }
   else if(pendingBusy){ s = 'card'; txt = `待处理：${g.pending.title || '卡片'}`; }
   else if(Game.animating){ s = 'roll'; txt = '掷骰中…'; }
   else if(E.isJobless(p)){ s = 'jobless'; txt = `失业求职中 ${p.joblessProgress}/${p.joblessNeed} · 工资已归零 · 精力 ${Math.round(p.energy)}/${E.energyMax(g,p)}`; }
-  else if(canEnd){ s = 'end'; txt = '已移动 · 请结束回合交给下一位'; }
+  else if(canEnd){ s = 'end'; txt = E.isSolo(g)?'已移动 · 请结束本回合，继续游戏':'已移动 · 请结束回合交给下一位'; }
   else {
     s = 'roll';
     const low = Math.round(p.energy) < (window.ENERGY.lowAt || 30);
@@ -804,7 +806,8 @@ function updateActions(){
     if(canEnd){
       btnRoll.className = 'btn btn--tonal';
       endBtn.className = 'btn btn--primary btn--xl';
-      endBtn.textContent = paused
+      endBtn.textContent = paused && E.isSolo(g)
+        ? (p.skipTurns>0?'完成本轮休养':'完成休养，继续游戏') : paused
         ? (g.players.length > 1 ? `结束回合 · 交给 ${nextAliveName(g, p.id)}` : '结束回合')
         : (g.players.length > 1 ? `结束回合 · 轮到 ${nextAliveName(g, p.id)}` : '结束回合');
     } else {
@@ -813,7 +816,7 @@ function updateActions(){
       endBtn.textContent = '结束回合';
     }
     btnRoll.disabled = pendingBusy || Game.rolled || Game.animating || paused || E.lifeComplete(g, p);
-    label.textContent = paused ? `本回合暂停（此后还剩 ${p.skipTurns} 轮）`
+    label.textContent = paused ? (E.isSolo(g)?`休养中（剩余 ${p.skipTurns+1} 轮）`:`本回合暂停（此后还剩 ${p.skipTurns} 轮）`)
       : pendingBusy ? '处理卡片中…'
       : Game.animating ? '掷骰中…'
       : Game.rolled ? '本回合已移动'
@@ -946,6 +949,8 @@ function endTurn(){
   if(now - lastEndAt < 320) return;
   lastEndAt = now;
   const acting = E.current(g);          /* 本回合玩家：可能在这次结算里被动破产 */
+  const wasPaused=!!acting.pausedThisTurn;
+  if(wasPaused)U.closeModal();          /* 防连点校验通过后才关闭，避免按钮无效却丢失休养面板。 */
   E.endTurn(g);
   Game.rolled = false;
   const nxt = E.current(g);
@@ -966,6 +971,13 @@ function endTurn(){
   if(crisisNotice(g)) return;
   /* 新玩家本回合处于暂停（健康危机休养）→ 明确提示，而不是悄悄跳过他 */
   if(pauseNotice(g)) return;
+  if(E.isSolo(g)){
+    nudge('#btnRoll');
+    U.toast(wasPaused
+      ? `强制休养已结束，可以继续掷骰。当前精力 ${Math.round(nxt.energy)}/${E.energyMax(g,nxt)}${nxt.crisisTurns>0?`；康复期还剩 ${nxt.crisisTurns} 回合，医疗支出尚未结束`:''}。`
+      : '本回合已结束，请继续掷骰。', 'ok');
+    saveState();return;
+  }
   /* 交接反馈：新席位闪一下 + 掷骰按钮轻弹，明确告诉玩家「换人了，该你了」 */
   flashSeat(nxt.id);
   nudge('#btnRoll');
@@ -1672,42 +1684,60 @@ function crisisNotice(g){
   const p = g.players[c.by];
   if(!p) return false;
   c.shown = true;
+  const solo=E.isSolo(g),acknowledge=()=>{
+    if(Game.g!==g)return;
+    U.closeModal();
+    if(solo)pauseNotice(g);
+    saveState();
+  };
   U.openModal(`
     <div class="modal__head"><h3>🩺 ${esc(p.name)} 精力耗尽 · 健康危机</h3></div>
     <div class="modal__body">
-      <p class="hint">长期高强度投入终于拖垮了身体 —— 这是现实中过劳的真实代价，也是精力机制存在的意义。</p>
+      <p class="hint">回合结束时，精力在自然恢复与资产维护结算后降至零，触发健康危机。你需要暂时停止行动，完成强制休养。</p>
       <div class="sec__total"><span>强制休养</span><span>${c.rest} 个回合</span></div>
       <div class="sec__total"><span>每月新增医疗支出</span><span class="neg">${money(c.medical)}</span></div>
       <div class="sec__total"><span>精力</span><span>恢复到 ${c.energy}（上限的一半）</span></div>
-      <p class="hint" style="margin-top:8px">医疗支出将持续到康复为止（约半年），期间精力恢复速度减半。<br>
-        <b>下一步：减持需要打理的资产（房产 / 企业 / 期权），或停在「起点」选择休假。</b></p>
+      <p class="hint" style="margin-top:8px">康复期还剩 ${p.crisisTurns} 个回合，期间自然精力恢复减半，资产维护仍会消耗精力。医疗支出只在经过结算日时计入当年账单。<br>
+        ${solo?'接下来逐轮完成休养，结束后仍由你继续游戏。休养不移动棋子，不额外发薪或长岁。<br>':''}
+        <b>恢复行动后：根据维护负担调整持仓，或停在「起点」选择休假。</b></p>
     </div>
-    <div class="modal__foot"><button class="btn btn--primary btn--block" data-ok>我知道了</button></div>`,
-    { onDismiss: ()=> U.closeModal(),
-      onMount(m){ $('[data-ok]',m).onclick = ()=> U.closeModal(); } });
+    <div class="modal__foot"><button class="btn btn--primary btn--block" data-ok>${solo?'查看休养安排':'我知道了'}</button></div>`,
+    { onDismiss: acknowledge,
+      onMount(m){ const button=$('[data-ok]',m);button.onclick=()=>{if(button.isConnected)acknowledge();}; } });
+  saveState();
   return true;
 }
 
 /* ------------------------------ 暂停回合提示 ------------------------------ */
-/* 「暂停回合」= 回合仍然轮到你，但本回合不能掷骰 / 交易 / 借贷。
-   必须有明确的提示与交棒按钮，否则玩家会以为「游戏没换人、另一个人还在行动」。 */
+/* 强制休养仍占一个回合，不能掷骰或处理棋盘事件。
+   单人逐轮确认休养，多人交棒；两者使用同一份精力和康复倒计时。 */
 function pauseNotice(g){
   const p = E.current(g);
   if(!p || g.over || p.out || !p.pausedThisTurn || p.pausedNotified) return false;
   p.pausedNotified = true;
+  const solo=E.isSolo(g),turn=g.turnNo,recover=E.energyRecover(g,p),upkeep=E.energyUpkeep(p);
+  const nextEnergy=Math.max(0,Math.min(E.energyMax(g,p),p.energy+recover-upkeep));
   U.openModal(`
-    <div class="modal__head"><h3>⏸ ${esc(p.name)} 本回合暂停</h3></div>
+    <div class="modal__head"><h3>${solo?'🩺 强制休养中':'⏸ '+esc(p.name)+' 本回合暂停'}</h3></div>
     <div class="modal__body">
-      <p class="hint">健康危机让 <b>${esc(p.name)}</b> 需要休养 —— 本回合仍然轮到你，但不能掷骰、买卖或借贷。</p>
+      <p class="hint">${solo?'本轮暂停掷骰和棋盘事件。可以查看财务与持仓，确认后推进一轮休养，完成全部强制休养后恢复行动。':'健康危机让 <b>'+esc(p.name)+'</b> 需要休养，本回合不能掷骰或处理棋盘事件。'}</p>
       <div class="sec__total"><span>本回合</span><span>暂停（不能行动）</span></div>
       <div class="sec__total"><span>此后还需暂停</span><span>${p.skipTurns} 个回合</span></div>
-      <p class="hint">点下方按钮把回合交给下一位，轮转不会跳过任何人。</p>
+      ${solo?`<div class="sec__total"><span>当前精力</span><b>${Math.round(p.energy)} / ${E.energyMax(g,p)}</b></div>
+        <div class="sec__total"><span>本轮恢复 / 维护</span><b>+${recover} / −${upkeep}</b></div>
+        <div class="sec__total"><span>完成本轮后预计精力</span><b>${Math.round(nextEnergy)}</b></div>
+        <p class="hint">休养不移动、不结算年度收支、不长岁；精力与康复倒计时按回合推进。${upkeep>=recover?'当前维护负担不低于恢复能力，休养结束也不代表精力已经充足，恢复行动后应调整持仓。':''}</p>`
+        :'<p class="hint">点下方按钮把回合交给下一位，轮转不会跳过任何人。</p>'}
     </div>
     <div class="modal__foot">
-      <button class="btn btn--primary btn--block" data-pass>交给下一位 →</button>
+      <button class="btn btn--primary btn--block" data-pass>${solo?(p.skipTurns>0?'完成本轮休养':'完成休养，继续游戏'):'交给下一位 →'}</button>
     </div>`,
     { onDismiss: ()=> U.closeModal(),
-      onMount(m){ $('[data-pass]',m).onclick = ()=>{ U.closeModal(); endTurn(); }; } });
+      onMount(m){ const button=$('[data-pass]',m);button.onclick=()=>{
+        if(!button.isConnected||Game.g!==g||g.turnNo!==turn||E.current(g)!==p||!p.pausedThisTurn)return;
+        endTurn();
+      }; } });
+  saveState();
   return true;
 }
 

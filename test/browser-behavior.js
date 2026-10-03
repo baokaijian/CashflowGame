@@ -899,6 +899,60 @@ window.addEventListener('load', function(){
     ok(!q('[data-market]')&&g.pending.flow.marketDone,'投资卡明确行情已处理，不要求重复结算');q('[data-pass]').click();ok(!g.pending,'最后投资决定完成后结束');
   });
 
+  ['101','202'].forEach(function(rule){
+    step('AJ '+rule+' 单人健康危机入口',function(){return true;},function(){
+      OUT.push('');OUT.push('=== AJ. '+rule+' 单人休养与继续游戏 ===');
+      window.UI.closeModal();window.startGame({rule:rule,mode:'solo',seed:42,names:['休养核对']});
+      var g=window.Game.g,p=g.players[0],E=window.Engine,U=window.UiGame;
+      Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});
+      p.age=61;p.cash=100000000;p.energy=1;
+      p.assets.business=Array.from({length:30},function(_,i){return {nm:'维护企业'+i,cost:1000,cf:0};});
+      window.Game.rolled=true;U.renderAll();q('#btnEndTurn').click();
+      C.rest={g:g,p:p,cash:p.cash,age:p.age,pos:p.pos,settled:p.settledYears,turn:g.turnNo,crises:p.stats.crises};
+      ok(title().indexOf('健康危机')>=0&&p.pausedThisTurn&&p.skipTurns===1,'实际结束回合触发危机并进入第一轮休养');
+      ok(q('#modal').textContent.indexOf('约半年')<0&&q('#modal').textContent.indexOf('康复期还剩 4 个回合')>=0,'医疗期限使用康复回合，不伪称半年');
+      mb('查看休养安排').click();C.rest.button=q('#modal [data-pass]');C.rest.at=Date.now();
+      ok(title().indexOf('强制休养中')>=0&&C.rest.button.textContent==='完成本轮休养','危机确认直接进入单人休养安排');
+      ok(!/交给下一位|轮到/.test(q('#modal').textContent+q('#turnBar').textContent)&&q('#turnState').textContent.indexOf('剩余 2 轮')>=0,'单人不显示交棒，剩余轮数包含本轮');
+      ok(q('#btnRoll').disabled&&q('#btnJobHunt').hidden&&q('#btnEndTurn').textContent==='完成本轮休养','休养禁用掷骰和求职，棋盘操作栏有同一恢复入口');
+      ok(q('#modal').textContent.indexOf('本轮恢复 / 维护')>=0&&q('#modal').textContent.indexOf('不代表精力已经充足')>=0,'休养说明实际恢复与维护，超载不会被说成满血');
+    });
+    step('AJ '+rule+' 第一轮休养与防连点',function(){return Date.now()-C.rest.at>360;},function(){
+      var R=C.rest,g=R.g,p=R.p;
+      R.button.click();
+      ok(g.turnNo===R.turn+1&&p.pausedThisTurn&&p.skipTurns===0&&mb('完成休养，继续游戏'),'第一轮只推进一次，第二轮明确结束休养');
+      R.button.onclick();
+      var second=q('#modal [data-pass]');second.click();
+      ok(g.turnNo===R.turn+1&&!q('#modalHost').hidden&&second.isConnected,'旧按钮与连续点击不吞下一轮，防连点时面板保留');
+      ok(p.cash===R.cash&&p.age===R.age&&p.pos===R.pos&&p.settledYears===R.settled,'休养不移动、不额外入账或结算、不长岁');
+      window.UiGame.saveState();window.UiGame.tryRestore();R.g=window.Game.g;R.p=R.g.players[0];R.at=Date.now();
+      ok(R.g.turnNo===R.turn+1&&R.p.pausedThisTurn&&R.p.skipTurns===0&&mb('完成休养，继续游戏'),'刷新直接恢复剩余休养，不重放危机或已完成轮次');
+    });
+    step('AJ '+rule+' 完成休养',function(){return Date.now()-C.rest.at>360;},function(){
+      var R=C.rest,g=R.g,p=R.p;
+      window.UI.requestClose();
+      ok(q('#modalHost').hidden&&p.pausedThisTurn&&q('#btnEndTurn').textContent==='完成休养，继续游戏','关闭休养面板不跳过恢复，操作栏仍能继续');
+      q('#btnEndTurn').click();
+      ok(!p.pausedThisTurn&&!q('#btnRoll').disabled&&q('#btnEndTurn').hidden&&g.turnNo===R.turn+2,'两轮休养完成后仍由同一玩家继续掷骰');
+      ok(p.stats.crises===R.crises&&p.energy===0&&p.crisisTurns===2&&p.medicalExp>0,'高维护不循环续期，强制休养结束仍如实保留康复期和精力');
+      ok(p.cash===R.cash&&p.age===R.age&&p.pos===R.pos&&p.settledYears===R.settled,'完整恢复流程没有多发薪、多长岁或移动');
+      ok(q('#toastHost').textContent.indexOf('强制休养已结束')>=0&&q('#toastHost').textContent.indexOf('康复期还剩 2 回合')>=0,'恢复提示区分可以行动与康复完成');
+      window.UiGame.tryRestore();g=window.Game.g;p=g.players[0];
+      ok(!p.pausedThisTurn&&q('#modalHost').hidden&&!q('#btnRoll').disabled&&g.turnNo===R.turn+2,'恢复完成立即保存，刷新不再重复休养');
+    });
+  });
+  step('AJ 多人仍然交接',function(){return true;},function(){
+    var r=fresh(),g=r.g,p=r.p;
+    window.Engine.healthCrisis(g,p);window.Engine.markTurnPause(g);window.UiGame.renderAll();window.UiGame.pauseNotice(g);
+    ok(mb('交给下一位')&&q('#turnState').textContent.indexOf('交给下一位')>=0,'多人保留暂停交棒提示');
+    C.multiRest={g:g,at:Date.now(),round:g.round};
+  });
+  step('AJ 多人实际交棒',function(){return Date.now()-C.multiRest.at>360;},function(){
+    mb('交给下一位').click();
+    ok(C.multiRest.g.cur===1&&C.multiRest.g.round===C.multiRest.round&&!q('#btnRoll').disabled,'多人一次交棒仅轮到对手，不跳过他人行动');
+    window.UI.closeModal();
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){
