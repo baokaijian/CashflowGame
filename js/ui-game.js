@@ -606,7 +606,7 @@ function renderRules(){
         同一回合经过 2 个发薪日就结算 2 年（各结 1 年，逐年入账）；
         未经过结算日就不结算、不长岁；没有积欠或额外补结。每位玩家年龄独立，
         到达终龄后结束行动，等其他玩家结束后统一排名。</li>
-      <li><b>投资机会格</b>：抽投资卡，决定是否买入；多人模式下资金不足可把投资卡转让给其他玩家（<b>单人模式没有转让，只能买入或放弃</b>）。</li>
+      <li><b>投资机会格</b>：两类方向可以返回比较，已看过的卡片保留、不重复收研究精力，最终只买一类或放弃。202 的投资和行情分别处理，两项均完成才结束本环节；多人可转让投资卡，<b>单人没有转让</b>。</li>
       <li><b>市场行情格</b>：抽行情卡，所有玩家可卖出相关资产；202 规则下租金随行情波动。</li>
       <li><b>意外支出格</b>：支付卡片金额。<b>添丁格</b>：子女 +1（上限 3 个），养育支出增加。</li>
       <li><b>公益捐赠格</b>：捐出总收入的 10%，未来 2 轮可选掷 1—2 粒骰子。</li>
@@ -865,7 +865,7 @@ function updateActions(){
 
   const esc_ = E.escapeProgress(g, p);
   let b = $('#btnEscape');
-  if(esc_.canEscape && !p.inFT && !g.over && !p.pausedThisTurn && !E.lifeComplete(g, p)){
+  if(esc_.canEscape && !pendingBusy && !p.inFT && !g.over && !p.pausedThisTurn && !E.lifeComplete(g, p)){
     if(!b){
       b = document.createElement('button');
       b.id = 'btnEscape'; b.className = 'btn btn--tonal';

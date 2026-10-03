@@ -857,6 +857,48 @@ window.addEventListener('load', function(){
     window.UI.closeModal();
   });
 
+  step('AH 投资买入和放弃都保留独立行情决定',function(){return true;},function(){
+    var E=window.Engine,A=window.Act,U=window.UiGame;
+    window.startGame({rule:'202',mode:'solo',seed:42,names:['事项核对']});
+    var g=window.Game.g,p=g.players[0],card=window.DECK_CASHFLOW.find(function(x){return x.id==='cf5';});
+    Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});p.cash=720261;p.energy=29;
+    E.setPending(g,{type:'opportunity202',deal:card,deckName:'cashflow',market:{id:'test-merger',kind:'business',rate:2.2}});U.renderAll();window.UiPending.showPending();
+    var oldBuy=q('[data-buy]');oldBuy.click();
+    ok(p.cash===462261&&g.pending.type==='market'&&g.pending.returnOpportunity.flow.decision==='bought','汽车经销店买入扣258000后，仍需单独处理并购行情');
+    ok(q('#btnEndTurn').hidden&&q('[data-opportunity-progress]').textContent.indexOf('行情事项：待处理')>=0,'行情未决定时不能结束回合');
+    var cash=p.cash;oldBuy.onclick();ok(p.cash===cash&&p.assets.business.length===1,'旧买入按钮不能重复购买');
+    ok(q('[data-sell]')&&q('#modal').textContent.indexOf('汽车经销店')>=0,'同时行情按买入后的持仓生成交易，可出售刚买入企业');
+    U.saveState();U.tryRestore();g=window.Game.g;p=g.players[0];
+    ok(g.pending.type==='market'&&g.pending.returnOpportunity.flow.decision==='bought'&&p.cash===462261,'刷新后只恢复尚待处理的行情，不重放买入');
+    q('[data-sell]').click();ok(p.cash===1029861&&p.assets.business.length===0,'并购行情实际到账567600，与购入成本倍率一致');
+    mb('完成市场结算').click();ok(!g.pending,'投资和行情均完成才结束本环节');
+    E.setPending(g,{type:'opportunity202',market:{kind:'stock',symbol:'TEST',price:25},choices:['capgain','cashflow']});window.UiPending.showPending();
+    q('[data-skip]').click();ok(g.pending.type==='market'&&g.pending.returnOpportunity.flow.decision==='skipped','放弃投资仍需独立确认行情，不直接跳过');
+    mb('完成市场结算').click();ok(!g.pending,'显式完成剩余行情后正常结束');
+  });
+  step('AI 方向缓存、先行情、返回与恢复',function(){return true;},function(){
+    var E=window.Engine,U=window.UiGame;
+    window.startGame({rule:'101',mode:'solo',seed:42,names:['比较核对']});
+    var g=window.Game.g,p=g.players[0];p.energy=100;p.cash=1000000;
+    E.setPending(g,{type:'opportunity',choices:['small','big']});window.UiPending.showPending();q('[data-k=small]').click();
+    var small=g.pending.deal.id;q('[data-return-choices]').click();q('[data-k=big]').click();
+    var big=g.pending.deal.id,energy=p.energy,rng=JSON.stringify(g.rngState);q('[data-return-choices]').click();q('[data-k=small]').click();
+    ok(g.pending.deal.id===small&&p.energy===energy&&JSON.stringify(g.rngState)===rng,'小额与大额可以比较，返回原方向不换卡、不扣精力、不推进随机');
+    U.saveState();U.tryRestore();g=window.Game.g;p=g.players[0];q('[data-return-choices]').click();q('[data-k=big]').click();
+    ok(g.pending.deal.id===big&&p.energy===energy,'刷新恢复保留另一方向已经看过的卡片与研究费用');
+    q('[data-pass]').click();ok(!g.pending,'101 比较后放弃只完成一笔投资决定，无行情即可结束');
+    window.startGame({rule:'202',mode:'solo',seed:42,names:['先行情核对']});g=window.Game.g;p=g.players[0];p.energy=100;p.cash=1000000;
+    Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});p.assets.realEstate.push({nm:'测试出租房',cost:100000,dp:50000,rent:1000,cf:795});
+    E.setPending(g,{type:'opportunity202',choices:['capgain','cashflow'],market:{kind:'rentDelta',pct:.1}});window.UiPending.showPending();q('[data-market]').click();
+    ok(p.assets.realEstate[0].rent===1100,'先处理行情，租金冲击只生效一次');q('[data-market-back]').click();
+    ok(g.pending.type==='opportunity202'&&!g.pending.flow.marketDone,'返回投资不冒充已完成行情');q('[data-market]').click();
+    ok(p.assets.realEstate[0].rent===1100,'重复查看行情不叠加租金涨幅');mb('完成市场结算').click();
+    ok(g.pending.type==='opportunity202'&&g.pending.flow.marketDone&&!g.pending.flow.decision&&q('[data-k=cashflow]'),'先完成行情后仍保留投资方向选择');
+    U.saveState();U.tryRestore();g=window.Game.g;p=g.players[0];
+    ok(g.pending.flow.marketDone&&p.assets.realEstate[0].rent===1100,'恢复保留已完成行情与未决定投资');q('[data-k=cashflow]').click();
+    ok(!q('[data-market]')&&g.pending.flow.marketDone,'投资卡明确行情已处理，不要求重复结算');q('[data-pass]').click();ok(!g.pending,'最后投资决定完成后结束');
+  });
+
   /* ---------------- 状态机驱动 ---------------- */
   var timer = setInterval(function(){
     if(i >= STEPS.length){

@@ -7,7 +7,7 @@ const U = window.UI, E = window.Engine;
 
 function boot(){
   /* 页面与旧缓存脚本混用时停止启动，不能继续用旧积欠模型处理存档。 */
-  if(!E || E.PAYDAY_RULE !== 'one-year-per-crossing' || !E.restoreRandom || typeof E.settlementPlan!=='function' || !window.SaveState || typeof window.SaveState.planRepair!=='function' || !window.UiCashReport || typeof window.UiCashReport.open!=='function'){
+  if(!E || E.PAYDAY_RULE !== 'one-year-per-crossing' || !E.restoreRandom || typeof E.settlementPlan!=='function' || !window.Act || typeof window.Act.opportunityState!=='function' || !window.SaveState || typeof window.SaveState.planRepair!=='function' || !window.UiCashReport || typeof window.UiCashReport.open!=='function'){
     document.getElementById('btnStart').disabled = true;
     document.getElementById('btnRoll').disabled = true;
     const hint = document.getElementById('modeHint');

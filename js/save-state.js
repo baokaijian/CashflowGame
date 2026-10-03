@@ -101,6 +101,18 @@ function validate(data){
   });
   if(g.pending){
     const p=g.pending;requireValue(obj(p)&&PENDING.includes(p.type)&&integer(p.p,0,g.players.length-1),'待处理事件无效');
+    const opportunity=p.returnOpportunity||p;
+    if(p.returnOpportunity){
+      requireValue(p.type==='market'&&obj(opportunity)&&['opportunity','opportunity202'].includes(opportunity.type)&&opportunity.p===p.p&&!opportunity.returnOpportunity,'行情返回事项无效');
+      for(const key of ['deal','market'])if(opportunity[key]!=null)cardRecord(opportunity[key]);
+      requireValue(obj(opportunity.market)&&obj(opportunity.flow),'行情缺少原投资事项');
+    }
+    if(opportunity.flow){
+      const f=opportunity.flow,allowed=g.rule==='202'?['capgain','cashflow']:['small','big'];
+      requireValue(['opportunity','opportunity202'].includes(opportunity.type)&&obj(f)&&f.version===1&&obj(f.cards)&&['choices','deal'].includes(f.view),'投资进度无效');
+      requireValue((f.decision===null||['bought','skipped','transferred'].includes(f.decision))&&typeof f.marketDone==='boolean'&&(opportunity.market||f.marketDone),'投资事项状态无效');
+      Object.entries(f.cards).forEach(([key,card])=>{requireValue(allowed.includes(key),'投资缓存方向无效');cardRecord(card);});
+    }
     for(const k of ['card','market','deal'])if(p[k]!=null)cardRecord(p[k]);
     if(p.choices)requireValue(Array.isArray(p.choices)&&p.choices.every(x=>DECKS.includes(x)),'可选牌堆无效');
     if(p.impact){requireValue(obj(p.impact),'行情结算无效');if(p.impact.forced)requireValue(Array.isArray(p.impact.forced)&&p.impact.forced.every(obj),'强制结算记录无效');}

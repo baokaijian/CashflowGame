@@ -141,6 +141,7 @@ function showPending(){
   const game = G(), g = game.g, P = g.pending;
   if(!P) return;
   const p = g.players[P.p];
+  if(['opportunity','opportunity202'].includes(P.type)&&A.opportunityState(g).decision)return showInvestmentOpportunity(g,p,P);
   if(P.propertyMarket && ['opportunity','opportunity202'].includes(P.type)) return showPropertyMarket(g,p,P);
   switch(P.type){
     case 'info':          return showInfo(g, p, P);
@@ -169,78 +170,55 @@ function showInfo(g, p, P){
 }
 
 /* ------------------------------ 投资机会格 ------------------------------ */
-function showOpportunity(g, p, P){
-  if(!P.deal){
-    const is202 = g.rule === '202';
-    const opts = is202
-      ? [{k:'capgain', ico:'📈', t:'杠杆交易', d:'成本较低、回报较小；含股票、期权、做空等资本利得型交易。'},
-         {k:'cashflow',ico:'🏢', t:'大额现金流', d:'需要更多资金，但提供更大的现金流与回报；大型房地产与企业投资。'}]
-      : [{k:'small', ico:'💡', t:'小额理财', d:'成本较低、回报较小的投资机会，适合游戏初期积累资本。'},
-         {k:'big',   ico:'🏦', t:'大额置业', d:'经营项目投入约 4.3万—16.13万元，房产首付约 19.35万—58.05万元。请按具体项目备足资金，并保留生活与还贷周转金。'}];
-    U.openModal(`
-      <div class="modal__head"><h3>💡 投资机会 · 选择一个方向</h3></div>
-      <div class="modal__body">
-        <p class="hint">停在投资机会格，可抽取一类投资卡，并决定是否投资。若自己买不起，可把投资卡卖给其他玩家换取现金。</p>
-        <div class="picklist">
-          ${opts.map(o=>`<button class="pick" data-k="${o.k}">
-            <span class="pick__ico">${o.ico}</span>
-            <span><span class="pick__t">${o.t}</span><span class="pick__d">${o.d}</span></span>
-            <span class="pick__go">›</span></button>`).join('')}
-        </div>
-        <div class="sec__total"><span>你的现金</span><span class="money">${money(p.cash)}</span></div>
-        <div class="sec__total"><span>你的精力</span><span class="money ${p.energy >= 30 ? '' : 'neg'}">${Math.round(p.energy)} / ${E.energyMax(g, p)}</span></div>
-        <p class="hint" style="margin-top:8px">考察一类方向需要投入研究时间（消耗精力），
-          而且<b>放弃机会也不退还</b> —— 研究过了就是沉没成本。这也正是「机会」，不是「白给」。</p>
-      </div>
-    ${foot(`<button class="btn btn--text" data-skip>放弃这次机会</button><button class="btn btn--tonal" data-property-market>查看再次挂牌房产（${E.propertyListings(g).length}）</button>`)}`,
-      { onMount(m){
-        $('[data-property-market]',m).onclick=()=>{P.propertyMarket=true;showPropertyMarket(g,p,P);};
-        /* ⚠️ 必须有出口：精力不足以考察时若只能点牌堆，玩家会彻底卡在这一格 ——
-           放弃不消耗精力（都还没开始研究），所以这条退路是零成本的。 */
-        const skip = $('[data-skip]',m);
-        if(skip) skip.onclick = ()=>{ finishTurnAction(); U.toast('已放弃这次投资机会', 'info'); };
-        $$('[data-k]',m).forEach(b=>b.onclick=()=>{
-          const r = A.chooseDeck(g, b.dataset.k);
-          if(!r.ok) return U.toast(r.msg, 'err');
-          showOpportunity(g, p, g.pending);
-        });
-      } });
-    return;
-  }
-  showDealCard(g, p, P.deal);
+function opportunityProgress(P){
+  return `<p class="hint" data-opportunity-progress>投资决定：${P.flow.decision?'已完成':'待处理'}${P.market?` · 行情事项：${P.flow.marketDone?'已完成':'待处理'}`:''}。每次机会只买一类项目${P.market?'，两项均完成后结束':''}。</p>`;
 }
-
-/* 202：投资机会格同时抽投资卡 + 行情卡 */
-function showOpportunity202(g, p, P){
-  if(!P.deal){
-    U.openModal(`
-      <div class="modal__head"><h3>💡 投资机会（202）· 选择一个方向</h3></div>
-      <div class="modal__body">
-        <p class="hint">202 规则：停在投资机会格时<b>同时抽取投资卡和行情卡</b>，选择空间更大，游戏节奏更快。</p>
-        <div class="picklist">
-          <button class="pick" data-k="capgain"><span class="pick__ico">📈</span>
-            <span><span class="pick__t">杠杆交易</span><span class="pick__d">股票 / 期权 / 做空 / 法拍房等资本利得型交易</span></span><span class="pick__go">›</span></button>
-          <button class="pick" data-k="cashflow"><span class="pick__ico">🏢</span>
-            <span><span class="pick__t">大额现金流</span><span class="pick__d">大型房地产与企业投资，可联合购买</span></span><span class="pick__go">›</span></button>
-        </div>
-        <div class="sec__total"><span>你的现金</span><span class="money">${money(p.cash)}</span></div>
-        ${P.market?`<div class="sec__title" style="margin-top:14px">同时抽到的行情卡</div>${face('market', P.market)}`:''}
-      </div>
-    ${foot(`<button class="btn btn--text" data-skip>放弃这次机会</button><button class="btn btn--tonal" data-property-market>查看再次挂牌房产（${E.propertyListings(g).length}）</button>`)}`,
-      { onMount(m){
-        $('[data-property-market]',m).onclick=()=>{P.propertyMarket=true;showPropertyMarket(g,p,P);};
-        const skip = $('[data-skip]',m);
-        if(skip) skip.onclick = ()=>{ finishTurnAction(); U.toast('已放弃这次投资机会', 'info'); };
-        $$('[data-k]',m).forEach(b=>b.onclick=()=>{
-          const r = A.chooseDeck(g, b.dataset.k);
-          if(!r.ok) return U.toast(r.msg, 'err');
-          showOpportunity202(g, p, g.pending);
-        });
-      } });
-    return;
+function activeInvestment(g,P,m){return m.isConnected&&G().g===g&&g.pending===P&&!(P.flow&&P.flow.decision);}
+function finishInvestment(g,p,P,decision='bought'){
+  if(G().g!==g||g.pending!==P)return;
+  if(decision==='skipped'&&!P.flow.decision){
+    E.bump(p,'dealsPassed');
+    E.log(g,`${p.name} 放弃本次投资${P.deal?'【'+(P.deal.nm||P.deal.symbol)+'】':''}；${P.market&&!P.flow.marketDone?'行情仍待处理':'投资决定已完成'}`,'info',p.name);
   }
-  if(!P.impact && P.market){ P.impact = A.marketImpact(g, P.market); }
-  showDealCard(g, p, P.deal, P);
+  A.decideOpportunity(g,decision);
+  if(P.market&&!P.flow.marketDone)setMarketOnly(g,p,P);else finishTurnAction();
+  window.UiGame.saveState();
+}
+function showOpportunity(g,p,P){showInvestmentOpportunity(g,p,P);}
+function showOpportunity202(g,p,P){showInvestmentOpportunity(g,p,P);}
+function showInvestmentOpportunity(g,p,P){
+  const flow=A.opportunityState(g),advanced=g.rule==='202';
+  if(flow.decision){
+    if(P.market&&!flow.marketDone)return setMarketOnly(g,p,P);
+    return finishTurnAction();
+  }
+  if(flow.view!=='choices'&&P.deal){
+    if(P.market&&!P.impact){P.impact=A.marketImpact(g,P.market);P.quoteRecorded=true;}
+    return showDealCard(g,p,P.deal,P);
+  }
+  const opts=advanced?
+    [{k:'capgain',ico:'📈',t:'杠杆交易',d:'股票 / 期权 / 做空 / 法拍房等资本利得型交易'},
+     {k:'cashflow',ico:'🏢',t:'大额现金流',d:'大型房地产与企业投资，可联合购买'}]:
+    [{k:'small',ico:'💡',t:'小额理财',d:'成本较低、回报较小的投资机会'},
+     {k:'big',ico:'🏦',t:'大额置业',d:'经营项目投入约 4.3万—16.13万元，房产首付约 19.35万—58.05万元。请按具体项目备足资金，并保留生活与还贷周转金。'}];
+  U.openModal(`<div class="modal__head"><h3>💡 投资机会${advanced?'（202）':''} · 选择方向</h3></div>
+    <div class="modal__body">${opportunityProgress(P)}
+      <p class="hint">两类方向可以来回比较，最终只做一笔买入或放弃决定。每类首次考察消耗研究精力，已看过的卡片会保留，返回不重新抽牌或重复收费。</p>
+      <div class="picklist">${opts.map(o=>`<button class="pick" data-k="${o.k}"><span class="pick__ico">${o.ico}</span><span><span class="pick__t">${o.t}</span><span class="pick__d">${flow.cards[o.k]?'已考察：'+esc(flow.cards[o.k].nm||flow.cards[o.k].symbol):o.d}</span></span><span class="pick__go">›</span></button>`).join('')}</div>
+      <div class="sec__total"><span>你的现金</span><b>${money(p.cash)}</b></div>
+      <div class="sec__total"><span>你的精力</span><b>${Math.round(p.energy)}</b></div>
+      ${P.market?`<div class="sec__title">同时抽到的行情卡${flow.marketDone?'（已处理）':'（待处理）'}</div>${face('market',P.market)}`:''}
+    </div>${foot(`<button class="btn btn--text" data-skip>放弃投资</button><button class="btn btn--tonal" data-property-market>查看再次挂牌房产（${E.propertyListings(g).length}）</button>${P.market&&!flow.marketDone?'<button class="btn btn--primary" data-market>处理行情卡</button>':''}`)}`,
+    {onMount(m){
+      $('[data-skip]',m).onclick=()=>{if(activeInvestment(g,P,m))finishInvestment(g,p,P,'skipped');};
+      $('[data-property-market]',m).onclick=()=>{if(!activeInvestment(g,P,m))return;delete P.deal;delete P.deckName;flow.view='choices';P.propertyMarket=true;showPropertyMarket(g,p,P);window.UiGame.saveState();};
+      const market=$('[data-market]',m);if(market)market.onclick=()=>setMarketOnly(g,p,P);
+      $$('[data-k]',m).forEach(b=>b.onclick=()=>{
+        if(!activeInvestment(g,P,m))return;
+        const r=A.chooseDeck(g,b.dataset.k);if(!r.ok)return U.toast(r.msg,'err');
+        showPending();window.UiGame.saveState();
+      });
+    }});
 }
 
 /* 已卖出的实体房产在下一回合起挂牌，一次投资机会承接一份。 */
@@ -271,10 +249,11 @@ function showPropertyMarket(g,p,P){
       $('[data-back]',m).onclick=()=>{delete P.propertyMarket;showPending();};
       $('[data-loan]',m).onclick=()=>{U.closeModal();window.UiGame.onMenu('loan');};
       $$('[data-buy-listing]',m).forEach(b=>b.onclick=()=>{
+        if(!activeInvestment(g,P,m))return;
         const plan=plans.find(x=>x.listingId===b.dataset.buyListing);
         const r=A.buyPropertyListing(g,plan.listingId,plan);
         if(!r.ok){U.toast(r.msg||'承接失败，请刷新后重试','err');showPropertyMarket(g,p,P);return;}
-        if(P.market) setMarketOnly(g,p,P);else finishTurnAction();
+        finishInvestment(g,p,P);
         window.UiGame.renderAll();U.toast('承接成功，房产编号与历史已保留','ok');checkEscapePrompt(g,p);
       });
     }});
@@ -350,7 +329,7 @@ function showDealCard(g, p, card, P){
   U.openModal(`
     <div class="modal__head"><h3>${card.deck==='big'||card.deck==='cashflow'?'🏢':'💡'} ${esc(card.nm||card.symbol)}</h3></div>
     <div class="modal__body">
-      ${face(card.deck, card, null, solo)}
+      ${opportunityProgress(P)}${face(card.deck, card, null, solo)}
       <p id="purchaseMode" class="hint"></p>
       <div class="sec__total"><span>你需支付</span><b class="money" id="needCost">${money(cost)}</b></div>
       <div class="sec__total"><span>你的现金</span><span id="purchaseCash" class="money ${affordable?'':'neg'}">${money(p.cash)}</span></div>
@@ -359,11 +338,11 @@ function showDealCard(g, p, card, P){
       <p id="energyHint" class="hint" ${energyOK?'hidden':''}>精力不足以承接所选方案。可等待自然恢复，或停在「起点」休假。</p>
       ${['realestate','business'].includes(card.kind)?`<div id="dealOperatingPreview">${U.operatingPreview(p,card.kind==='realestate'?'realEstate':'business',card)}</div>`:''}
       ${qtyHtml}${jointHtml}${sellHtml}
-      ${P && P.market ? `<div class="sec__title" style="margin-top:14px">同时抽到的行情卡（可先完成市场交易）</div>${face('market', P.market)}` : ''}
+      ${P && P.market ? `<div class="sec__title" style="margin-top:14px">同时抽到的行情卡（${P.flow.marketDone?'已处理':'待处理，可先完成市场交易'}）</div>${face('market', P.market)}` : ''}
     </div>
     ${foot(`
-      <button class="btn btn--text" data-pass>放弃机会</button>
-      ${P && P.market ? `<button class="btn btn--tonal" data-market>处理行情卡</button>` : ''}
+      <button class="btn btn--text" data-pass>放弃投资</button><button class="btn btn--tonal" data-return-choices>比较另一方向</button>
+      ${P && P.market && !P.flow.marketDone ? `<button class="btn btn--tonal" data-market>处理行情卡</button>` : ''}
       <button class="btn btn--tonal" data-loan>先贷款</button>
       <button class="btn btn--primary" data-buy ${(affordable && energyOK)?'':'disabled'}>${energyOK ? '确认买入' : '精力不足'}</button>
     `)}`,
@@ -421,30 +400,30 @@ function showDealCard(g, p, card, P){
       $$('[name=orgPlan]',m).forEach(r=>r.onchange=upd);
       upd();
       $$('[data-jamt]',m).forEach(inp=>{ inp.oninput = upd; });
+      $('[data-return-choices]',m).onclick=()=>{if(!activeInvestment(g,P,m))return;P.flow.view='choices';showPending();window.UiGame.saveState();};
       $('[data-pass]',m).onclick = ()=>{
-        E.bump(p, 'dealsPassed');
-        /* 单人下放弃就是唯一的退路（没有转让）—— 顺手把这件事讲清楚 */
-        E.milestone(g, p, `第 ${g.round} 轮放弃投资机会「${card.nm||card.symbol}」`, 'info');
-        E.log(g, `${p.name} 放弃投资机会【${card.nm||card.symbol}】`, 'info', p.name);
-        finishTurnAction();
+        if(!m.isConnected||g.pending!==P||P.flow.decision)return;
+        finishInvestment(g,p,P,'skipped');
       };
       $('[data-loan]',m).onclick = ()=>{ U.closeModal(); window.UiGame.onMenu('loan'); };
       if($('[data-market]',m)) $('[data-market]',m).onclick = ()=>{ setMarketOnly(g, p, P); };
       $$('[data-sellto]',m).forEach(b=>b.onclick=()=>{
+        if(!activeInvestment(g,P,m))return;
         const price = Math.round(+$('[data-sp="'+b.dataset.sellto+'"]',m).value||0);
         const r = A.sellOpportunity(g, card, +b.dataset.sellto, price);
         if(!r.ok) return U.toast(r.msg, 'err');
-        U.closeModal(); window.UiGame.renderAll(); U.toast('投资卡转让完成', 'ok');
+        finishInvestment(g,p,P,'transferred'); U.toast('投资卡转让完成', 'ok');
       });
       const buyBtn = $('[data-buy]',m);
       buyBtn.onclick = ()=>{
+        if(!buyBtn.isConnected||g.pending!==P||P.flow.decision)return;
         const n = q ? Math.max(card.min, Math.min(card.max, Math.round(+q.value||card.min))) : 1;
         /* 单人模式：所选机构直接走合伙路径，实扣本人约定份额首付。 */
         const choice=$('[name=orgPlan]:checked',m);
         if(choice&&choice.value!=='independent'){
           const r = A.buyDealWithOrg(g, card, orgPlan.contract.id);
           if(!r.ok) return U.toast(r.msg, 'err');
-          finishTurnAction();
+          finishInvestment(g,p,P);
           window.UiGame.renderAll();
           U.toast(`与机构合伙买入成功：你出资 ${money(r.mine)}（${Math.round(r.share*100)}%），月现金流 +${money(r.cf)}`, 'ok');
           checkEscapePrompt(g, p);
@@ -492,24 +471,34 @@ function showDealCard(g, p, card, P){
             E.registerProperty(g,o,E.stampAsset(g,o.assets.realEstate[o.assets.realEstate.length-1]),sharedProperty.id);
             E.log(g, `${o.name} 参与联合购买 ${card.nm}，出资 ${money(x.amt)}（占比 ${Math.round(sh*100)}%），月现金流 +${money(Math.round(card.cf*sh))}`, 'good', o.name);
           });
-          finishTurnAction();
+          finishInvestment(g,p,P);
           U.toast('联合购买完成', 'ok');
           checkEscapePrompt(g, p);
           return;
         }
         const r = A.buyDeal(g, card, { qty:n });
         if(!r.ok) return U.toast(r.msg, 'err');
-        finishTurnAction();
+        finishInvestment(g,p,P);
         U.toast(`买入成功，支出 ${money(r.cost)}`, 'ok');
         checkEscapePrompt(g, p);
       };
       upd();
     }});
 }
-function setMarketOnly(g, p, P){
-  /* 只处理同时抽到的行情卡：把 pending 切换为 market 类型 */
-  g.pending = { type:'market', card:P.market, p:p.id, title:'市场行情', ico:'📈', impact:P.impact };
-  showPending();
+function setMarketOnly(g,p,P){
+  if(G().g!==g||g.pending!==P||P.flow.marketDone)return;
+  g.pending={type:'market',card:P.market,p:p.id,title:'市场行情',ico:'📈',impact:P.impact,quoteRecorded:P.quoteRecorded,returnOpportunity:P};
+  showPending();window.UiGame.saveState();
+}
+function returnFromMarket(g,p,P,complete){
+  if(G().g!==g||g.pending!==P)return;
+  const parent=P.returnOpportunity;
+  if(!parent){finishTurnAction();return;}
+  parent.impact=P.impact;parent.quoteRecorded=P.quoteRecorded;
+  if(complete)parent.flow.marketDone=true;
+  g.pending=parent;
+  if(parent.flow.decision&&parent.flow.marketDone)finishTurnAction();else showPending();
+  window.UiGame.saveState();
 }
 function checkEscapePrompt(g, p){
   const esc = E.escapeProgress(g, p);
@@ -532,6 +521,7 @@ function showMarket(g, p, P){
   U.openModal(`
     <div class="modal__head"><h3>📈 市场行情</h3></div>
     <div class="modal__body">
+      ${P.returnOpportunity?opportunityProgress(P.returnOpportunity):''}
       ${face('market', card)}
       ${P.impact.note?`<p class="hint">${esc(P.impact.note)}</p>`:''}
       ${forced.length?`<div class="sec"><div class="sec__title">强制平仓结算</div>
@@ -547,7 +537,7 @@ function showMarket(g, p, P){
       <div class="sec__total" style="margin-top:12px"><span>你的现金</span><span class="money">${money(p.cash)}</span></div>
       <p class="hint">提示：行情卡对所有玩家的同类资产同时生效，可按顺序为每位玩家操作。</p>
     </div>
-    ${foot(`<button class="btn btn--primary" data-ok>完成市场结算</button>`)}`,
+    ${foot(`${P.returnOpportunity&&!P.returnOpportunity.flow.decision?'<button class="btn btn--tonal" data-market-back>返回投资，行情稍后处理</button>':''}<button class="btn btn--primary" data-ok>完成市场结算</button>`)}`,
     { onMount(m){
       $$('[data-sell]',m).forEach(b=>b.onclick=()=>{
         // 重绘或恢复存档后，旧按钮不能再次提交，也不能操作另一局的状态。
@@ -565,7 +555,8 @@ function showMarket(g, p, P){
         window.UiGame.saveState();
         if(o.kind==='savings') U.toast(`已兑付 ${esc(r.label)}，到账 ${money(r.proceeds)}`, 'ok');
       });
-      $('[data-ok]',m).onclick = ()=>{ finishTurnAction(); };
+      const back=$('[data-market-back]',m);if(back)back.onclick=()=>{if(m.isConnected)returnFromMarket(g,p,P,false);};
+      $('[data-ok]',m).onclick = ()=>{if(m.isConnected&&g.pending===P)returnFromMarket(g,p,P,true);};
     }});
 }
 

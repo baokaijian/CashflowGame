@@ -38,8 +38,38 @@ function needEnergy(p, need, what){
 /* 考察投资机会：先付出「研究时间」（精力）才看得到项目。
    借鉴财富流的「考察费」，但真正昂贵的从来不是那 100 / 500 元，而是时间 ——
    所以这里收的是精力，而且【放弃机会也不退还】：研究过了就是沉没成本，这符合现实。 */
+function opportunityState(g){
+  const P=g.pending;
+  if(!P||!['opportunity','opportunity202'].includes(P.type))return null;
+  if(!P.flow){
+    P.flow={version:1,cards:{},decision:P.purchaseDone?'bought':null,marketDone:!P.market,view:P.deal?'deal':'choices'};
+    if(P.deal){
+      const known=['small','big','capgain','cashflow'].find(k=>P.deal.id&&g.decks[k].draw.concat(g.decks[k].disc).some(c=>c.id===P.deal.id));
+      const deck=P.deckName||P.deal.deck||known||(g.rule==='202'?'cashflow':'small');
+      P.flow.cards[deck]=P.deal;P.deckName=deck;
+    }
+  }
+  return P.flow;
+}
+function decideOpportunity(g,decision){
+  const flow=opportunityState(g);if(!flow)return;
+  if(!flow.decision)flow.decision=decision;
+}
+function investmentClosed(g){
+  const P=g.pending,flow=P&&(P.flow||(P.returnOpportunity&&P.returnOpportunity.flow));
+  return !!(flow&&flow.decision);
+}
 function chooseDeck(g, deckName){
   const p = E.current(g);
+  if(g.pending&&!['opportunity','opportunity202'].includes(g.pending.type))return {ok:false,msg:'请先返回投资选择再考察方向。'};
+  const allowed=g.rule==='202'?['capgain','cashflow']:['small','big'];
+  if(!allowed.includes(deckName))return {ok:false,msg:'当前规则不支持此投资方向。'};
+  const flow=opportunityState(g);
+  if(flow&&flow.decision)return {ok:false,msg:'本次投资已决定，请完成剩余行情事项。'};
+  if(flow&&flow.cards[deckName]){
+    g.pending.deal=flow.cards[deckName];g.pending.deckName=deckName;flow.view='deal';
+    return {ok:true,card:g.pending.deal,energyCost:0,revisited:true};
+  }
   const NAMES = { small:'小额理财', big:'大额置业', capgain:'杠杆交易', cashflow:'大额现金流' };
   const cost = (window.ENERGY.dealCost || {})[deckName] || 0;
   const en = needEnergy(p, cost, `考察「${NAMES[deckName] || deckName}」`);
@@ -47,6 +77,7 @@ function chooseDeck(g, deckName){
   E.bump(p, 'dealsSeen');
   const card = E.drawDeal(g, deckName);
   if(g.pending) { g.pending.deal = card; g.pending.deckName = deckName; }
+  if(flow){flow.cards[deckName]=card;flow.view='deal';}
   return { ok:true, card, energyCost:cost };
 }
 /* 一次性拿到全部可执行的方案（含联合购买） */
@@ -64,6 +95,7 @@ function optionId(g){
   return id;
 }
 function buyDeal(g, card, exec){
+  if(investmentClosed(g))return {ok:false,msg:'本次投资已决定，不能重复买入。'};
   card=E.priceDeal(g,card);
   const p = E.current(g);
   exec = exec || {};
@@ -136,6 +168,7 @@ function buyDeal(g, card, exec){
   E.bump(p, 'dealsBought'); E.bump(p, 'investTotal', cost); E.bump(p, 'cfGained', cfAdd);
   E.milestone(g, p, `第 ${g.round} 轮投入 ${money(cost)} 买入「${card.nm || card.symbol || '资产'}」` +
     (cfAdd ? `，月现金流 +${money(cfAdd)}` : ''), cfAdd > 0 ? 'good' : 'info');
+  if(g.pending&&g.pending.flow&&g.pending.p===p.id)decideOpportunity(g,'bought');
   return { ok:true, cost };
 }
 function addStock(p, symbol, shares, price){
@@ -151,6 +184,7 @@ function addCollectible(p, nm, qty, price){
 
 /* ------------------------------ 投资卡转让（玩家间交易） ------------------------------ */
 function sellOpportunity(g, card, buyerId, price){
+  if(investmentClosed(g))return {ok:false,msg:'本次投资已决定，不能重复转让。'};
   const seller = E.current(g);
   const buyer = g.players[buyerId];
   if(!buyer || buyer.out || buyer.finished || buyer.id===seller.id) return { ok:false, msg:'请选择其他玩家。' };
@@ -163,7 +197,7 @@ function sellOpportunity(g, card, buyerId, price){
   const r = buyDealFor(g, buyer, card, {});
   if(!r.ok){ buyer.cash += price; seller.cash -= price;
     return { ok:false, msg:`${buyer.name} 无力执行该机会：${r.msg}` }; }
-  E.clearPending(g);
+  if(g.pending&&g.pending.flow)decideOpportunity(g,'transferred');else E.clearPending(g);
   return { ok:true };
 }
 /* 让指定玩家执行某张卡（供机会转让使用） */
@@ -792,6 +826,7 @@ function orgPartnerPlan(g, card, partnerId='balanced'){
 }
 
 function buyDealWithOrg(g, card, partnerId='balanced'){
+  if(investmentClosed(g))return {ok:false,msg:'本次投资已决定，不能重复买入。'};
   if(!E.isSolo(g)||g.rule!=='202'||card.kind!=='realestate'||!card.joint)
     return {ok:false,msg:'机构合伙仅适用于单人 202 的可联合购买房产。'};
   const p=E.current(g),plan=orgPartnerPlan(g,card,partnerId);
@@ -808,6 +843,7 @@ function buyDealWithOrg(g, card, partnerId='balanced'){
   E.bump(p,'dealsBought');E.bump(p,'investTotal',mine);E.bump(p,'cfGained',cf);
   const detail=`与${plan.contract.name}合伙买入「${card.nm}」，出资 ${money(mine)}（占比 ${Math.round(share*100)}%），月净现金流 ${money(cf)}，管理费 ${money(plan.fee)}/月`;
   E.milestone(g,p,`第 ${g.round} 轮${detail}`,'good');E.log(g,`${p.name} ${detail}`,'good',p.name);
+  if(g.pending&&g.pending.flow)decideOpportunity(g,'bought');
   return {ok:true,mine,share,cf,orgShare,total};
 }
 
@@ -815,7 +851,7 @@ function buyDealWithOrg(g, card, partnerId='balanced'){
    expected 是玩家看到的报价，变化后先要求刷新，不能悄悄按新金额扣款。 */
 function buyPropertyListing(g,listingId,expected){
   const p=E.current(g),P=g.pending;
-  if(!P || !['opportunity','opportunity202'].includes(P.type) || P.deal || P.purchaseDone)
+  if(!P || !['opportunity','opportunity202'].includes(P.type) || P.deal || P.purchaseDone || (P.flow&&P.flow.decision))
     return {ok:false,msg:'请在尚未选择投资卡的投资机会中购买挂牌房产。'};
   const listing=E.assetMarket(g).listings.find(l=>l.id===listingId),plan=listing && E.listingPlan(g,listing);
   if(!plan) return {ok:false,msg:'该份额尚未挂牌或已经成交，请刷新列表。'};
@@ -831,6 +867,7 @@ function buyPropertyListing(g,listingId,expected){
   p.cash-=plan.need;p.assets.realEstate.push(item);
   listing.status='sold';listing.buyer=p.id;listing.boughtTurn=g.turnNo;
   P.purchaseDone=true;
+  if(P.flow)decideOpportunity(g,'bought');
   E.bump(p,'dealsBought');E.bump(p,'investTotal',plan.need);E.bump(p,'cfGained',plan.cf);
   log(g,`${p.name} 承接挂牌房产 ${plan.nm}（${plan.propertyId}）${(plan.share*100).toFixed(1)}% 份额：成交价 ${money(plan.cost)}，首付 ${money(plan.dp)}，项目融资 ${money(plan.debt)}，费用 ${money(plan.fee)}`,'good',p.name);
   return {ok:true,item,plan};
@@ -903,7 +940,7 @@ function trade(g, aId, bId, cashFromA, priceLabel){
 
 /* ------------------------------ 导出 ------------------------------ */
 window.Act = {
-  canPay, dealCost, chooseDeck, buyDeal, sellOpportunity, marketImpact, applyMarketQuote, marketOptions, marketSell,
+  canPay, dealCost, opportunityState, decideOpportunity, chooseDeck, buyDeal, sellOpportunity, marketImpact, applyMarketQuote, marketOptions, marketSell,
   payDoodad, doCharity, addBaby, doDownsized, takeLoan, prepayLoan, repayLoan,
   buyFTBusiness, openFranchise, buyDream, ftEvent,
   exerciseOption, openShort, coverShort, escapeRatRace, buyout, trade,
