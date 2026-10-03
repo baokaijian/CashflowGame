@@ -307,21 +307,21 @@ function showDealCard(g, p, card, P){
     </div>`: '';
 
   const jointHtml = (card.kind==='realestate' && card.joint) ? (solo ? `
-    <div class="sec__title" style="margin-top:12px">与机构合伙人联合购买</div>
-    <p class="hint">选择机构会让渡相应的资产、收益和出售权益。管理费只从你的正现金流中扣除，报价与抵押仍按实际持有份额。</p>
+    <div class="sec__title" style="margin-top:12px">选择购买方案</div>
+    <p class="hint">选中方案即生效。机构出资比例是首付的分担比例，同时对应资产、收益和出售权益；管理费只从你的正现金流中扣除。</p>
     <div class="rowlist" data-partner-plans>
+      <label class="rowlist__row" style="display:block">
+        <input type="radio" name="orgPlan" value="independent" ${P.useOrgPartner?'':'checked'}>
+        <b>独立购买</b> · 你持有 100% 权益<br>
+        <span class="hint">你的首付 ${money(cost)} · 月净现金流 ${money(card.cf||0)} · 买入精力 ${eCost}</span>
+      </label>
       ${orgPlans.map(plan=>`<label class="rowlist__row" style="display:block">
-        <input type="radio" name="orgPlan" value="${plan.contract.id}" ${plan.contract.id===orgPlan.contract.id?'checked':''}>
-        <b>${esc(plan.contract.name)}</b> · 机构出资 ${Math.round(plan.orgShare*100)}%<br>
+        <input type="radio" name="orgPlan" value="${plan.contract.id}" ${P.useOrgPartner&&plan.contract.id===orgPlan.contract.id?'checked':''}>
+        <b>${esc(plan.contract.name)}</b> · 机构承担 ${Math.round(plan.orgShare*100)}% 首付 · 你持有 ${Math.round(plan.share*100)}% 权益<br>
         <span class="hint">${esc(plan.contract.note)}<br>你的首付 ${money(plan.mine)} · 月净现金流 ${money(plan.cf)} · 管理费 ${money(plan.fee)}/月 · 买入精力 ${plan.energy}</span>
         ${U.operatingPreview(p,'realEstate',{nm:card.nm,opProfile:card.opProfile,tier:card.tier,share:plan.share,cf:plan.grossCf,orgContract:plan.contract})}
       </label>`).join('')}
-    </div>
-    <label class="switch" style="margin-top:10px">
-      <input type="checkbox" id="orgPartner" ${P.useOrgPartner?'checked':''}>
-      <span class="switch__track"><span class="switch__thumb"></span></span>
-      <span class="switch__label">引入所选机构合伙人</span>
-    </label>` : `
+    </div>` : `
     <div class="sec__title" style="margin-top:12px">202 联合购买</div>
     <p class="hint">可与多名玩家共同购买，按出资比例分配现金流与资本利得。需要首付 ${money(card.dp)}，你的现金 ${money(p.cash)}。</p>
     <div class="rowlist" id="jointRows">
@@ -351,11 +351,13 @@ function showDealCard(g, p, card, P){
     <div class="modal__head"><h3>${card.deck==='big'||card.deck==='cashflow'?'🏢':'💡'} ${esc(card.nm||card.symbol)}</h3></div>
     <div class="modal__body">
       ${face(card.deck, card, null, solo)}
+      <p id="purchaseMode" class="hint"></p>
       <div class="sec__total"><span>你需支付</span><b class="money" id="needCost">${money(cost)}</b></div>
-      <div class="sec__total"><span>你的现金</span><span class="money ${affordable?'':'neg'}">${money(p.cash)}</span></div>
+      <div class="sec__total"><span>你的现金</span><span id="purchaseCash" class="money ${affordable?'':'neg'}">${money(p.cash)}</span></div>
+      <p id="purchaseFunding" class="hint"></p>
       <div class="sec__total"><span>需要精力（研究 + 筹建）</span><span id="needEnergy" class="money ${energyOK?'':'neg'}">${eCost} / 当前 ${Math.round(p.energy)}</span></div>
       <p id="energyHint" class="hint" ${energyOK?'hidden':''}>精力不足以承接所选方案。可等待自然恢复，或停在「起点」休假。</p>
-      ${['realestate','business'].includes(card.kind)?U.operatingPreview(p,card.kind==='realestate'?'realEstate':'business',card):''}
+      ${['realestate','business'].includes(card.kind)?`<div id="dealOperatingPreview">${U.operatingPreview(p,card.kind==='realestate'?'realEstate':'business',card)}</div>`:''}
       ${qtyHtml}${jointHtml}${sellHtml}
       ${P && P.market ? `<div class="sec__title" style="margin-top:14px">同时抽到的行情卡（可先完成市场交易）</div>${face('market', P.market)}` : ''}
     </div>
@@ -370,15 +372,22 @@ function showDealCard(g, p, card, P){
       const upd = ()=>{
         const n = q ? Math.max(card.min, Math.min(card.max, Math.round(+q.value||card.min))) : 1;
         const c = A.dealCost(g, card, n);
-        /* 勾了机构合伙人 → 实付与精力都按合伙方案算，否则按钮状态会与实际扣款脱节 */
-        const orgCb = $('#orgPartner', m);
-        const useOrg = !!(orgCb && orgCb.checked);
-        if(orgCb){
-          P.useOrgPartner=useOrg;P.orgPartnerId=$('[name=orgPlan]:checked',m).value;
-          orgPlan=orgPlans.find(x=>x.contract.id===P.orgPartnerId);
+        /* 购买方案只有一个选择源，所选机构直接决定实付、精力与落账路径。 */
+        const choice=$('[name=orgPlan]:checked',m);
+        const useOrg=!!(choice&&choice.value!=='independent');
+        if(choice){
+          P.useOrgPartner=useOrg;
+          if(useOrg){
+            P.orgPartnerId=choice.value;
+            orgPlan=orgPlans.find(x=>x.contract.id===P.orgPartnerId);
+          }
         }
-        const need = useOrg ? orgPlan.mine : c;
+        let need = useOrg ? orgPlan.mine : c;
         const needEnergy = useOrg ? orgPlan.energy : A.dealEnergy(card);
+        $('#purchaseMode',m).textContent=choice?(useOrg?`当前方案：${orgPlan.contract.name} · 你持有 ${Math.round(orgPlan.share*100)}% 权益`:'当前方案：独立购买 · 你持有 100% 权益'):'';
+        const upkeep=$('#dealOperatingPreview',m);
+        if(upkeep)upkeep.innerHTML=U.operatingPreview(p,card.kind==='realestate'?'realEstate':'business',useOrg?
+          {nm:card.nm,opProfile:card.opProfile,tier:card.tier,share:orgPlan.share,cf:orgPlan.grossCf,orgContract:orgPlan.contract}:card);
         $('#needCost', m).textContent = money(need);
         $('#needEnergy',m).textContent=`${needEnergy} / 当前 ${Math.round(p.energy)}`;
         $('#needEnergy',m).classList.toggle('neg',Math.round(p.energy)<needEnergy);
@@ -394,9 +403,13 @@ function showDealCard(g, p, card, P){
             if(cb.checked) partners += Math.max(0, Math.round(+$('[data-jamt="'+cb.dataset.jp+'"]', m).value||0));
           });
           $('#jointMine', m).textContent = money(Math.max(0, c - partners));
-          $('#needCost',m).textContent=money(Math.max(0,c-partners));
+          need=Math.max(0,c-partners);
+          $('#needCost',m).textContent=money(need);
           b.disabled=c-partners<=0 || p.cash<c-partners || Math.round(p.energy)<needEnergy;
         }
+        $('#purchaseCash',m).classList.toggle('neg',p.cash<need);
+        $('#purchaseFunding',m).textContent=$('#jointMine',m)&&need<=0?'牵头玩家需要承担部分首付，请调整合作方出资。':p.cash<need?`按当前方案，还缺现金 ${money(need-p.cash)}。可调整方案或先贷款。`:
+          Math.round(p.energy)<needEnergy?'现金已足够，但精力不足以承接当前方案。':'现金与精力已足够，可直接确认买入，无需先贷款。';
       };
       if(q){
         q.oninput = upd;
@@ -405,7 +418,6 @@ function showDealCard(g, p, card, P){
         $('[data-max]',m).onclick   = ()=>{ q.value = card.max; upd(); };
       }
       $$('[data-jp]',m).forEach(cb=>{ cb.onchange = upd; });
-      if($('#orgPartner',m)) $('#orgPartner',m).onchange = upd;
       $$('[name=orgPlan]',m).forEach(r=>r.onchange=upd);
       upd();
       $$('[data-jamt]',m).forEach(inp=>{ inp.oninput = upd; });
@@ -427,9 +439,9 @@ function showDealCard(g, p, card, P){
       const buyBtn = $('[data-buy]',m);
       buyBtn.onclick = ()=>{
         const n = q ? Math.max(card.min, Math.min(card.max, Math.round(+q.value||card.min))) : 1;
-        /* 单人模式：勾了机构合伙人就走合伙路径（实扣本人约定份额首付） */
-        const orgCb = $('#orgPartner', m);
-        if(orgCb && orgCb.checked){
+        /* 单人模式：所选机构直接走合伙路径，实扣本人约定份额首付。 */
+        const choice=$('[name=orgPlan]:checked',m);
+        if(choice&&choice.value!=='independent'){
           const r = A.buyDealWithOrg(g, card, orgPlan.contract.id);
           if(!r.ok) return U.toast(r.msg, 'err');
           finishTurnAction();

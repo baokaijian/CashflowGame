@@ -68,6 +68,16 @@ test('机构购入实扣、财务、年度结余与预览一致，管理费只�
     assert.equal(p.cash-before,expected);assert.equal(E.finance(p).inc.realEstate,plan.cf);
   }
 });
+test('截图商业商铺现金可覆盖合伙首付，无需先借个人贷款',()=>{
+  for(const id of ['balanced','capital','operator']){
+    const g=game(),p=g.players[0],card=c.DECK_CASHFLOW.find(x=>x.id==='cf3');p.cash=696661;p.energy=35;
+    const plan=A.orgPartnerPlan(g,card,id),bank=p.liabs.bank,expected=id==='capital'?348300:580500;
+    assert.equal(plan.total,1161000);assert.equal(plan.mine,expected);assert(A.buyDealWithOrg(g,card,id).ok);
+    const item=p.assets.realEstate[0];assert.equal(p.cash,696661-expected);assert.equal(p.liabs.bank,bank);
+    assert.equal(item.dp,expected);assert.equal(item.cost,Math.round(2580000*plan.share));
+    assert.equal(E.projectDebt(item),item.cost-item.dp);assert.equal(E.finance(p).inc.realEstate,plan.cf);
+  }
+});
 test('租金变化后收费随正收益变化；亏损不收费，不影响项目融资或房产估值',()=>{
   const g=game(),p=g.players[0];A.buyDealWithOrg(g,card,'operator');const x=p.assets.realEstate[0];
   A.marketImpact(g,{kind:'rentDelta',pct:-.2});assert.equal(E.managementFee(x),Math.round(x.cf*.2));

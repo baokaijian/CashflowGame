@@ -453,14 +453,14 @@ window.addEventListener('load', function(){
     Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});p.cash=2000000;p.energy=100;
     var card=window.DECK_CASHFLOW.find(function(x){return x.id==='cf1';});
     E.setPending(g,{type:'opportunity202',deal:card});window.UiPending.showPending();
-    ok(document.querySelectorAll('#modal [name=orgPlan]').length===3,'买入前可比较三种机构方案');
-    var plan=A.orgPartnerPlan(g,card,'operator');q('#modal [name=orgPlan][value=operator]').click();q('#orgPartner').click();
+    ok(document.querySelectorAll('#modal [name=orgPlan]').length===4&&q('[name=orgPlan][value=independent]').checked,'买入前默认独立购买，可比较三种机构方案');
+    var plan=A.orgPartnerPlan(g,card,'operator');q('#modal [name=orgPlan][value=operator]').click();
     ok(q('#needCost').textContent===E.money(plan.mine) && q('#needEnergy').textContent.indexOf(plan.energy+' /')===0,'切换机构同步更新实付和买入精力');
     ok(q('#modal [data-partner-plans]').textContent.indexOf(E.money(plan.fee))>=0 && q('#modal [data-operating-preview]'),'方案展示持续管理费和买入后组合维护');
     q('#modal [data-loan]').click();
     ok(q('#modal [data-loan-partner]').textContent.indexOf(E.money(plan.mine))>=0,'贷款页显示已选机构和本人首付');
     mb('关闭').click();
-    ok(q('#orgPartner').checked && q('#modal [name=orgPlan][value=operator]').checked,'贷款返回仍保留所选机构');
+    ok(g.pending.useOrgPartner&&q('#modal [name=orgPlan][value=operator]').checked,'贷款返回仍保留所选机构');
     var cash=p.cash;q('#modal [data-buy]').click();var x=p.assets.realEstate[0];
     ok(p.cash===cash-plan.mine && x.orgContract.id==='operator' && E.finance(p).inc.realEstate===plan.cf,'真实买入按选定合同扣款和计净收益');
     window.UiGame.renderAll();
@@ -831,6 +831,30 @@ window.addEventListener('load', function(){
     U.onMenu('cash-report');q('[data-report-close]').click();ok(g.pending&&title().trim()==='待处理报表测试','报表关闭按钮同样返回待处理事件');
     E.clearPending(g);window.UI.closeModal();
     q('[data-current-cash-report]').click();ok(!!q('[data-cash-sheet]'),'财务面板入口也可打开实时模板');window.UI.closeModal();
+  });
+
+  step('AG 截图商铺首付与机构选择直接生效',function(){return true;},function(){
+    var E=window.Engine,A=window.Act,U=window.UiGame;
+    window.startGame({rule:'202',mode:'solo',seed:42,names:['首付核对']});
+    var g=window.Game.g,p=g.players[0],card=window.DECK_CASHFLOW.find(function(x){return x.id==='cf3';});
+    Object.keys(p.assets).forEach(function(k){p.assets[k]=[];});p.cash=696661;p.energy=35;
+    E.setPending(g,{type:'opportunity202',deal:card,orgPartnerId:'balanced',useOrgPartner:false});U.renderAll();window.UiPending.showPending();
+    ok(q('[name=orgPlan][value=independent]').checked&&q('#needCost').textContent===E.money(1161000)&&q('[data-buy]').disabled,'未启用的旧预选机构不冒充合伙；独立首付1161000，现金不足');
+    ok(q('#purchaseFunding').textContent.indexOf(E.money(464339))>=0&&q('#purchaseCash').classList.contains('neg'),'独立购买显示实际现金缺口464339');
+    ['balanced','capital','operator'].forEach(function(id){
+      var plan=A.orgPartnerPlan(g,card,id);q('[name=orgPlan][value='+id+']').click();
+      ok(g.pending.useOrgPartner&&g.pending.orgPartnerId===id&&q('#needCost').textContent===E.money(plan.mine)&&!q('[data-buy]').disabled,id+' 一次选择直接启用机构，按本人首付开放买入');
+      ok(!q('#purchaseCash').classList.contains('neg')&&q('#purchaseFunding').textContent.indexOf('无需先贷款')>=0,id+' 现金状态与选定方案一致，无需额外贷款');
+      ok(q('#dealOperatingPreview').textContent.indexOf(plan.contract.name)>=0,id+' 主区域的维护预览也使用所选机构');
+    });
+    q('[name=orgPlan][value=independent]').click();
+    ok(!g.pending.useOrgPartner&&q('[data-buy]').disabled&&q('#needCost').textContent===E.money(1161000),'切回独立购买立即恢复整笔首付和按钮判断');
+    q('[name=orgPlan][value=balanced]').click();p.energy=7;window.UiPending.showPending();
+    ok(q('[data-buy]').disabled&&q('#purchaseFunding').textContent.indexOf('现金已足够，但精力不足')>=0,'现金足够时精力不足明确说明，不引导补借款');
+    p.energy=35;window.UiPending.showPending();var bank=p.liabs.bank;q('[data-buy]').click();var item=p.assets.realEstate[0];
+    ok(p.cash===116161&&p.liabs.bank===bank&&item.dp===580500&&item.share===.5&&item.cost===1290000,'无需先贷款，真实买入只扣580500，本人持有一半成本和权益');
+    ok(E.projectDebt(item)===709500&&E.finance(p).inc.realEstate===3541,'剩余房款只登记对应项目融资，月净收入按一半份额计算');
+    window.UI.closeModal();
   });
 
   /* ---------------- 状态机驱动 ---------------- */
