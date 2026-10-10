@@ -813,7 +813,7 @@ window.addEventListener('load', function(){
 
   step('AF 模板现金报表入口与实时账本', function(){return true;}, function(){
     var a=fresh(),g=a.g,p=a.p,E=a.E,U=window.UiGame,R=window.UiCashReport;
-    q('#btnCashReport').click();var cash=p.cash,net=E.settleCashflow(p);
+    q('[data-current-cash-report]').click();var cash=p.cash,net=E.settleCashflow(p);
     ok(title()==='查看现金报表'&&q('[data-cash-sheet]'),'点击现金报表入口打开模板式账单');
     ok(q('[data-report-close]').getBoundingClientRect().bottom<=window.innerHeight,'长报表的关闭按钮始终在窗口内');
     ok(q('[data-report-monthly]').textContent===E.money(net)&&q('[data-report-annual]').textContent===E.money(E.settlementPlan(p).amount),'月净额与年净额读取实结账本');

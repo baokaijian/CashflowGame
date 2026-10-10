@@ -1326,8 +1326,8 @@ function openLoanCenter(key, preset){
       ${fromCard ? `<p class="hint" style="margin-top:12px">🔙 本轮卡片尚未结算，完成或关闭后将自动返回刚才的决策。</p>` : ''}
     </div>
     <div class="modal__foot">
-      <button class="btn btn--text" data-close>关闭</button>
       <button class="btn btn--primary" data-loan ${cp.ok?'':'disabled'}>${cp.ok ? '确认借款' : '当前无法授信'}</button>
+      <button class="btn btn--text" data-close>关闭</button>
     </div>`,
     { onDismiss: backFromLoan,                    /* ESC / 点遮罩同样回到卡片 */
       onMount(m){
@@ -1796,7 +1796,6 @@ function surrenderFlow(){
 
 /* ------------------------------ 绑定 ------------------------------ */
 function bind(){
-  $('#btnCashReport').onclick=()=>onMenu('cash-report');
   /* 主/次按钮的语义随局面切换（掷骰 / 结束回合 / 再来一局 / 查看战绩），这里按状态分发 */
   $('#btnRoll').onclick = ()=>{ if(Game.g && Game.g.over) return resetGame(); roll(); };
   $('#btnEndTurn').onclick = ()=>{ if(Game.g && Game.g.over) return winnerModal(); endTurn(); };
