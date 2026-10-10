@@ -458,7 +458,7 @@ function refreshLife(g, p){
   /* 退休断崖（仅单人模式）：到了退休年龄，工资停发，改领养老金。
      现实依据：我国城镇职工养老金替代率约 40%—50%，即退休后收入只有在职时的
      一半上下 —— 这正是「只靠劳动收入」的人生在 61 岁会遇到的那道台阶。
-     多人模式保留原工资规则，各自到 65 岁后结束行动。 */
+     多人模式保留原工资规则，各自到 70 岁后结束行动。 */
   const S = window.SOLO;
   p.retired = isSolo(g) && ageOf(g, p) >= S.retireAge;
   /* ★ 到了退休年龄就不再「求职」了：被裁后没能在退休前找到工作，
@@ -1184,12 +1184,20 @@ function cashflowStatement(g,p,plan){
   };
   return {version:1,since:ageOf(g,p),amount:plan.amount,items,factors};
 }
-function cashflowChanges(before,after,concise=false){
+function cashflowDeltas(before,after){
   const old=new Map(before.items.map(x=>[x.key,x])),now=new Map(after.items.map(x=>[x.key,x]));
-  const lines=[];
+  const changes=[];
   for(const key of new Set([...old.keys(),...now.keys()])){
     const a=old.get(key),b=now.get(key),from=a?a.value:0,to=b?b.value:0,delta=to-from;
     if(!delta) continue;
+    changes.push({key,label:(b||a).label,from,to,delta});
+  }
+  return changes.sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
+}
+function cashflowChanges(before,after,concise=false){
+  const old=new Map(before.items.map(x=>[x.key,x])),now=new Map(after.items.map(x=>[x.key,x])),lines=[];
+  for(const {key,from,to,delta} of cashflowDeltas(before,after)){
+    const a=old.get(key),b=now.get(key);
     const status=key.startsWith('asset:')?(!a?'新增持仓：':!b?'持仓退出：':'持仓收益变化：'):'';
     if(concise){
       if(key==='rounding'){
@@ -1208,6 +1216,48 @@ function cashflowChanges(before,after,concise=false){
   }
   return lines;
 }
+function cashflowTrend(from,to){
+  if(from==null)return '首次记录';
+  const delta=to-from;
+  if(!delta)return '持平';
+  const percent=from===0?'原净额为零，不计算涨跌幅':`${delta>0?'+':'−'}${(Math.abs(delta)/Math.abs(from)*100).toFixed(1)}%（按原净额绝对值）`;
+  const crossing=from>0&&to<0?'，由盈转亏':from<0&&to>0?'，由亏转盈':to===0?'，转为收支平衡':from===0?(to<0?'，转为亏损':'，转为盈余'):'';
+  return `${delta>0?'增加':'减少'} ${money(Math.abs(delta))} · ${percent}${crossing}`;
+}
+function cashflowTotals(statement){
+  const total=prefix=>statement.items.filter(x=>x.key.startsWith(prefix)).reduce((s,x)=>s+x.value,0);
+  return {income:total('salary')+total('asset:'),living:-total('expense:'),loans:-total('loan:')};
+}
+function cashflowSnapshot(g,p){
+  const plan=settlementPlan(p),statement=cashflowStatement(g,p,plan),first=plan.months[0];
+  const items=statement.items.filter(x=>x.key!=='rounding').map(x=>({...x,value:x.key.startsWith('loan:')?-loanDue(p,x.key.slice(5)):x.value/monthsPerYear()}));
+  items.push({key:'rounding',label:'合计取整差额',value:first.net-items.reduce((s,x)=>s+x.value,0)});
+  return {version:1,annual:statement,monthly:{amount:first.net,items,factors:statement.factors}};
+}
+/* 自动记录当前账本变化，不改变现金或结算。基准随存档保存，重绘不重复记账。 */
+function recordCashflowChanges(g,cause){
+  if(!g||g.over)return;
+  g.players.forEach(p=>{
+    if(p.out||p.finished||lifeComplete(g,p))return;
+    const now=cashflowSnapshot(g,p),before=p.cashflowPreview;
+    p.cashflowPreview=now;
+    if(!before)return; // 旧档从当前账本建基准，不猜测历史。
+    const changes=cashflowDeltas(before.monthly,now.monthly),yearChanges=cashflowDeltas(before.annual,now.annual);
+    if(!changes.length&&!yearChanges.length)return;
+    const details=[`当前月净额：${money(before.monthly.amount)} → ${money(now.monthly.amount)}；${cashflowTrend(before.monthly.amount,now.monthly.amount)}。`,
+      ...changes.map(x=>`${x.label}：月度贡献 ${money(x.from)} → ${money(x.to)}，净额影响 ${x.delta>=0?'+':''}${money(x.delta)}`),
+      ...Object.keys(now.monthly.factors).filter(k=>before.monthly.factors[k]!==now.monthly.factors[k]).map(k=>`${k}：${before.monthly.factors[k]} → ${now.monthly.factors[k]}`),
+      `下一年预计净额：${money(before.annual.amount)} → ${money(now.annual.amount)}；${cashflowTrend(before.annual.amount,now.annual.amount)}。`,
+      ...cashflowChanges(before.annual,now.annual),
+      '这是当前收支与未来结算的变化，不是又一次发薪；买卖价款、借款到账及提前还本属于一次性现金往来，另见交易日志。'];
+    log(g,`${p.name} 月净现金流 ${money(before.monthly.amount)} → ${money(now.monthly.amount)}；${cashflowTrend(before.monthly.amount,now.monthly.amount)}。${cause?'触发：'+cause:'收支发生变化'}`,
+      now.monthly.amount<before.monthly.amount?'bad':now.monthly.amount>before.monthly.amount?'good':'info',p.name);
+    g.log[0].cashflowDetails=details;
+    g.log[0].cashflowSummary={kind:'preview',from:before.monthly.amount,to:now.monthly.amount,changes,
+      annualFrom:before.annual.amount,annualTo:now.annual.amount,
+      totalsFrom:cashflowTotals(before.monthly),totalsTo:cashflowTotals(now.monthly)};
+  });
+}
 function paymentRanges(values){
   const ranges=[];
   values.forEach((value,i)=>{
@@ -1221,7 +1271,7 @@ function cashflowAudit(plan,statement,previous,next){
   const comparable=previous&&previous.version===1&&previous.since+1===statement.since;
   const delta=comparable?statement.amount-previous.amount:null;
   const summary=delta===null?'首次记录年度明细，无上次明细可比':
-    `较上次年净额${delta===0?'持平':(delta>0?'增加 ':'减少 ')+money(Math.abs(delta))}`;
+    `较上次年净额${delta===0?'持平':(delta>0?'增加 ':'减少 ')+money(Math.abs(delta))}（${cashflowTrend(previous.amount,statement.amount)}）`;
   const reasons=comparable?cashflowChanges(previous,statement,true):[];
   const causes=reasons.slice(0,3).join('；')+(reasons.length>3?`；另有 ${reasons.length-3} 项变化，详见明细`:'');
   const details=[];
@@ -1245,7 +1295,10 @@ function cashflowAudit(plan,statement,previous,next){
   }
   details.push(plan.amount<0?'本年净额为负，记为待处理缺口；筹资和补款由缺口事件另行处理。':'本年净额已一次性计入现金。');
   details.push('买入、卖出、借款到账及提前还本等一次性现金往来见各自交易日志，不重复计作年度收入或支出；房产收入已扣项目融资利息及适用管理费。');
-  return {summary,causes,details};
+  return {summary,causes,details,overview:{kind:'settlement',from:comparable?previous.amount:null,to:statement.amount,
+    changes:comparable?cashflowDeltas(previous,statement):[],annualFrom:next?statement.amount:null,annualTo:next?next.amount:null,
+    totalsFrom:comparable?cashflowTotals(previous):null,totalsTo:{income:plan.income,living:plan.living,loans:plan.loanTotal},
+    nextChanges:next?cashflowDeltas(statement,next):null}};
 }
 
 /* ------------------------------ 信用额度 ------------------------------ */
@@ -1450,7 +1503,7 @@ function newPlayer(i, name, job, color, icon){
 
 /* ------------------------------ 开局 ------------------------------ */
 function newGame(cfg){
-  /* 游戏模式：age = 年龄模式（20 岁起步，65 岁退休结算）；
+  /* 游戏模式：age = 年龄模式（20 岁起步，70 岁终龄结算）；
      solo = 单人模式（同为年龄制，但只有 1 位玩家，且启用退休断崖与机构替代）；
      endless = 无限模式 */
   const mode = cfg.mode === 'solo' ? 'solo'
@@ -1533,6 +1586,7 @@ function newGame(cfg){
     log(g, `【人生阶段 1/${window.SOLO_STAGES.length}】${st.nm} · ${st.range} · ${st.tag} —— 本期核心：${st.tension}`, 'info');
   }
   assetMarket(g); migrateAssets(g);
+  g.players.forEach(p=>{p.cashflowPreview=cashflowSnapshot(g,p);});
   trackRound(g);                   /* 起始快照：报告的财富走势从第 1 轮就有基准点 */
   return g;
 }
@@ -1586,7 +1640,7 @@ function lifeComplete(g, p){ return isAgeMode(g) && ageOf(g, p) >= g.endAge; }
 
 /* 旧档保留已经发生的现金和年龄，从恢复点开始按发薪日推进，绝不重发历史收入。 */
 function migrateTime(g){
-  if(g.timeVersion === 2) return migrateTrack(migrateFTIncome(migrateFamily(migrateAssets(g))));
+  if(g.timeVersion === 2) return migrateAgeLimit(migrateTrack(migrateFTIncome(migrateFamily(migrateAssets(g)))));
   const legacyAge = g.startAge + Math.max(0, numOr(g.round) - 1);
   g.players.forEach(p=>{
     p.age = isAgeMode(g) ? Math.min(g.endAge, legacyAge) : legacyAge;
@@ -1602,7 +1656,17 @@ function migrateTime(g){
   g.lastRetire = null;
   g.timeVersion = 2;
   log(g, '已更新结算规则：从现在起，每经过一个发薪日或分红日只结算一年并长一岁。历史现金保留，旧记录不重新入账。', 'info');
-  return migrateTrack(migrateFTIncome(migrateFamily(migrateAssets(g))));
+  return migrateAgeLimit(migrateTrack(migrateFTIncome(migrateFamily(migrateAssets(g)))));
+}
+/* 只延长尚未结束的原 65 岁对局；历史结果、现金、已锁定缺口不重算。 */
+function migrateAgeLimit(g){
+  if(!isAgeMode(g)||g.over||g.endAge!==65)return g;
+  g.endAge=AGE_END;
+  g.players.forEach(p=>{
+    if(p.finished&&!p.out&&p.age<g.endAge){p.finished=false;delete p.finishRound;}
+  });
+  log(g,`本局终龄已延长至 ${g.endAge} 岁，已发生的年度结算与现金保留，不补发历史收入。`,'info');
+  return g;
 }
 /* 只切换未来收入来源。旧快照保留供核对，不改现金、出圈奖励及已锁定的年度缺口。 */
 function migrateFTIncome(g){
@@ -1625,7 +1689,7 @@ function migrateFamily(g){
   return g;
 }
 
-/* 单人模式同样按年龄推进（20→65 岁），所以也属于「年龄制」；
+/* 单人模式同样按年龄推进（20→70 岁），所以也属于「年龄制」；
    凡是只关心「有没有年龄与退休」的地方用 isAgeMode，
    凡是只该在单人下生效的规则用 isSolo。 */
 function isAgeMode(g){ return g.mode === 'age' || g.mode === 'solo'; }
@@ -1788,7 +1852,7 @@ function endByAge(g){
   const alive = alivePlayers(g).slice().sort((a,b)=>netWorth(b)-netWorth(a));
   if(alive.length){
     g.winner = alive[0].id;
-    g.winReason = `到达 ${g.endAge} 岁退休结算，按净资产排名 ${alive[0].name} 以 ${money(netWorth(alive[0]))} 位列第一`;
+    g.winReason = `到达 ${g.endAge} 岁终龄结算，按净资产排名 ${alive[0].name} 以 ${money(netWorth(alive[0]))} 位列第一`;
     log(g, `🏁 到达 ${g.endAge} 岁，本局退休结算：${alive[0].name} 净资产 ${money(netWorth(alive[0]))} 排名第一`, 'good', alive[0].name);
   } else {
     g.winner = null;
@@ -1850,7 +1914,7 @@ function soloGrade(g, p, oc, cls){
 
 /* 结算结果只在这里算一次。
    ★ 必须独立于 endSolo：单人最常见的失败路径是【中途破产】，
-     而破产走的是 checkLastStanding 而不是「到 65 岁」——
+     而破产走的是 checkLastStanding 而不是「到 70 岁」——
      若结算只在 endSolo 里生成，破产那条路上会没有任何结算可看。 */
 function buildSoloResult(g){
   const p = g.players[0];
@@ -1876,7 +1940,7 @@ function endSolo(g){
 
   finalSettle(g);
   const r = buildSoloResult(g);
-  log(g, `🏁 ${g.endAge} 岁退休结算 · 人生评级 ${r.grade}（${r.label}）—— ${r.reason}`, r.win ? 'good' : 'bad', g.players[0].name);
+  log(g, `🏁 ${g.endAge} 岁终龄结算 · 人生评级 ${r.grade}（${r.label}）—— ${r.reason}`, r.win ? 'good' : 'bad', g.players[0].name);
 }
 
 /* 期权 3 回合限制 */
@@ -1917,6 +1981,7 @@ function movePlayer(g, p, steps){
   const path = [], rows = [];
   let to = from, collected = 0, deficit = 0;
   const count = Math.max(0, Math.floor(numOr(steps)));
+  if(count>0)recordCashflowChanges(g,'结算前的收支调整');
   for(let i = 0; i < count; i++){
     if(g.over || p.out || p.finished || lifeComplete(g, p)) break;
     to = (to + 1) % spaces.length;
@@ -1948,10 +2013,12 @@ function movePlayer(g, p, steps){
     const next=lifeComplete(g,p)?null:cashflowStatement(g,p,settlementPlan(p));
     const audit=cashflowAudit(plan,statement,previous,next);
     p.lastCashflowStatement=statement;
+    p.cashflowPreview=cashflowSnapshot(g,p);
     log(g, `${p.name} 经过${p.inFT ? '分红日' : '发薪日'}：结算 1 年（${since}→${p.age} 岁）`
       + (amount >= 0 ? `，入账 ${money(amount)} = 年结余 ${money(amount)} × 1`
                      : `，入不敷出 ${money(-amount)}`)+`；${audit.summary}${audit.causes?'；原因：'+audit.causes:''}。`, amount >= 0 ? 'good' : 'bad', p.name);
     g.log[0].cashflowDetails=audit.details;
+    g.log[0].cashflowSummary=audit.overview;
   }
   g.lastPath = path;
   if(p.inFT) p.ftPos = to; else p.pos = to;
@@ -2142,6 +2209,7 @@ function drawMarket(g){
 /* ------------------------------ 结束回合 ------------------------------ */
 function endTurn(g){
   if(g.over || g.pending) return null;
+  recordCashflowChanges(g,'本回合操作');
   const p = current(g);
   if(p.charityTurns > 0){
     p.charityTurns--;
@@ -2160,6 +2228,7 @@ function endTurn(g){
     trackRound(g);
   }
   nextPlayer(g);
+  recordCashflowChanges(g,'回合结束：精力恢复、维护与康复进度');
   return current(g);
 }
 
@@ -2351,7 +2420,7 @@ function win(g, p, reason, kind){
        ① 单人模式的目标是「完整走完一生」。若买到梦想就收场，玩家会看不到
           财务自由圈的后续人生（企业、更多梦想）以及最关键的退休期；
        ② 这更贴近财富流原意：进入顺流层后赚钱更快，但能否守住仍取决于后续决策。
-     于是把「什么时候达成的」记下来，留到 65 岁退休结算时按达成时间评档。 */
+     于是把「什么时候达成的」记下来，留到 70 岁终龄结算时按达成时间评档。 */
   if(isSolo(g)){
     p.achievements = p.achievements || [];
     if(!p.achievements.some(a=>a.reason === reason)){
@@ -2359,7 +2428,7 @@ function win(g, p, reason, kind){
     }
     bump(p, 'soloWins');
     milestone(g, p, `第 ${g.round} 轮（${ageOf(g, p)} 岁）达成：${reason}`, 'good');
-    log(g, `🎉 ${p.name} 达成「${reason}」——单人模式对局继续，直到 ${g.endAge} 岁退休结算`, 'good', p.name);
+    log(g, `🎉 ${p.name} 达成「${reason}」——单人模式对局继续，直到 ${g.endAge} 岁终龄结算`, 'good', p.name);
     return;
   }
   g.over = true; g.winner = p.id; g.winReason = reason;
@@ -2476,7 +2545,7 @@ function doodadCost(g, p, card){
 
 window.Engine = {
   PAYDAY_RULE: 'one-year-per-crossing',
-  money, moneyK, shuffle, pick, restoreRandom, finance, escapeMargin, empireTarget, escapeTarget, escapeProgress, ftMonthly, netWorth,
+  money, moneyK, shuffle, pick, restoreRandom, finance, cashflowTrend, recordCashflowChanges, escapeMargin, empireTarget, escapeTarget, escapeProgress, ftMonthly, netWorth,
   newGame, current, alivePlayers, beginTurn, nextPlayer, endTurn, diceCount, rollDice,
   movePlayer, resolveSpace, paydayNoticeOf, clearPending, setPending, drawDeal, drawMarket, drawCard,
   log, expireOptions, checkBankruptcy, settleNegativeCash, checkLastStanding, win, ftMonthlyIncome: ftMonthly,

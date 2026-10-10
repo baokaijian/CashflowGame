@@ -146,13 +146,13 @@ test('多人各自年龄、工资阶段和精力上限独立', () => {
 });
 
 test('最后一年停在结算日；缺口必须处理完才能结束；终局不多发一年', () => {
-  const {g,p}=game(); p.age=64; p.liabs.bank=5000000;
+  const {g,p}=game(); p.age=69; p.liabs.bank=5000000;
   E.refreshLife(g,p);
   const ld=pay(g,p,24);
   assert.equal(ld.path.length,1);
   assert.equal(ld.settled.yearsPaid,1);
   assert.equal(ld.to,2);
-  assert.equal(p.age,65);
+  assert.equal(p.age,70);
   assert(ld.deficit>0);
   E.resolveSpace(g,p,ld);
   assert.equal(g.pending.type,'deficit');
@@ -164,12 +164,12 @@ test('最后一年停在结算日；缺口必须处理完才能结束；终局�
   assert(g.over);
   assert.equal(p.cash,cash);
   assert.equal(JSON.stringify(p.liabs),debt);
-  assert.equal(g.soloResult.endAgeNow,65);
+  assert.equal(g.soloResult.endAgeNow,70);
   assert.equal(g.finalSettled.length,0);
 });
 
 test('最后一年无法填补缺口时破产，而非免费退休', () => {
-  const {g,p}=game(); p.age=64; p.cash=0; p.liabs.bank=5000000;
+  const {g,p}=game(); p.age=69; p.cash=0; p.liabs.bank=5000000;
   const ld=pay(g,p); E.resolveSpace(g,p,ld);
   assert.equal(E.payDeficit(g,p,g.pending.amount).ok,false);
   E.declareBankruptcy(g,p);
@@ -178,14 +178,14 @@ test('最后一年无法填补缺口时破产，而非免费退休', () => {
 });
 
 test('多人先到终龄者等待；跳过已完成席位，其他人仍可长岁，最后统一排名', () => {
-  const {g,p}=game('age'); const q=g.players[1]; p.age=64; q.age=63; q.cash=10000000;
+  const {g,p}=game('age'); const q=g.players[1]; p.age=69; q.age=68; q.cash=10000000;
   acknowledge(g,p,pay(g,p)); E.endTurn(g);
   assert(p.finished && !p.out && !g.over);
   assert.equal(E.current(g),q);
   const snapshot=JSON.stringify({cash:p.cash,age:p.age,liabs:p.liabs});
   acknowledge(g,q,pay(g,q)); E.endTurn(g);
   assert.equal(E.current(g),q);
-  assert.equal(q.age,64);
+  assert.equal(q.age,69);
   assert.equal(JSON.stringify({cash:p.cash,age:p.age,liabs:p.liabs}),snapshot);
   acknowledge(g,q,pay(g,q)); E.endTurn(g);
   assert(g.over && q.finished);

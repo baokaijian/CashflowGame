@@ -84,12 +84,12 @@ for(const mode of ['solo','age']) for(const rule of ['101','202']) for(const see
     E.endTurn(g);
     assert.equal(p.age,afterAge);
   }
-  assert(g.over,'必须按个人终龄结束，不能再依赖 45 轮');
+  assert(g.over,'必须按个人终龄结束，不能再依赖 50 轮');
   g.players.forEach((p,i)=>{
-    assert.equal(p.age,65);
+    assert.equal(p.age,70);
     assert(p.finished);
-    assert.equal(p.settledYears,45);
-    assert.equal(ledger[i].length,45);
+    assert.equal(p.settledYears,50);
+    assert.equal(ledger[i].length,50);
     ledger[i].forEach((row,j)=>{
       assert.equal(row.since,20+j);
       assert.equal(row.through,21+j);
@@ -97,7 +97,29 @@ for(const mode of ['solo','age']) for(const rule of ['101','202']) for(const see
     });
   });
   assert.equal(g.finalSettled.length,0);
-  assert(g.round>45,'内圈需要超过 45 轮才完成 45 次发薪');
+  assert(g.round>50,'内圈需要超过 50 轮才完成 50 次发薪');
   games++;
 }
-console.log(`✅ ${games} 局完整人生：每位玩家 20→65 岁恰好 45 笔，个人年龄独立、终局无补结`);
+console.log(`✅ ${games} 局完整人生：每位玩家 20→70 岁恰好 50 笔，个人年龄独立、终局无补结`);
+
+/* 更新已有的 65 岁对局，不改账、不复活已结束的人生。 */
+const save=fs.readFileSync(path.join(__dirname,'../js/save-state.js'),'utf8');vm.runInContext(save,ctx);
+for(const mode of ['solo','age']){
+ const g=E.newGame({mode,rule:'101',count:2,seed:42});g.endAge=65;
+ g.players.forEach((p,i)=>{p.age=i?64:65;p.settledYears=p.age-20;p.finished=!i;p.cash=10000000;delete p.cashflowPreview;});
+ g.pending={type:'deficit',p:0,amount:1234};
+ const data=ctx.SaveState.prepare(ctx.SaveState.encode(g,{rolled:true},false)),copy=data.g;
+ assert.equal(copy.endAge,70);assert.equal(copy.players[0].age,65);assert.equal(copy.players[0].cash,10000000);assert.equal(copy.players[0].finished,false);
+ assert.equal(copy.players[0].settledYears,45);assert.equal(copy.pending.amount,1234);assert(data.rolled);
+ const logs=copy.log.length;E.migrateTime(copy);assert.equal(copy.log.length,logs,'再次恢复不重复延长');
+}
+{
+ const g=E.newGame({mode:'solo',rule:'101',seed:42}),p=g.players[0];g.endAge=65;p.age=65;p.finished=true;g.over=true;g.soloResult={endAge:65,endAgeNow:65};
+ const copy=ctx.SaveState.prepare(ctx.SaveState.encode(g,{rolled:false},false)).g;
+ assert(copy.over);assert.equal(copy.endAge,65);assert(copy.players[0].finished);assert.equal(copy.soloResult.endAgeNow,65);
+}
+{
+ const g=E.newGame({mode:'endless',rule:'101',count:2,seed:42});g.endAge=65;
+ E.migrateTime(g);assert.equal(g.endAge,65);assert(!E.lifeComplete(g,g.players[0]));
+}
+console.log('✅ 旧档续局延长至70岁，65岁等待席位重新参与；终局、缺口、现金及无限模式保留');

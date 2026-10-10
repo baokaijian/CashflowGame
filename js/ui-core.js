@@ -421,7 +421,7 @@ function renderSetupRules(){
     <div class="rules-out">
       <h4>🎯 单人模式 · 与自己的人生赛跑</h4>
       <ul>
-        <li>只有你一位玩家，从 <b>20 岁走到 65 岁</b>，共 45 次年度结算 —— 完整经历六个人生阶段
+        <li>只有你一位玩家，从 <b>20 岁走到 70 岁</b>，共 50 次年度结算 —— 完整经历六个人生阶段
           （起步期 → 成长期 → 巅峰期 → 平台期 → 冲刺期 → 退休期）</li>
         <li><b>${window.SOLO.retireAge} 岁起工资停发</b>，按缴费年数改领养老金；${window.FAMILY.pensionFullYears} 年达到基础工资
           ${Math.round(window.SOLO.pensionRatio * 100)}% 的上限，养老金免征个税；退休基础医疗随年龄增加</li>
@@ -440,7 +440,7 @@ function renderSetupRules(){
 
 const Setup = { rule:'101', mode:'age', count:4, names:[], showAll:true, fast:true };
 function initSetup(){
-  /* 游戏模式：年龄模式（20→65 岁，共 45 次年度结算） / 无限模式 */
+  /* 游戏模式：年龄模式（20→70 岁，共 50 次年度结算） / 无限模式 */
   const segMode = $('#segMode');
   $$('.segmented__item', segMode).forEach(b=>{
     b.onclick = ()=>{

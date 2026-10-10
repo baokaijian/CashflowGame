@@ -305,7 +305,7 @@ sec('⑫ 退休突变：多人模式完全不受影响');
   gm.players.forEach(p=>p.age=61);
   ok(E.retireBreakOf(gm) === null, '多人模式不触发退休突变结算');
   E.refreshAllLife(gm);
-  ok(gm.players[0].retired === false, '多人模式的玩家 61 岁不会「退休」（各自 65 岁结束）');
+  ok(gm.players[0].retired === false, '多人模式的玩家 61 岁不会「退休」（各自 70 岁结束）');
   ok(gm.players[0].taxesCur > 0, '税负也未被清零（不受单人断崖影响）');
 }
 
@@ -325,12 +325,12 @@ sec('⑬ 退休时不再求职（否则会出现「65 岁还在投简历」）')
 sec('⑭ 终局只评档，不额外补发或摊还');
 {
   const {g,p}=solo('软件工程师');
-  p.age=64; p.cash=10000000; p.pos=1;
+  p.age=69; p.cash=10000000; p.pos=1;
   const ld=E.movePlayer(g,p,1);
   if(ld.deficit) E.payDeficit(g,p,ld.deficit);
   const cash=p.cash, debt=JSON.stringify(p.liabs);
   E.endTurn(g);
-  ok(g.over && p.age === 65, '经过最后一个发薪日后结束');
+  ok(g.over && p.age === 70, '经过最后一个发薪日后结束');
   ok(p.cash === cash && JSON.stringify(p.liabs) === debt, '终局不重复收支或还贷');
   ok(!!g.soloResult, '产出人生评级');
   ok(g.finalSettled.length === 0, '不再有终局补结记录');

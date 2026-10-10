@@ -215,6 +215,8 @@ function resetGame(){
 /* ------------------------------ 总渲染 ------------------------------ */
 function renderAll(){
   if(!Game.g) return;
+  const latest=Game.g.log[0];
+  E.recordCashflowChanges(Game.g,latest&&!latest.cashflowSummary?latest.text:null);
   syncDrawerForMode(Game.g);
   renderBoard(); renderPlayers(); renderFinance(); renderLog(); renderRules(); renderSettings(); updateActions();
   if(window.UiCashReport) window.UiCashReport.refresh();
@@ -309,7 +311,7 @@ function renderCenter(){
       <div class="pile pile--doodad"><span class="big">💳</span>额外支出<small>剩 ${E.deckLeft(g.decks.doodad)}</small></div>
     </div>
     <div class="bc-stats">
-      <div class="bc-stat"><span class="bc-stat__k">${E.isAgeMode(g)?'年龄 / 轮次':'轮次'}</span><b>${E.isAgeMode(g)? E.ageOf(g)+' 岁' : '第 '+g.round+' 轮'}<i>${E.isAgeMode(g)? '第 '+g.round+' 轮 · 距退休 '+E.yearsLeft(g)+' 年' : '无限模式'}</i></b></div>
+      <div class="bc-stat"><span class="bc-stat__k">${E.isAgeMode(g)?'年龄 / 轮次':'轮次'}</span><b>${E.isAgeMode(g)? E.ageOf(g)+' 岁' : '第 '+g.round+' 轮'}<i>${E.isAgeMode(g)? '第 '+g.round+' 轮 · 距终龄 '+E.yearsLeft(g)+' 年' : '无限模式'}</i></b></div>
       ${E.isSolo(g) ? (()=>{ const st = E.soloStage(g), i = E.soloStageOf(g);
         return `<div class="bc-stat"><span class="bc-stat__k">人生阶段 ${i+1}/${window.SOLO_STAGES.length}</span>
           <b>${esc(st.nm)}<i>${esc(st.range)} · ${esc(st.tag)}</i></b></div>`; })() : ''}
@@ -472,7 +474,7 @@ function renderFinance(){
     </div>
 
     <div class="sec">
-      <div class="sec__title"><span>精力与人生状态</span><span>${E.isAgeMode(g) ? E.ageOf(g, p)+' 岁 · 距退休 '+E.yearsLeft(g, p)+' 年' : '无限模式'}</span></div>
+      <div class="sec__title"><span>精力与人生状态</span><span>${E.isAgeMode(g) ? E.ageOf(g, p)+' 岁 · 距终龄 '+E.yearsLeft(g, p)+' 年' : '无限模式'}</span></div>
       ${(function(){
         /* 人生阶段卡片：只呈现叙事 + 当前实时的曲线值。
            数值全部读自引擎（salary / lifeCoef / elderCare / energyMax），
@@ -553,9 +555,30 @@ function renderLog(){
       end=lines.findIndex(x=>x.startsWith('年内月净额经过：'));
     return from>0&&end>from?[...lines.slice(from,end),...lines.slice(0,from),...lines.slice(end)]:lines;
   };
+  const overview=l=>{
+    const s=l.cashflowSummary;if(!s)return '';
+    const month=s.kind==='preview',unit=month?'月':'年';
+    const sign=n=>`${n>0?'+':''}${money(n)}`;
+    const rows=s.changes.filter(x=>x.key!=='rounding');
+    const changeRow=x=>{
+      const expense=x.key.startsWith('expense:')||x.key.startsWith('loan:');
+      const from=expense?-x.from:x.from,to=expense?-x.to:x.to,delta=to-from;
+      const rate=from===0?'新增':to===0?'已停止':`${delta>0?'+':'−'}${(Math.abs(delta)/Math.abs(from)*100).toFixed(1)}%`;
+      return `<div class="log__cashflow-row"><span>${esc(x.label)}<small>${money(from)} → ${money(to)} / ${unit} · ${expense?'支出':'收入'}${rate}</small></span><b class="${x.delta>0?'pos':'neg'}">${sign(x.delta)}</b></div>`;
+    };
+    return `<div class="log__cashflow" data-cashflow-summary>
+      <div class="log__cashflow-head"><span>${month?'当前月净现金流':'本次年度实际净额'}</span><b class="${s.to<0?'neg':'pos'}">${s.from==null?'':money(s.from)+' → '}${money(s.to)}</b></div>
+      <p class="hint">${esc(E.cashflowTrend(s.from,s.to))}</p>
+      ${s.totalsTo?`<p class="hint">${[['income','收入'],['living','生活及其他支出'],['loans','个人贷款本息']].map(([k,t])=>`${t} ${s.totalsFrom?money(s.totalsFrom[k])+' → ':''}${money(s.totalsTo[k])}`).join('；')} / ${unit}</p>`:''}
+      ${rows.slice(0,3).map(changeRow).join('')}
+      ${rows.length>3?`<p class="hint">另有 ${rows.length-3} 项变动，展开查看全部科目。</p>`:''}
+      <p class="hint">${rows.length?'右侧正数提高净额，负数降低净额。':'无上次记录或收支科目未变。'}${s.annualTo==null?'':` 下一年预计净额 ${s.annualFrom==null?'':money(s.annualFrom)+' → '}${money(s.annualTo)}，尚未入账。`}</p>
+      ${s.nextChanges&&s.nextChanges.length?`<p class="hint">结算后下年预计变化：${s.nextChanges.filter(x=>x.key!=='rounding').slice(0,3).map(x=>`${esc(x.label)} ${sign(x.delta)} / 年`).join('；')}。完整原因见明细。</p>`:''}
+    </div>`;
+  };
   host.innerHTML = '<div class="log">' + Game.g.log.map(l=>
-    `<div class="log__item log__item--${l.type}">${l.text.includes('一次结算（覆盖') ? '<span class="muted">【旧规则历史记录】</span>' : ''}${l.who?`<span class="log__who">${esc(l.who)}：</span>`:''}${esc(l.text)}${Array.isArray(l.cashflowDetails)?
-      `<details class="log__audit"><summary>查看年度对账明细与变化原因</summary>${auditLines(l).map(line=>`<p>${esc(line)}</p>`).join('')}</details>`:''}</div>`
+    `<div class="log__item log__item--${l.type}">${l.text.includes('一次结算（覆盖') ? '<span class="muted">【旧规则历史记录】</span>' : ''}${l.who?`<span class="log__who">${esc(l.who)}：</span>`:''}${esc(l.text)}${overview(l)}${Array.isArray(l.cashflowDetails)?
+      `<details class="log__audit"><summary>${l.cashflowSummary&&l.cashflowSummary.kind==='preview'?'查看月净额与年度预期的变化原因':'查看年度对账明细与变化原因'}</summary>${auditLines(l).map(line=>`<p>${esc(line)}</p>`).join('')}</details>`:''}</div>`
   ).join('') + '</div>';
 }
 function renderRules(){
@@ -567,7 +590,7 @@ function renderRules(){
     <div class="rulelist">
       <div class="rulelist__row rulelist__row--head"><div>维度</div><div>当前设置</div></div>
       <div class="rulelist__row"><div>游戏模式</div><div>${ageMode
-        ? `年龄模式 · ${g.startAge} 岁起步，每经过一个发薪日或分红日长 1 岁，<b>${g.endAge} 岁退休结算</b>；现 ${E.ageOf(g)} 岁（第 ${g.round} 轮，距退休 ${E.yearsLeft(g)} 年）`
+        ? `年龄模式 · ${g.startAge} 岁起步，每经过一个发薪日或分红日长 1 岁，<b>${g.endAge} 岁终龄结算</b>；现 ${E.ageOf(g)} 岁（第 ${g.round} 轮，距终龄 ${E.yearsLeft(g)} 年）`
         : `无限模式 · 不设年龄与轮数上限；现第 ${g.round} 轮`}</div></div>
       <div class="rulelist__row"><div>规则版本</div><div>${g.rule} 规则</div></div>
       <div class="rulelist__row"><div>出圈条件</div><div>被动收入 ＞ 总支出 × ${E.escapeMargin(g)}<span class="muted">（安全边际）</span></div></div>
@@ -585,7 +608,7 @@ function renderRules(){
     <h4>轮数与年龄</h4>
     <ul>
       <li><b>一轮</b> = 所有存活玩家各行动一次。</li>
-      <li><b>年龄模式</b>：开局 ${g.startAge} 岁，每经过一个发薪日或分红日，该玩家结算一年并长 1 岁，到 <b>${g.endAge} 岁</b>退休结算，共 ${E.maxYears(g)} 次年度结算，轮数不限。</li>
+      <li><b>年龄模式</b>：开局 ${g.startAge} 岁，每经过一个发薪日或分红日，该玩家结算一年并长 1 岁，到 <b>${g.endAge} 岁</b>终龄结算，共 ${E.maxYears(g)} 次年度结算，轮数不限。</li>
       <li><b>无限模式</b>：不设年龄与轮数上限，一直玩到有人达成获胜条件。</li>
       <li>年龄模式下，若中途有人买下梦想或企业累计达标，仍会提前结束对局。</li>
     </ul>
@@ -677,7 +700,7 @@ function renderRules(){
         企业按经营类型以 <b>2%—8%/年</b> 折旧，保留 10%—35% 残值基准（实际报价优先）、土地长期微涨，存款 / 理财的本金不随行情变动。
         <b>市价下行时你的可贷额度会一起缩水。</b></li>
       <li><b>单人退休与终局</b>：60→61 岁结清一年在职收支后切换养老金；
-        65 岁处理完最后一年的收支即结束，不额外补结。20→65 岁共 45 次年度结算。</li>
+        70 岁处理完最后一年的收支即结束，不额外补结。20→70 岁共 50 次年度结算。</li>
       <li>进入财务自由圈的启动资金 = <b>月被动收入 × 100</b>（≈ 8.3 年的被动收入，
         这是原版的游戏化数字，不是按年结算的金额）。</li>
       <li>融券做空不需支付现金，出现该标的价格时<b>强制买回平仓</b>，可随时操作。</li>
@@ -696,7 +719,7 @@ function renderSettings(){
         <div class="rowlist__row"><span>发薪规则</span><b>每经过一次，只结一年并长一岁</b></div>
         <div class="rowlist__row"><span>玩家人数</span><b>${g.players.length} 人</b></div>
         <div class="rowlist__row"><span>当前轮次</span><b>第 ${g.round} 轮${E.isAgeMode(g) ? ` / 共 ${E.maxYears(g)} 次年度结算，轮数不限` : ''}</b></div>
-        ${E.isAgeMode(g) ? `<div class="rowlist__row"><span>当前年龄</span><b>${E.ageOf(g)} 岁 · 距退休 ${E.yearsLeft(g)} 年</b></div>` : ''}
+        ${E.isAgeMode(g) ? `<div class="rowlist__row"><span>当前年龄</span><b>${E.ageOf(g)} 岁 · 距终龄 ${E.yearsLeft(g)} 年</b></div>` : ''}
         <div class="rowlist__row"><span>人生阶段</span><b>${esc(p.lifeStage||'')} · ${esc(p.salaryPhase||'')}</b></div>
         <div class="rowlist__row"><span>收入系数</span><b>×${(p.salaryMult||1).toFixed(2)} → 实发 ${money(p.salary)}</b></div>
         <div class="rowlist__row"><span>精力</span><b>${Math.round(p.energy)} / ${E.energyMax(g,p)}</b></div>
@@ -1040,7 +1063,7 @@ function openHelp(){
     <div class="modal__body">
       <div class="rulelist">
         <div class="rulelist__row rulelist__row--head"><div>维度</div><div>${view.rule==='202'?'202 规则':'101 规则'}</div></div>
-        <div class="rulelist__row"><div>游戏模式</div><div>${view.mode==='endless' ? '无限模式（不设年龄与轮数上限）' : `年龄模式（20 岁起步，每经过一个发薪日或分红日长 1 岁，65 岁退休结算，共 45 次年度结算，轮数不限）`}</div></div>
+        <div class="rulelist__row"><div>游戏模式</div><div>${view.mode==='endless' ? '无限模式（不设年龄与轮数上限）' : `年龄模式（20 岁起步，每经过一个发薪日或分红日长 1 岁，70 岁终龄结算，共 50 次年度结算，轮数不限）`}</div></div>
         <div class="rulelist__row"><div>出圈条件</div><div>被动收入 &gt; 总支出 × ${(window.YIELD && (view.rule==='202' ? window.YIELD.safetyMargin202 : window.YIELD.safetyMargin)) || '—'}</div></div>
         <div class="rulelist__row"><div>骰子</div><div>按<b>各玩家自己所在的圈</b>：内圈 1 粒 / 财务自由圈 2 粒</div></div>
         <div class="rulelist__row"><div>投资方向</div><div>${view.rule==='202'?'仅做多 + 做空 + 期权':'仅做多（上涨市）'}</div></div>

@@ -117,7 +117,7 @@ sec('④ 边界：剩余期限归 0');
 }
 
 /* ---------------- ⑤ 贷款会在游戏内还清 ---------------- */
-sec('⑤ 贷款确实能在 45 次年度结算内还清');
+sec('⑤ 贷款确实能在 50 次年度结算内还清');
 {
   const g = newG();
   const p = g.players[0];
@@ -131,12 +131,12 @@ sec('⑤ 贷款确实能在 45 次年度结算内还清');
     `与「剩余 ${start.remainingYears} 年」一致（实际 ${years} 年）`);
   OUT.push(`   · 期初剩余 ${start.remaining} 期 = ${start.remainingYears} 年 · 年供 ${money(start.dueYear)}`);
 
-  /* 45 次年度结算里大约经过 20 次发薪日 —— 长周期贷款能否还清取决于这个次数 */
+  /* 20→70 岁每次发薪结一年，整局恰好 50 次结算。 */
   const payCount = window.RAT_RACE.filter(s => s.t === 'paycheck').length;
   const perRound = payCount / (window.RAT_RACE.length / 3.5);
-  const paydaysInGame = 45;
+  const paydaysInGame = 50;
   OUT.push(`   · 内圈 ${window.RAT_RACE.length} 格 / ${payCount} 个发薪日 → 平均每轮 ${perRound.toFixed(2)} 次`);
-  OUT.push(`   · 45 次年度结算合计约 ${paydaysInGame} 次发薪日 = ${paydaysInGame} 年`);
+  OUT.push(`   · 50 次年度结算合计约 ${paydaysInGame} 次发薪日 = ${paydaysInGame} 年`);
   ok(years <= paydaysInGame + 2,
     `房贷能在整局里还清（需 ${years} 年 ≤ 约 ${paydaysInGame} 次发薪日）`);
 }

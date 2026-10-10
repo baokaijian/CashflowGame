@@ -173,7 +173,7 @@ sec('年龄推进：收入与精力上限的完整曲线');
   const g = E.newGame({ rule: '101', mode: 'age', count: 1, names: ['甲'] });
   const p = g.players[0];
   const rows = [];
-  for (let age = 20; age <= 65; age += 5) {
+  for (let age = 20; age <= 70; age += 5) {
     p.age = age;
     E.refreshLife(g, p);
     const f = E.finance(p);
@@ -182,7 +182,7 @@ sec('年龄推进：收入与精力上限的完整曲线');
   OUT.push('   · ' + rows.join('\n   · '));
   /* 断言：一生现金流不应在【没有额外负债】的前提下系统性为负 —— 那意味着游戏注定破产 */
   const negAges = [];
-  for (let age = 20; age <= 65; age++) {
+  for (let age = 20; age <= 70; age++) {
     p.age = age;
     E.refreshLife(g, p);
     if (E.finance(p).cashflow < 0) negAges.push(age);

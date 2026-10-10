@@ -263,9 +263,9 @@ window.addEventListener('load', function(){
     window.startGame({rule:'101',mode:'solo',count:1,names:['我'],seed:42});
     var g=window.Game.g, p=g.players[0];
     C.finalGame=g; C.finalPlayer=p;
-    p.age=64; p.pos=1; p.cash=10000000; p.liabs.bank=5000000;
+    p.age=69; p.pos=1; p.cash=10000000; p.liabs.bank=5000000;
     window.UiGame.finishRoll([6]);
-    ok(p.age===65 && p.pos===2, '达到 65 岁时停在最后一个发薪日，不继续走剩余步数');
+    ok(p.age===70 && p.pos===2, '达到 70 岁时停在最后一个发薪日，不继续走剩余步数');
     ok(title().indexOf('入不敷出')>=0 && !g.over, '先处理最后一年亏损，未提前结束游戏');
     ok(q('#modal').textContent.indexOf('年度结算缺口')>=0, '缺口面板使用年度文案');
     mb('动用储蓄').click();
@@ -273,9 +273,9 @@ window.addEventListener('load', function(){
     mb('确定').click();
     C.finalCash=p.cash;
     window.UiGame.endTurn();
-    ok(g.over && g.soloResult.endAgeNow===65 && p.cash===C.finalCash, '结束回合产出 65 岁人生结果，不再次补发或扣钱');
+    ok(g.over && g.soloResult.endAgeNow===70 && p.cash===C.finalCash, '结束回合产出 70 岁人生结果，不再次补发或扣钱');
     ok(title().indexOf('人生结算')>=0, '显示人生结算页');
-    ok(q('#modal').textContent.indexOf('45 次年度结算')>=0, '结果页使用年度结算次数，不宣称 45 轮');
+    ok(q('#modal').textContent.indexOf('50 次年度结算')>=0, '结果页使用年度结算次数，不宣称 50 轮');
     window.UI.closeModal();
   });
 
@@ -654,13 +654,13 @@ window.addEventListener('load', function(){
       mb('完成市场结算').click();
     });
     var g=window.Game.g,p=g.players[0];p.inFT=true;p.cash=100000;p.track=[];p.age=20;E.trackRound(g);
-    for(var age=21;age<=65;age++){p.age=age;p.cash=age*100;for(var j=0;j<3;j++){g.round++;E.trackRound(g);}}
-    ok(p.track.length===46 && p.track[0].age===20 && p.track[0].cash===100000,'135轮采样后仍保留20岁起点，按年龄合并');
+    for(var age=21;age<=70;age++){p.age=age;p.cash=age*100;for(var j=0;j<3;j++){g.round++;E.trackRound(g);}}
+    ok(p.track.length===51 && p.track[0].age===20 && p.track[0].cash===100000,'150轮采样后仍保留20岁起点，按年龄合并');
     ok(p.track[p.track.length-1].cf===E.ftFinance(p).cashflow,'自由圈轨迹现金流与实际分红账本一致');
     window.UiSummary.openSummary(0);
     ok(q('#modal').textContent.indexOf('按年龄聚合回合采样')>=0 && q('#modal').textContent.indexOf('20 岁 · '+E.money(p.track[0].net))>=0,'真实复盘显示年龄横轴和正确起点金额');
     window.UI.closeModal();U.saveState();U.tryRestore();p=window.Game.g.players[0];
-    ok(p.track.length===46 && p.track[0].cash===100000,'存档恢复保留聚合轨迹，不补造或重复采样');
+    ok(p.track.length===51 && p.track[0].cash===100000,'存档恢复保留聚合轨迹，不补造或重复采样');
     E.clearPending(window.Game.g);window.UI.closeModal();
   });
 
@@ -950,6 +950,32 @@ window.addEventListener('load', function(){
   step('AJ 多人实际交棒',function(){return Date.now()-C.multiRest.at>360;},function(){
     mb('交给下一位').click();
     ok(C.multiRest.g.cur===1&&C.multiRest.g.round===C.multiRest.round&&!q('#btnRoll').disabled,'多人一次交棒仅轮到对手，不跳过他人行动');
+    window.UI.closeModal();
+  });
+
+  step('AK 实时现金流日志',function(){return true;},function(){
+    OUT.push('');OUT.push('=== AK. 月净额、涨跌幅与年度预期 ===');
+    window.UI.closeModal();window.startGame({rule:'101',mode:'solo',seed:42,names:['日志核对']});
+    var E=window.Engine,U=window.UiGame,A=window.Act,g=window.Game.g,p=g.players[0];p.cash=10000000;
+    E.LOAN_KEYS.forEach(function(k){p.liabs[k]=0;p.loans[k]={base:0,due:0,periods:24};});U.renderAll();g.log=[];
+    var net=E.settleCashflow(p),cash=p.cash;A.takeLoan(g,10000);U.renderAll();
+    var row=g.log[0],text=q('[data-cashflow-summary]').textContent;
+    ok(row.cashflowSummary.kind==='preview'&&row.cashflowSummary.to===net-100&&p.cash===cash+10000,'借款到账与新增月息分开，日志不重复发钱');
+    ok(text.indexOf('信用贷本息')>=0&&text.indexOf('支出新增')>=0&&text.indexOf('尚未入账')>=0,'摘要直接展示月供变动与未来年净额');
+    var before=JSON.stringify(g.log);U.renderAll();U.saveState();U.tryRestore();g=window.Game.g;p=g.players[0];
+    ok(JSON.stringify(g.log)===before,'重绘和刷新保留原凭据，不追加重复日志');
+    A.prepayLoan(g,'bank',2500,'settle');U.renderAll();text=q('[data-cashflow-summary]').textContent;
+    ok(text.indexOf('¥100 → ¥75')>=0&&text.indexOf('−25.0%')>=0&&text.indexOf('+¥25')>=0,'科目显示支出下降25%，净额增加25，方向不混淆');
+    p.medicalExp=E.settleCashflow(p)+1000;U.renderAll();text=q('[data-cashflow-summary]').textContent;
+    ok(text.indexOf('由盈转亏')>=0&&text.indexOf('医疗费')>=0&&q('[data-cashflow-summary] .neg'),'转负时显示盈亏转换及导致亏损的医疗科目');
+    p.medicalExp=0;p.age=27;p.energy=100;E.refreshLife(g,p);U.renderAll();p.pos=1;
+    E.movePlayer(g,p,1);U.renderAll();text=q('[data-cashflow-summary]').textContent;
+    ok(text.indexOf('本次年度实际净额')>=0&&text.indexOf('结算后下年预计变化')>=0&&text.indexOf('工资 / 养老金')>=0,'长岁后的工资变化直接显示，实结与下年预期分区');
+    p.assets.business.push({nm:'<img src=x onerror=alert(1)>',cost:1000,cf:99});U.renderAll();
+    ok(!q('[data-cashflow-summary] img')&&q('[data-cashflow-summary]').textContent.indexOf('<img')>=0,'摘要科目名称按文本展示，不执行资产名称中的代码');
+    g.endAge=65;p.age=65;p.finished=true;delete p.cashflowPreview;U.saveState();U.tryRestore();g=window.Game.g;p=g.players[0];
+    ok(g.endAge===70&&p.age===65&&!p.finished&&!q('#btnRoll').disabled,'旧档65岁等待状态延长后可继续至70岁');
+    ok(q('#paneRules').textContent.indexOf('70 岁')>=0&&q('#paneSettings').textContent.indexOf('50 次年度结算')>=0,'续局规则与结算次数同步为70岁50年');
     window.UI.closeModal();
   });
 

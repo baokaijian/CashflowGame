@@ -347,6 +347,12 @@ html[data-theme="dark"] .die{background:var(--surface-2);}
 .log__audit{margin-top:8px;overflow-wrap:anywhere;}
 .log__audit summary{cursor:pointer;color:var(--primary);padding:4px 0;}
 .log__audit p{margin:8px 0;padding-top:8px;border-top:1px solid var(--sep);}
+.log__cashflow{margin-top:12px;padding-top:10px;border-top:1px solid var(--sep);overflow-wrap:anywhere;}
+.log__cashflow-head,.log__cashflow-row{display:flex;justify-content:space-between;gap:12px;align-items:baseline;flex-wrap:wrap;}
+.log__cashflow-head b{font-size:1.05em;}
+.log__cashflow-row{padding:7px 0;}
+.log__cashflow-row small{display:block;color:var(--on-surface-var);font-size:.8em;}
+.log__cashflow .hint{margin:5px 0;font-size:.85em;}
 
 /* ================= 规则 ================= */
 .rulelist{border:1px solid var(--sep);border-radius:var(--r-m);overflow:hidden;background:var(--surface);}

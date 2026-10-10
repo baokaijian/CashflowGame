@@ -302,7 +302,7 @@ ok(ages.length > 0 && ages[0] >= 30,
 /* 年龄改为发薪日推进后，旧版「早期出圈 ≤20%」不再是相同时间尺度的断言。
    保留实测对照，不为满足旧阈值擅自调整投资回报或出圈门槛。 */
 OUT.push(`   · 早期（<40 岁）出圈 ${earlyN}/${ages.length} = ${(earlyN / Math.max(1, ages.length) * 100).toFixed(0)}%（旧回合年龄口径阈值 20%，仅作历史对照）`);
-ok(ages.every(age => age >= 20 && age < 65), '出圈时间来自玩家真实年龄且必须在终龄前');
+ok(ages.every(age => age >= 20 && age < 70), '出圈时间来自玩家真实年龄且必须在终龄前');
 ok(med !== null && med >= 45,
   `出圈年龄中位 ${med} 岁（改造前 34 岁）`);
 ok(rate < 1,

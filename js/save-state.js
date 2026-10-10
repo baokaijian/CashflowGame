@@ -43,6 +43,19 @@ function validate(data){
   g.log.forEach(x=>{
     requireValue(obj(x)&&typeof x.text==='string','日志记录无效');
     if(x.cashflowDetails!=null)requireValue(Array.isArray(x.cashflowDetails)&&x.cashflowDetails.every(v=>typeof v==='string'),'年度对账日志无效');
+    if(x.cashflowSummary!=null){
+      const s=x.cashflowSummary;
+      requireValue(obj(s)&&['preview','settlement'].includes(s.kind)&&(s.from===null||finite(s.from))&&finite(s.to)&&
+        (s.annualFrom===null||finite(s.annualFrom))&&(s.annualTo===null||finite(s.annualTo))&&Array.isArray(s.changes),'现金流摘要无效');
+      s.changes.forEach(v=>requireValue(obj(v)&&typeof v.key==='string'&&typeof v.label==='string'&&[v.from,v.to,v.delta].every(finite)&&Math.abs(v.to-v.from-v.delta)<0.001,'现金流差额无效'));
+      if(s.from!==null)requireValue(Math.abs(s.changes.reduce((n,v)=>n+v.delta,0)-(s.to-s.from))<0.001,'现金流摘要金额不一致');
+      for(const key of ['totalsFrom','totalsTo'])if(s[key]!=null)requireValue(obj(s[key])&&['income','living','loans'].every(k=>finite(s[key][k])),'现金流收支合计无效');
+      if(s.nextChanges!=null){
+        requireValue(Array.isArray(s.nextChanges),'下年预期变动无效');
+        s.nextChanges.forEach(v=>requireValue(obj(v)&&typeof v.key==='string'&&typeof v.label==='string'&&[v.from,v.to,v.delta].every(finite)&&Math.abs(v.to-v.from-v.delta)<0.001,'下年预期差额无效'));
+        requireValue(finite(s.annualFrom)&&finite(s.annualTo)&&Math.abs(s.nextChanges.reduce((n,v)=>n+v.delta,0)-(s.annualTo-s.annualFrom))<0.001,'下年预期金额不一致');
+      }
+    }
   });
   g.players.forEach((p,i)=>{
     requireValue(obj(p)&&p.id===i&&typeof p.name==='string'&&p.name.length<=200,'玩家身份无效');
@@ -60,6 +73,15 @@ function validate(data){
         requireValue(obj(x)&&typeof x.key==='string'&&!keys.has(x.key)&&typeof x.label==='string'&&finite(x.value),'年度对账科目无效');keys.add(x.key);
       });
       requireValue(Object.values(s.factors).every(x=>typeof x==='string')&&Math.abs(s.items.reduce((sum,x)=>sum+x.value,0)-s.amount)<0.001,'年度对账金额不一致');
+    }
+    if(p.cashflowPreview!=null){
+      const s=p.cashflowPreview;
+      requireValue(obj(s)&&s.version===1&&obj(s.annual)&&s.annual.version===1&&finite(s.annual.since)&&obj(s.monthly),'现金流预期基准无效');
+      for(const row of [s.annual,s.monthly]){
+        requireValue(finite(row.amount)&&Array.isArray(row.items)&&obj(row.factors)&&Object.values(row.factors).every(v=>typeof v==='string'),'现金流预期科目无效');
+        const keys=new Set();row.items.forEach(v=>{requireValue(obj(v)&&typeof v.key==='string'&&!keys.has(v.key)&&typeof v.label==='string'&&finite(v.value),'现金流预期科目无效');keys.add(v.key);});
+        requireValue(Math.abs(row.items.reduce((n,v)=>n+v.value,0)-row.amount)<0.001,'现金流预期金额不一致');
+      }
     }
     numbers(p,['energy','baseSalary','salaryMult','taxesCur','lifeCoef','elderCare','joblessProgress','joblessNeed','wings','medicalExp','crisisTurns','creditBanUntil','ftGain','ftBase','settledAge','settledYears','charityTurns','skipTurns','turnsPlayed']);
     requireValue(p.ftIncomeVersion==null||p.ftIncomeVersion===1,'分红规则版本不支持');
